@@ -1,0 +1,531 @@
+// src/screens/OrderScreen.tsx
+// v9 - Fudo-style: inline ADICIONAR panel with search dropdown
+
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Dimensions } from 'react-native';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
+import { TableWithOrder, Category, Product, OrderItem, Order } from '../types';
+import { COLORS } from '../theme';
+
+const { width } = Dimensions.get('window');
+
+interface CartItem { id: string; product: Product; quantity: number; notes: string; }
+interface Props { table: TableWithOrder; onBack: () => void; }
+
+export default function OrderScreen({ table, onBack }: Props) {
+  const { user } = useAuth();
+  const [order, setOrder] = useState<Order | null>(null);
+  const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+  const [waiterName, setWaiterName] = useState('');
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [editingCartItem, setEditingCartItem] = useState<CartItem | null>(null);
+  const [editNotes, setEditNotes] = useState('');
+  const [editQty, setEditQty] = useState(1);
+  const [preCuentaModal, setPreCuentaModal] = useState(false);
+  const [closeModal, setCloseModal] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<string>('efectivo');
+  const [receivedAmount, setReceivedAmount] = useState('');
+  const [tipPercent, setTipPercent] = useState(10);
+  const [tipCustom, setTipCustom] = useState('');
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
+  const [payMode, setPayMode] = useState<'full'|'partial'>('full');
+  const [paySelectedModal, setPaySelectedModal] = useState(false);
+  // Multi-method payment - Fudo style
+  const [tipEntries, setTipEntries] = useState<{method:string;amount:string}[]>([]);
+  const [payEntries, setPayEntries] = useState<{method:string;amount:string}[]>([]);
+
+  useEffect(() => { loadAll(); const c = setupRT(); return c; }, []);
+  const loadAll = async () => { await Promise.all([loadOrder(), loadMenu()]); setLoading(false); };
+  const loadOrder = async () => {
+    if (!table.current_order_id) return;
+    const { data: o } = await supabase.from('orders').select('*').eq('id', table.current_order_id).single();
+    if (o) { setOrder(o); const { data: w } = await supabase.from('users').select('name').eq('id', o.waiter_id).single(); if (w) setWaiterName(w.name); }
+    const { data: items } = await supabase.from('order_items').select('*, product:product_id(*)').eq('order_id', table.current_order_id).order('created_at');
+    if (items) setOrderItems(items);
+  };
+  const loadMenu = async () => {
+    const { data: c } = await supabase.from('categories').select('*').eq('active', true).order('sort_order');
+    const { data: p } = await supabase.from('products').select('*').eq('active', true).order('sort_order');
+    if (c) setCategories(c); if (p) setProducts(p);
+  };
+  const setupRT = () => {
+    const ch = supabase.channel(`ord-${table.current_order_id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items', filter: `order_id=eq.${table.current_order_id}` }, () => loadOrder())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `id=eq.${table.current_order_id}` }, () => loadOrder())
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  };
+
+  const fmt = (p: number) => '$' + p.toLocaleString('es-CL');
+  const pending = orderItems.filter(i => !i.printed);
+  const sent = orderItems.filter(i => i.printed);
+  const cartTotal = cart.reduce((s, c) => s + c.product.price * c.quantity, 0);
+  const searchResults = searchQuery.length >= 1 ? products.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase())).slice(0, 8) : [];
+  const recentProducts = products.slice(0, 6);
+
+  const addToCart = (product: Product) => {
+    const existing = cart.find(c => c.product.id === product.id && c.notes === '');
+    if (existing) setCart(prev => prev.map(c => c.id === existing.id ? { ...c, quantity: c.quantity + 1 } : c));
+    else setCart(prev => [...prev, { id: `c-${Date.now()}-${Math.random()}`, product, quantity: 1, notes: '' }]);
+    setSearchQuery(''); setShowDropdown(false);
+  };
+  const removeFromCart = (id: string) => setCart(prev => prev.filter(c => c.id !== id));
+  const updateCartQty = (id: string, d: number) => setCart(prev => prev.map(c => c.id !== id ? c : { ...c, quantity: Math.max(1, c.quantity + d) }));
+  const openEditCartItem = (ci: CartItem) => { setEditingCartItem(ci); setEditQty(ci.quantity); setEditNotes(ci.notes); };
+  const confirmEditCartItem = () => { if (editingCartItem) setCart(prev => prev.map(c => c.id === editingCartItem.id ? { ...c, quantity: editQty, notes: editNotes } : c)); setEditingCartItem(null); };
+
+  const sendCartToKitchen = async () => {
+    if (!order || !user || cart.length === 0) return;
+    try {
+      const items = cart.map(c => ({ order_id: order.id, product_id: c.product.id, quantity: c.quantity, unit_price: c.product.price, total_price: c.product.price * c.quantity, notes: c.notes || null, status: 'pendiente', printed: false, created_by: user.id }));
+      const { data: inserted, error } = await supabase.from('order_items').insert(items).select('id');
+      if (error) throw error;
+      const ids = (inserted || []).map((i: any) => i.id);
+      if (ids.length > 0) { const { error: re } = await supabase.rpc('send_order_and_deduct_stock', { p_item_ids: ids }); if (re) throw re; }
+      setCart([]); Alert.alert('✅ Comanda enviada', `${items.length} productos`); await loadOrder();
+    } catch (e: any) { Alert.alert('Error', e.message); }
+  };
+  const cancelCart = () => { if (cart.length === 0) return; Alert.alert('Cancelar', '¿Descartar?', [{ text: 'No' }, { text: 'Sí', style: 'destructive', onPress: () => setCart([]) }]); };
+  const sendOrder = async () => {
+    if (pending.length === 0) return;
+    const { error } = await supabase.rpc('send_order_and_deduct_stock', { p_item_ids: pending.map(i => i.id) });
+    if (error) { Alert.alert('Error', error.message); return; }
+    Alert.alert('✅', `${pending.length} items enviados`); await loadOrder();
+  };
+  const removeItem = async (item: OrderItem) => {
+    if (!user || !order) return;
+    if (user.role === 'garzon' && item.printed) { Alert.alert('No permitido'); return; }
+    await supabase.from('order_items').delete().eq('id', item.id); await loadOrder();
+  };
+
+  // Payment
+  const paidItems = orderItems.filter(i => i.paid); const unpaidItems = orderItems.filter(i => !i.paid);
+  const paidTotal = paidItems.reduce((a, i) => a + i.total_price, 0);
+  const unpaidTotal = unpaidItems.reduce((a, i) => a + i.total_price, 0);
+  const selectedItems = unpaidItems.filter(i => selectedItemIds.has(i.id));
+  const selectedTotal = selectedItems.reduce((a, i) => a + i.total_price, 0);
+  const payableTotal = payMode === 'partial' && selectedItems.length > 0 ? selectedTotal : unpaidTotal;
+  const tipAmount = tipCustom ? parseInt(tipCustom) || 0 : Math.round(payableTotal * tipPercent / 100);
+  const toggleItem = (id: string) => setSelectedItemIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const selectAll = () => setSelectedItemIds(new Set(unpaidItems.map(i => i.id)));
+  const deselectAll = () => setSelectedItemIds(new Set());
+  const resetPayState = () => { setReceivedAmount(''); setTipPercent(10); setTipCustom(''); setSelectedItemIds(new Set()); setPayMode('full'); setTipEntries([]); setPayEntries([]); };
+
+  const paySelected = async () => {
+    if (!order || !user || selectedItems.length === 0) return;
+    await supabase.from('payments').insert({ order_id: order.id, method: paymentMethod, amount: selectedTotal, tip_amount: tipAmount, created_by: user.id });
+    await supabase.from('order_items').update({ paid: true }).in('id', selectedItems.map(i => i.id));
+    if (unpaidItems.length === selectedItems.length) {
+      await supabase.from('orders').update({ status: 'cerrada', closed_at: new Date().toISOString(), payment_method: paymentMethod, tip_amount: tipAmount }).eq('id', order.id);
+      await supabase.from('tables').update({ status: 'libre', current_order_id: null }).eq('id', table.id);
+      setPaySelectedModal(false); Alert.alert('✅ Mesa cerrada'); onBack();
+    } else { setPaySelectedModal(false); setPreCuentaModal(false); Alert.alert('✅ Pago parcial'); resetPayState(); await loadOrder(); }
+  };
+  const closeTable = async () => {
+    if (!order || !user) return;
+    let finalTipEntries = [...tipEntries];
+    let finalPayEntries = [...payEntries];
+    const pTotal = finalPayEntries.reduce((a, e) => a + (parseInt(e.amount) || 0), 0);
+    const tTotal = finalTipEntries.reduce((a, e) => a + (parseInt(e.amount) || 0), 0);
+    const hasCash = finalPayEntries.some(e => e.method === 'efectivo');
+    const excess = pTotal - (unpaidTotal + tTotal);
+
+    // Non-cash: auto-move excess to propina
+    if (excess > 0 && !hasCash) {
+      const payMethod = finalPayEntries[finalPayEntries.length - 1].method;
+      const existing = finalTipEntries.find(e => e.method === payMethod);
+      if (existing) {
+        existing.amount = String((parseInt(existing.amount) || 0) + excess);
+      } else {
+        finalTipEntries.push({ method: payMethod, amount: String(excess) });
+      }
+      // Sync all tip methods to pay method
+      finalTipEntries = finalTipEntries.map(e => ({ ...e, method: payMethod }));
+    }
+
+    const tipTotalFinal = finalTipEntries.reduce((a, e) => a + (parseInt(e.amount) || 0), 0);
+    const payTotalFinal = finalPayEntries.reduce((a, e) => a + (parseInt(e.amount) || 0), 0);
+
+    if (payTotalFinal < unpaidTotal) { Alert.alert('Error', `El pago (${fmt(payTotalFinal)}) no cubre el consumo (${fmt(unpaidTotal)})`); return; }
+
+    for (const pe of finalPayEntries) {
+      const amt = parseInt(pe.amount) || 0;
+      if (amt > 0) await supabase.from('payments').insert({ order_id: order.id, method: pe.method, amount: amt, tip_amount: 0, created_by: user.id });
+    }
+    for (const te of finalTipEntries) {
+      const amt = parseInt(te.amount) || 0;
+      if (amt > 0) await supabase.from('payments').insert({ order_id: order.id, method: te.method, amount: 0, tip_amount: amt, created_by: user.id });
+    }
+
+    await supabase.from('order_items').update({ paid: true }).eq('order_id', order.id).eq('paid', false);
+    const mainMethod = finalPayEntries.length > 0 ? finalPayEntries.reduce((a, b) => (parseInt(a.amount) || 0) >= (parseInt(b.amount) || 0) ? a : b).method : 'efectivo';
+    await supabase.from('orders').update({ status: 'cerrada', closed_at: new Date().toISOString(), payment_method: mainMethod, tip_amount: tipTotalFinal }).eq('id', order.id);
+    await supabase.from('tables').update({ status: 'libre', current_order_id: null }).eq('id', table.id);
+    setCloseModal(false); resetPayState();
+    Alert.alert('Mesa cerrada', `Consumo: ${fmt(unpaidTotal)}${tipTotalFinal > 0 ? `\nPropina: ${fmt(tipTotalFinal)}` : ''}`);
+    onBack();
+  };
+
+  // Fudo-style helpers
+  const addTipEntry = () => setTipEntries(prev => [...prev, { method: 'efectivo', amount: String(Math.round(unpaidTotal * 0.1)) }]);
+  const removeTipEntry = (i: number) => setTipEntries(prev => prev.filter((_, idx) => idx !== i));
+  const updateTipEntry = (i: number, field: string, val: string) => setTipEntries(prev => prev.map((e, idx) => idx === i ? { ...e, [field]: val } : e));
+  const addPayEntry = () => setPayEntries(prev => { const paid = prev.reduce((a, e) => a + (parseInt(e.amount) || 0), 0); const remaining = Math.max(0, unpaidTotal + tipTotal - paid); return [...prev, { method: 'efectivo', amount: String(remaining) }]; });
+  const removePayEntry = (i: number) => setPayEntries(prev => prev.filter((_, idx) => idx !== i));
+  const updatePayEntry = (i: number, field: string, val: string) => setPayEntries(prev => prev.map((e, idx) => idx === i ? { ...e, [field]: val } : e));
+  const tipTotal = tipEntries.reduce((a, e) => a + (parseInt(e.amount) || 0), 0);
+  const payTotal = payEntries.reduce((a, e) => a + (parseInt(e.amount) || 0), 0);
+  const grandTotal = unpaidTotal + tipTotal;
+  const totalPaid = payTotal + tipTotal;
+  const vuelto = totalPaid - grandTotal;
+
+  if (loading) return <View style={[s.c, { alignItems: 'center', justifyContent: 'center' }]}><Text style={{ color: COLORS.textSecondary }}>Cargando...</Text></View>;
+
+  return (
+    <View style={s.c}>
+      {/* HEADER */}
+      <View style={s.hdr}>
+        <TouchableOpacity onPress={onBack}><Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>← Mesas</Text></TouchableOpacity>
+        <Text style={s.hT}>MESA {table.number}</Text>
+        <TouchableOpacity onPress={() => setPreCuentaModal(true)}><Text style={{ fontSize: 18 }}>🧾</Text></TouchableOpacity>
+      </View>
+      <View style={s.subH}><Text style={{ fontSize: 12, color: COLORS.textSecondary }}>👤 {waiterName || user?.name} • {order?.created_at ? new Date(order.created_at).toLocaleString('es-CL') : ''}</Text></View>
+
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 120 }}>
+        {/* ADICIONAR */}
+        <View style={s.addSec}>
+          <Text style={s.addT}>ADICIONAR</Text>
+          <View style={s.sRow}>
+            <View style={s.plusB}><Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>+</Text></View>
+            <View style={{ flex: 1, zIndex: 10 }}>
+              <TextInput style={s.sInp} placeholder="Buscar producto..." placeholderTextColor={COLORS.textMuted} value={searchQuery} onChangeText={t => { setSearchQuery(t); setShowDropdown(t.length >= 1); }} onFocus={() => { if (searchQuery.length >= 1) setShowDropdown(true); }} />
+              {showDropdown && searchResults.length > 0 && (
+                <View style={s.dd}>{searchResults.map(p => (
+                  <TouchableOpacity key={p.id} style={s.ddI} onPress={() => addToCart(p)}>
+                    <Text style={{ fontSize: 14, color: COLORS.primary, flex: 1 }}>- {p.name}</Text>
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.text }}>{fmt(p.price)}</Text>
+                  </TouchableOpacity>
+                ))}</View>
+              )}
+            </View>
+          </View>
+          {cart.length === 0 && !showDropdown && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>{recentProducts.map(p => (
+              <TouchableOpacity key={p.id} style={s.qChip} onPress={() => addToCart(p)}><Text style={s.qChipT} numberOfLines={1}>{p.name}</Text></TouchableOpacity>
+            ))}</ScrollView>
+          )}
+          {cart.length > 0 && !showDropdown && (
+            <View style={s.cList}>
+              {cart.map(ci => (
+                <View key={ci.id} style={s.cRow}>
+                  <TouchableOpacity style={s.qBtn} onPress={() => { if (ci.quantity === 1) removeFromCart(ci.id); else updateCartQty(ci.id, -1); }}><Text style={s.qBtnT}>−</Text></TouchableOpacity>
+                  <Text style={s.cQty}>{ci.quantity}</Text>
+                  <TouchableOpacity style={s.qBtn} onPress={() => updateCartQty(ci.id, 1)}><Text style={s.qBtnT}>+</Text></TouchableOpacity>
+                  <Text style={s.cName} numberOfLines={1}>{ci.product.name}</Text>
+                  <Text style={s.cPrice}>{fmt(ci.product.price * ci.quantity)}</Text>
+                  <TouchableOpacity onPress={() => openEditCartItem(ci)} style={{ padding: 4 }}><Text style={{ fontSize: 14, opacity: ci.notes ? 1 : 0.3 }}>💬</Text></TouchableOpacity>
+                  <TouchableOpacity onPress={() => removeFromCart(ci.id)} style={{ padding: 4 }}><Text style={{ fontSize: 14 }}>✕</Text></TouchableOpacity>
+                </View>
+              ))}
+              <View style={s.cTotR}><Text style={s.cTotL}>Total a confirmar:</Text><Text style={s.cTotV}>{fmt(cartTotal)}</Text></View>
+              <View style={s.cBtns}>
+                <TouchableOpacity style={s.canBtn} onPress={cancelCart}><Text style={s.canBtnT}>Cancelar</Text></TouchableOpacity>
+                <TouchableOpacity style={s.conBtn} onPress={sendCartToKitchen}><Text style={s.conBtnT}>Confirmar</Text></TouchableOpacity>
+              </View>
+            </View>
+          )}
+        </View>
+
+        {/* PENDING */}
+        {pending.length > 0 && (
+          <View style={{ paddingHorizontal: 16, marginTop: 8 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <SecH color={COLORS.warning} title={`Pendientes (${pending.length})`} />
+              <TouchableOpacity style={{ paddingHorizontal: 14, paddingVertical: 8, backgroundColor: COLORS.success, borderRadius: 8 }} onPress={sendOrder}><Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>📤 Enviar</Text></TouchableOpacity>
+            </View>
+            {pending.map(i => <IR key={i.id} item={i} onRm={removeItem} fmt={fmt} canRm />)}
+          </View>
+        )}
+
+        {/* SENT */}
+        {sent.length > 0 && (
+          <View style={{ paddingHorizontal: 16, marginTop: 8 }}>
+            <SecH color={COLORS.success} title={`Enviados (${sent.length})`} />
+            {sent.map(i => <IR key={i.id} item={i} onRm={removeItem} fmt={fmt} canRm={user?.role !== 'garzon'} />)}
+          </View>
+        )}
+      </ScrollView>
+
+      {/* FOOTER */}
+      <View style={s.foot}>
+        <View><Text style={{ fontSize: 13, color: COLORS.textSecondary }}>Total:</Text><Text style={{ fontSize: 24, fontWeight: '800', color: COLORS.primary }}>{fmt(order?.total || 0)}</Text></View>
+        {(user?.role === 'cajero' || user?.role === 'admin') && orderItems.length > 0 && (
+          <TouchableOpacity style={s.clBtn} onPress={() => { const tip10 = Math.round(unpaidTotal * 0.1); setPayEntries([{ method: 'efectivo', amount: String(unpaidTotal + tip10) }]); setTipEntries([{ method: 'efectivo', amount: String(tip10) }]); setCloseModal(true); }}><Text style={s.clBtnT}>Cerrar mesa {table.number}</Text></TouchableOpacity>
+        )}
+        {orderItems.length === 0 && (
+          <TouchableOpacity style={[s.clBtn, { backgroundColor: '#475569' }]} onPress={async () => {
+            const ok = typeof window !== 'undefined' ? window.confirm('¿Liberar mesa ' + table.number + '?') : true;
+            if (!ok) return;
+            try {
+              if (order?.id) await supabase.from('orders').update({ status: 'cerrada', closed_at: new Date().toISOString() }).eq('id', order.id);
+              await supabase.from('tables').update({ status: 'libre', current_order_id: null }).eq('id', table.id);
+              onBack();
+            } catch (e: any) { console.log('Error liberando mesa:', e); }
+          }}><Text style={s.clBtnT}>Liberar mesa {table.number}</Text></TouchableOpacity>
+        )}
+      </View>
+
+      {/* EDIT CART ITEM */}
+      <Modal visible={!!editingCartItem} transparent animationType="fade">
+        <View style={s.ov}><View style={s.md}>
+          <Text style={s.mdT}>{editingCartItem?.product.name}</Text>
+          <Text style={{ fontSize: 18, color: COLORS.primary, textAlign: 'center', marginTop: 4, fontWeight: '700' }}>{fmt(editingCartItem?.product.price || 0)}</Text>
+          <Text style={s.lb}>Cantidad</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 20 }}>
+            <TouchableOpacity style={s.qBig} onPress={() => setEditQty(Math.max(1, editQty - 1))}><Text style={s.qBigT}>−</Text></TouchableOpacity>
+            <Text style={{ fontSize: 28, fontWeight: '800', color: COLORS.text }}>{editQty}</Text>
+            <TouchableOpacity style={s.qBig} onPress={() => setEditQty(editQty + 1)}><Text style={s.qBigT}>+</Text></TouchableOpacity>
+          </View>
+          <Text style={s.lb}>Nota</Text>
+          <TextInput style={s.inp} placeholder="sin cebolla, extra picante..." placeholderTextColor={COLORS.textMuted} value={editNotes} onChangeText={setEditNotes} />
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+            {['Sin cebolla', 'Extra picante', 'Sin sal', 'Doble queso', 'Sin hielo', 'Con limón'].map(n => (
+              <TouchableOpacity key={n} onPress={() => setEditNotes(prev => prev ? `${prev}, ${n.toLowerCase()}` : n.toLowerCase())} style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border }}><Text style={{ fontSize: 11, color: COLORS.textSecondary }}>{n}</Text></TouchableOpacity>
+            ))}
+          </View>
+          <View style={{ flexDirection: 'row', gap: 12, marginTop: 20 }}>
+            <TouchableOpacity style={[s.bC, { borderColor: COLORS.error }]} onPress={() => { if (editingCartItem) removeFromCart(editingCartItem.id); setEditingCartItem(null); }}><Text style={{ color: COLORS.error, fontWeight: '600', fontSize: 15 }}>🗑 Eliminar</Text></TouchableOpacity>
+            <TouchableOpacity style={s.bOk} onPress={confirmEditCartItem}><Text style={s.bOkT}>✅ Guardar</Text></TouchableOpacity>
+          </View>
+        </View></View>
+      </Modal>
+
+      {/* PRE-CUENTA */}
+      <Modal visible={preCuentaModal} transparent animationType="fade">
+        <View style={s.ov}><ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 16 }}><View style={[s.md, { maxWidth: 520, width: width * 0.95 }]}>
+          <Text style={s.mdT}>🧾 Pre-Cuenta</Text>
+          <Text style={{ fontSize: 13, color: COLORS.textSecondary, textAlign: 'center', marginTop: 4 }}>Mesa {table.number} — ALMÍBAR • {waiterName}</Text>
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
+            <TouchableOpacity onPress={() => { setPayMode('full'); deselectAll(); }} style={[s.modeBtn, payMode === 'full' && s.modeBtnA]}><Text style={[s.modeBtnT, payMode === 'full' && s.modeBtnTA]}>💳 Pagar Todo</Text></TouchableOpacity>
+            <TouchableOpacity onPress={() => { setPayMode('partial'); deselectAll(); }} style={[s.modeBtn, payMode === 'partial' && s.modeBtnA]}><Text style={[s.modeBtnT, payMode === 'partial' && s.modeBtnTA]}>✂️ Selección</Text></TouchableOpacity>
+          </View>
+          {payMode === 'partial' && <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 }}><TouchableOpacity onPress={selectAll}><Text style={{ fontSize: 12, color: COLORS.primary, fontWeight: '600' }}>Seleccionar todo</Text></TouchableOpacity><TouchableOpacity onPress={deselectAll}><Text style={{ fontSize: 12, color: COLORS.textMuted }}>Deseleccionar</Text></TouchableOpacity></View>}
+          <View style={s.div} />
+          {paidItems.length > 0 && (<><Text style={{ fontSize: 11, fontWeight: '700', color: COLORS.success, marginBottom: 6 }}>✅ PAGADOS</Text>{paidItems.map(i => <View key={i.id} style={{ flexDirection: 'row', paddingVertical: 3, opacity: 0.5 }}><Text style={{ width: 30, fontSize: 13, fontWeight: '700', color: COLORS.textMuted }}>{i.quantity}x</Text><Text style={{ flex: 1, fontSize: 13, color: COLORS.textMuted, textDecorationLine: 'line-through' }}>{i.product?.name}</Text><Text style={{ fontSize: 13, color: COLORS.textMuted }}>{fmt(i.total_price)}</Text></View>)}<View style={[s.div, { marginVertical: 8 }]} /></>)}
+          {unpaidItems.map(i => <TouchableOpacity key={i.id} onPress={() => payMode === 'partial' ? toggleItem(i.id) : null} style={{ flexDirection: 'row', paddingVertical: 6, paddingHorizontal: 4, borderRadius: 6, backgroundColor: selectedItemIds.has(i.id) ? COLORS.primary + '15' : 'transparent' }}>{payMode === 'partial' && <View style={{ width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: selectedItemIds.has(i.id) ? COLORS.primary : COLORS.border, backgroundColor: selectedItemIds.has(i.id) ? COLORS.primary : 'transparent', alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>{selectedItemIds.has(i.id) && <Text style={{ color: '#fff', fontSize: 14, fontWeight: '800' }}>✓</Text>}</View>}<Text style={{ width: 28, fontSize: 13, fontWeight: '700', color: COLORS.textSecondary }}>{i.quantity}x</Text><Text style={{ flex: 1, fontSize: 13, color: COLORS.text }}>{i.product?.name}</Text><Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.text }}>{fmt(i.total_price)}</Text></TouchableOpacity>)}
+          <View style={s.div} />
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 }}><Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.text }}>TOTAL</Text><Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.primary }}>{fmt(order?.total || 0)}</Text></View>
+          <Text style={{ fontSize: 12, color: COLORS.textMuted, textAlign: 'center', marginTop: 8 }}>Propina sugerida 10%: {fmt(Math.round(payableTotal * 0.1))}</Text>
+          <View style={{ flexDirection: 'row', gap: 12, marginTop: 20 }}>
+            <TouchableOpacity style={s.bC} onPress={() => { setPreCuentaModal(false); resetPayState(); }}><Text style={s.bCT}>✕ Cerrar</Text></TouchableOpacity>
+            <TouchableOpacity style={[s.bOk, { backgroundColor: COLORS.warning }]} onPress={async () => { try { await supabase.from('tables').update({ status: 'cuenta' }).eq('id', table.id); Alert.alert('🖨', 'Pre-cuenta enviada a impresora'); } catch (e: any) { Alert.alert('Error', e.message); } }}><Text style={s.bOkT}>🖨 Imprimir</Text></TouchableOpacity>
+            {(user?.role === 'cajero' || user?.role === 'admin') && unpaidItems.length > 0 && <TouchableOpacity style={[s.bOk, { backgroundColor: COLORS.success }]} onPress={() => { setPreCuentaModal(false); if (payMode === 'partial' && selectedItems.length > 0) { setPaySelectedModal(true); } else { const tip10 = Math.round(unpaidTotal * 0.1); setPayEntries([{ method: 'efectivo', amount: String(unpaidTotal + tip10) }]); setTipEntries([{ method: 'efectivo', amount: String(tip10) }]); setCloseModal(true); } }}><Text style={s.bOkT}>💳 Pagar</Text></TouchableOpacity>}
+          </View>
+        </View></ScrollView></View>
+      </Modal>
+
+      {/* PAGO PARCIAL */}
+      <Modal visible={paySelectedModal} transparent animationType="fade">
+        <View style={s.ov}><ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 16 }}><View style={[s.md, { maxWidth: 480, width: width * 0.92 }]}>
+          <Text style={s.mdT}>💳 Pago Parcial</Text>
+          <View style={{ marginTop: 12, backgroundColor: COLORS.background, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: COLORS.border }}>
+            {selectedItems.map(i => <View key={i.id} style={{ flexDirection: 'row', paddingVertical: 2 }}><Text style={{ width: 28, fontSize: 12, fontWeight: '700', color: COLORS.textSecondary }}>{i.quantity}x</Text><Text style={{ flex: 1, fontSize: 12, color: COLORS.text }}>{i.product?.name}</Text><Text style={{ fontSize: 12, fontWeight: '600', color: COLORS.text }}>{fmt(i.total_price)}</Text></View>)}
+            <View style={{ borderTopWidth: 1, borderTopColor: COLORS.border, marginTop: 8, paddingTop: 8, flexDirection: 'row', justifyContent: 'space-between' }}><Text style={{ fontSize: 16, fontWeight: '800' }}>Subtotal</Text><Text style={{ fontSize: 16, fontWeight: '800', color: COLORS.primary }}>{fmt(selectedTotal)}</Text></View>
+          </View>
+          <Text style={s.lb}>Propina</Text>
+          <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>{[0, 5, 10, 15, 20].map(p => <TouchableOpacity key={p} onPress={() => { setTipPercent(p); setTipCustom(''); }} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: !tipCustom && tipPercent === p ? COLORS.primary + '30' : COLORS.background, borderWidth: 1, borderColor: !tipCustom && tipPercent === p ? COLORS.primary : COLORS.border }}><Text style={{ fontSize: 12, fontWeight: '600', color: !tipCustom && tipPercent === p ? COLORS.primary : COLORS.text }}>{p === 0 ? 'Sin' : `${p}%`}</Text></TouchableOpacity>)}</View>
+          <Text style={s.lb}>Medio de pago</Text>
+          <View style={s.payG}>{['efectivo', 'debito', 'credito', 'transferencia'].map(m => <TouchableOpacity key={m} style={[s.payO, paymentMethod === m && s.payOA]} onPress={() => setPaymentMethod(m)}><Text style={{ fontSize: 18 }}>{m === 'efectivo' ? '💵' : m === 'transferencia' ? '📱' : '💳'}</Text><Text style={[s.payL, paymentMethod === m && { color: COLORS.primary }]}>{m.charAt(0).toUpperCase() + m.slice(1)}</Text></TouchableOpacity>)}</View>
+          {paymentMethod === 'efectivo' && (<><Text style={s.lb}>Monto recibido</Text><TextInput style={[s.inp, { fontSize: 22, textAlign: 'center', fontWeight: '800' }]} placeholder="$0" placeholderTextColor={COLORS.textMuted} keyboardType="number-pad" value={receivedAmount} onChangeText={setReceivedAmount} />{receivedAmount && parseInt(receivedAmount) > 0 && (() => { const d = parseInt(receivedAmount) - (selectedTotal + tipAmount); return <View style={{ marginTop: 10, backgroundColor: d >= 0 ? COLORS.success + '15' : COLORS.error + '15', borderRadius: 10, padding: 14, alignItems: 'center' }}><Text style={{ fontSize: 12, color: COLORS.textSecondary }}>Vuelto</Text><Text style={{ fontSize: 28, fontWeight: '800', color: d >= 0 ? COLORS.success : COLORS.error }}>{fmt(d)}</Text></View>; })()}</>)}
+          <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
+            <TouchableOpacity style={s.bC} onPress={() => { setPaySelectedModal(false); resetPayState(); setPreCuentaModal(true); }}><Text style={s.bCT}>← Volver</Text></TouchableOpacity>
+            <TouchableOpacity style={[s.bOk, { backgroundColor: COLORS.success }]} onPress={paySelected}><Text style={s.bOkT}>✅ Pagar {fmt(selectedTotal)}</Text></TouchableOpacity>
+          </View>
+        </View></ScrollView></View>
+      </Modal>
+
+      {/* CERRAR MESA - Fudo style */}
+      <Modal visible={closeModal} transparent animationType="fade">
+        <View style={s.ov}><ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 16 }}><View style={[s.md, { maxWidth: 520, width: width * 0.95 }]}>
+          <Text style={[s.mdT, { fontSize: 18 }]}>CERRAR MESA {table.number}</Text>
+
+          {/* ADICIONES - items list */}
+          <View style={{ marginTop: 12, backgroundColor: COLORS.background, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: COLORS.border }}>
+            <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 8 }}>ADICIONES</Text>
+            {unpaidItems.map(i => (
+              <View key={i.id} style={{ flexDirection: 'row', paddingVertical: 4, borderLeftWidth: 3, borderLeftColor: COLORS.warning, paddingLeft: 10 }}>
+                <Text style={{ width: 24, fontSize: 13, fontWeight: '700', color: COLORS.textSecondary }}>{i.quantity}</Text>
+                <Text style={{ flex: 1, fontSize: 13, fontWeight: '600', color: COLORS.text }}>{i.product?.name}</Text>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.text }}>{fmt(i.total_price)}</Text>
+              </View>
+            ))}
+            <View style={{ borderTopWidth: 1, borderTopColor: COLORS.border, marginTop: 8, paddingTop: 8 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}><Text style={{ fontSize: 14, color: COLORS.textSecondary }}>Subtotal</Text><Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.text }}>{fmt(unpaidTotal)}</Text></View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}><Text style={{ fontSize: 14, color: COLORS.textSecondary }}>Propina</Text><Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.warning }}>{fmt(tipTotal)}</Text></View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, paddingTop: 8, borderTopWidth: 2, borderTopColor: COLORS.primary }}><Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.text }}>Total:</Text><Text style={{ fontSize: 20, fontWeight: '800', color: COLORS.primary }}>{fmt(grandTotal)}</Text></View>
+            </View>
+          </View>
+
+          {/* PROPINA section */}
+          <View style={{ marginTop: 16 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: COLORS.background, borderRadius: 8, padding: 10, borderWidth: 1, borderColor: COLORS.border }}>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.text }}>PROPINA</Text>
+              <TouchableOpacity onPress={addTipEntry} style={{ width: 32, height: 32, borderRadius: 6, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>+</Text></TouchableOpacity>
+            </View>
+            {tipEntries.map((te, i) => (
+              <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.background, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, overflow: 'hidden' }}>
+                  <TouchableOpacity onPress={() => { const methods = ['efectivo','debito','credito','transferencia']; const next = methods[(methods.indexOf(te.method) + 1) % methods.length]; updateTipEntry(i, 'method', next); }} style={{ paddingHorizontal: 10, paddingVertical: 10, backgroundColor: COLORS.card, borderRightWidth: 1, borderRightColor: COLORS.border }}>
+                    <Text style={{ fontSize: 12, color: COLORS.text, minWidth: 80 }}>{te.method === 'efectivo' ? '💵 Efectivo' : te.method === 'debito' ? '💳 Débito' : te.method === 'credito' ? '💳 Crédito' : '📱 Transf.'}</Text>
+                  </TouchableOpacity>
+                  <Text style={{ paddingHorizontal: 8, fontSize: 14, color: COLORS.textSecondary }}>$</Text>
+                  <TextInput style={{ flex: 1, fontSize: 16, fontWeight: '700', color: COLORS.text, paddingVertical: 10, paddingRight: 10 }} value={te.amount} onChangeText={v => updateTipEntry(i, 'amount', v)} keyboardType="number-pad" />
+                </View>
+                <TouchableOpacity onPress={() => removeTipEntry(i)}><Text style={{ fontSize: 16, color: COLORS.error }}>✕</Text></TouchableOpacity>
+              </View>
+            ))}
+          </View>
+
+          {/* PAGO section */}
+          <View style={{ marginTop: 16 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: COLORS.background, borderRadius: 8, padding: 10, borderWidth: 1, borderColor: COLORS.border }}>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.text }}>PAGO</Text>
+              <TouchableOpacity onPress={addPayEntry} style={{ width: 32, height: 32, borderRadius: 6, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>+</Text></TouchableOpacity>
+            </View>
+            {payEntries.map((pe, i) => (
+              <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.background, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, overflow: 'hidden' }}>
+                  <TouchableOpacity onPress={() => { const methods = ['efectivo','debito','credito','transferencia']; const next = methods[(methods.indexOf(pe.method) + 1) % methods.length]; updatePayEntry(i, 'method', next); }} style={{ paddingHorizontal: 10, paddingVertical: 10, backgroundColor: COLORS.card, borderRightWidth: 1, borderRightColor: COLORS.border }}>
+                    <Text style={{ fontSize: 12, color: COLORS.text, minWidth: 80 }}>{pe.method === 'efectivo' ? '💵 Efectivo' : pe.method === 'debito' ? '💳 Débito' : pe.method === 'credito' ? '💳 Crédito' : '📱 Transf.'}</Text>
+                  </TouchableOpacity>
+                  <Text style={{ paddingHorizontal: 8, fontSize: 14, color: COLORS.textSecondary }}>$</Text>
+                  <TextInput style={{ flex: 1, fontSize: 16, fontWeight: '700', color: COLORS.text, paddingVertical: 10, paddingRight: 10 }} value={pe.amount} onChangeText={v => updatePayEntry(i, 'amount', v)} keyboardType="number-pad" />
+                </View>
+                <TouchableOpacity onPress={() => removePayEntry(i)}><Text style={{ fontSize: 16, color: COLORS.error }}>✕</Text></TouchableOpacity>
+              </View>
+            ))}
+          </View>
+
+          {/* VUELTO / AUTO-PROPINA */}
+          {(() => {
+            const needed = unpaidTotal + tipTotal;
+            const change = payTotal - needed;
+            const hasCash = payEntries.some(e => e.method === 'efectivo');
+
+            return (<>
+              {/* Cash payments: show vuelto */}
+              {payEntries.length > 0 && hasCash && (
+                <View style={{ marginTop: 16, backgroundColor: change >= 0 ? COLORS.success + '15' : COLORS.warning + '15', borderRadius: 12, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: change >= 0 ? COLORS.success + '40' : COLORS.warning + '40' }}>
+                  <Text style={{ fontSize: 13, color: COLORS.textSecondary }}>Vuelto:</Text>
+                  <Text style={{ fontSize: 32, fontWeight: '800', color: change >= 0 ? COLORS.success : COLORS.warning }}>{fmt(change)}</Text>
+                  {change > 0 && (
+                    <TouchableOpacity onPress={() => {
+                      const payMethod = payEntries[payEntries.length - 1].method;
+                      const sameEntry = tipEntries.find(e => e.method === payMethod);
+                      if (sameEntry) {
+                        const idx = tipEntries.indexOf(sameEntry);
+                        updateTipEntry(idx, 'amount', String((parseInt(sameEntry.amount) || 0) + change));
+                      } else {
+                        setTipEntries(prev => [...prev, { method: payMethod, amount: String(change) }]);
+                      }
+                    }} style={{ marginTop: 8, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, backgroundColor: COLORS.warning + '25', borderWidth: 1, borderColor: COLORS.warning + '50' }}>
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.warning }}>🤝 Sumar {fmt(change)} a propina</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+              {/* Non-cash: excess auto goes to propina at close time */}
+              {payEntries.length > 0 && !hasCash && change > 0 && (
+                <View style={{ marginTop: 16, backgroundColor: COLORS.success + '15', borderRadius: 12, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: COLORS.success + '40' }}>
+                  <Text style={{ fontSize: 13, color: COLORS.textSecondary }}>Excedente de {fmt(change)}</Text>
+                  <Text style={{ fontSize: 16, fontWeight: '700', color: COLORS.success, marginTop: 4 }}>🤝 Se sumará automáticamente a propina</Text>
+                </View>
+              )}
+              {/* All good */}
+              {payEntries.length > 0 && !hasCash && change === 0 && (
+                <View style={{ marginTop: 16, backgroundColor: COLORS.success + '15', borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: COLORS.success + '40' }}>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.success }}>✅ Pago cuadrado</Text>
+                </View>
+              )}
+            </>);
+          })()}
+
+          {payTotal < unpaidTotal && <Text style={{ fontSize: 12, color: COLORS.error, textAlign: 'center', marginTop: 6 }}>El pago no cubre el consumo (faltan {fmt(unpaidTotal - payTotal)})</Text>}
+
+          <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
+            <TouchableOpacity style={s.bC} onPress={() => { setCloseModal(false); resetPayState(); }}><Text style={s.bCT}>Cancelar</Text></TouchableOpacity>
+            <TouchableOpacity style={[s.bOk, { backgroundColor: COLORS.success, opacity: payTotal < unpaidTotal ? 0.5 : 1 }]} onPress={closeTable} disabled={payTotal < unpaidTotal}><Text style={s.bOkT}>Cerrar mesa {table.number}</Text></TouchableOpacity>
+          </View>
+        </View></ScrollView></View>
+      </Modal>
+    </View>
+  );
+}
+
+function SecH({ color, title }: { color: string; title: string }) { return <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: color }} /><Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.textSecondary, textTransform: 'uppercase' }}>{title}</Text></View>; }
+function IR({ item, onRm, fmt, canRm }: { item: OrderItem; onRm: (i: OrderItem) => void; fmt: (n: number) => string; canRm: boolean }) {
+  const sc = !item.printed ? COLORS.warning : item.status === 'listo' ? COLORS.success : COLORS.info;
+  const sl = !item.printed ? 'NUEVO' : item.status === 'preparando' ? 'PREPARANDO' : item.status === 'listo' ? 'LISTO' : 'ENVIADO';
+  return <View style={s.ir}><View style={{ flex: 1 }}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><Text style={{ fontSize: 15, fontWeight: '800', color: COLORS.primary, minWidth: 28 }}>{item.quantity}x</Text><Text style={{ fontSize: 14, fontWeight: '600', color: COLORS.text, flex: 1 }}>{item.product?.name}</Text></View>{item.notes ? <Text style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 3 }}>📝 {item.notes}</Text> : null}<View style={{ alignSelf: 'flex-start', backgroundColor: sc + '25', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, marginTop: 4 }}><Text style={{ fontSize: 10, fontWeight: '700', color: sc }}>{sl}</Text></View></View><View style={{ alignItems: 'flex-end', gap: 6 }}><Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.text }}>{fmt(item.total_price)}</Text>{canRm && <TouchableOpacity onPress={() => onRm(item)}><Text style={{ fontSize: 14 }}>🗑</Text></TouchableOpacity>}</View></View>;
+}
+
+const s = StyleSheet.create({
+  c: { flex: 1, backgroundColor: COLORS.background },
+  hdr: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 50, paddingBottom: 12, backgroundColor: COLORS.primary },
+  hT: { fontSize: 20, fontWeight: '800', color: '#fff' },
+  subH: { paddingHorizontal: 16, paddingVertical: 8, backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  addSec: { backgroundColor: COLORS.card, margin: 12, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: COLORS.border, zIndex: 10, overflow: 'visible' as any },
+  addT: { fontSize: 13, fontWeight: '700', color: COLORS.textSecondary, letterSpacing: 1, marginBottom: 10 },
+  sRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  plusB: { width: 40, height: 40, borderRadius: 8, backgroundColor: COLORS.warning, alignItems: 'center', justifyContent: 'center' },
+  sInp: { backgroundColor: COLORS.background, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: COLORS.text },
+  dd: { position: 'absolute', top: 44, left: 0, right: 0, backgroundColor: COLORS.card, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, zIndex: 999 },
+  ddI: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  qChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border, marginRight: 6 },
+  qChipT: { fontSize: 12, color: COLORS.textSecondary, maxWidth: 120 },
+  cList: { marginTop: 12, borderTopWidth: 1, borderTopColor: COLORS.border, paddingTop: 10 },
+  cRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border, gap: 6 },
+  qBtn: { width: 28, height: 28, borderRadius: 4, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center' },
+  qBtnT: { fontSize: 16, fontWeight: '700', color: COLORS.text },
+  cQty: { fontSize: 15, fontWeight: '700', color: COLORS.text, minWidth: 20, textAlign: 'center' },
+  cName: { flex: 1, fontSize: 14, fontWeight: '600', color: COLORS.text },
+  cPrice: { fontSize: 14, fontWeight: '700', color: COLORS.text, marginHorizontal: 6 },
+  cTotR: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, marginTop: 4 },
+  cTotL: { fontSize: 14, color: COLORS.textSecondary },
+  cTotV: { fontSize: 18, fontWeight: '800', color: COLORS.primary },
+  cBtns: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  canBtn: { flex: 1, paddingVertical: 12, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center' },
+  canBtnT: { fontSize: 14, fontWeight: '600', color: COLORS.textSecondary },
+  conBtn: { flex: 1, paddingVertical: 12, borderRadius: 8, backgroundColor: COLORS.warning, alignItems: 'center' },
+  conBtnT: { fontSize: 14, fontWeight: '700', color: '#fff' },
+  foot: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, backgroundColor: COLORS.card, borderTopWidth: 2, borderTopColor: COLORS.border },
+  clBtn: { paddingHorizontal: 20, paddingVertical: 12, backgroundColor: COLORS.primary, borderRadius: 10 },
+  clBtnT: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  ir: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: 10, padding: 14, marginVertical: 3, borderWidth: 1, borderColor: COLORS.border },
+  ov: { flex: 1, backgroundColor: COLORS.overlay, justifyContent: 'center', alignItems: 'center' },
+  md: { width: width * 0.9, maxWidth: 450, backgroundColor: COLORS.card, borderRadius: 16, padding: 24, borderWidth: 1, borderColor: COLORS.border },
+  mdT: { fontSize: 20, fontWeight: '700', color: COLORS.text, textAlign: 'center' },
+  lb: { fontSize: 13, color: COLORS.textSecondary, marginBottom: 6, marginTop: 16 },
+  inp: { backgroundColor: COLORS.background, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: COLORS.text },
+  div: { height: 1, backgroundColor: COLORS.border, marginVertical: 12 },
+  bC: { flex: 1, paddingVertical: 14, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center' },
+  bCT: { color: COLORS.textSecondary, fontWeight: '600', fontSize: 15 },
+  bOk: { flex: 1, paddingVertical: 14, borderRadius: 10, backgroundColor: COLORS.primary, alignItems: 'center' },
+  bOkT: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  qBig: { width: 44, height: 44, borderRadius: 22, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center' },
+  qBigT: { fontSize: 22, fontWeight: '600', color: COLORS.text },
+  payG: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+  payO: { width: '47%' as any, paddingVertical: 16, borderRadius: 12, alignItems: 'center', backgroundColor: COLORS.background, borderWidth: 2, borderColor: COLORS.border },
+  payOA: { borderColor: COLORS.primary, backgroundColor: COLORS.primary + '15' },
+  payL: { fontSize: 12, fontWeight: '600', color: COLORS.textSecondary, marginTop: 4 },
+  modeBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: 'center', backgroundColor: COLORS.background, borderWidth: 2, borderColor: COLORS.border },
+  modeBtnA: { borderColor: COLORS.primary, backgroundColor: COLORS.primary + '15' },
+  modeBtnT: { fontSize: 13, fontWeight: '700', color: COLORS.textSecondary },
+  modeBtnTA: { color: COLORS.primary },
+});
