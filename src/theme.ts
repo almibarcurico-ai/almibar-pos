@@ -2,35 +2,35 @@
 
 export const COLORS = {
   // Brand
-  primary: '#8B5CF6',       // Púrpura Almíbar
-  primaryDark: '#7C3AED',
-  primaryLight: '#A78BFA',
+  primary: '#2563EB',       // Azul Almíbar
+  primaryDark: '#1d4ed8',
+  primaryLight: '#60a5fa',
   
   // Backgrounds
-  background: '#0F0F1A',    // Fondo oscuro
-  card: '#1A1A2E',          // Tarjetas
-  cardHover: '#252545',     // Hover estado
+  background: '#f0f4f8',    // Fondo claro
+  card: '#ffffff',           // Tarjetas
+  cardHover: '#e8edf2',     // Hover estado
   
   // Text
-  text: '#FFFFFF',
-  textSecondary: '#9CA3AF',
-  textMuted: '#6B7280',
+  text: '#1e293b',
+  textSecondary: '#64748b',
+  textMuted: '#94a3b8',
   
   // Status - Mesas
-  tableLibre: '#10B981',     // Verde
-  tableOcupada: '#EF4444',   // Rojo
-  tableCuenta: '#F59E0B',    // Amarillo
-  tableReservada: '#3B82F6', // Azul
+  tableLibre: '#059669',     // Verde
+  tableOcupada: '#dc2626',   // Rojo
+  tableCuenta: '#d97706',    // Amarillo
+  tableReservada: '#2563eb', // Azul
   
   // UI
-  border: '#2D2D4A',
-  error: '#EF4444',
-  success: '#10B981',
-  warning: '#F59E0B',
-  info: '#3B82F6',
+  border: '#d6e0ea',
+  error: '#dc2626',
+  success: '#059669',
+  warning: '#d97706',
+  info: '#2563eb',
   
   // Overlay
-  overlay: 'rgba(0, 0, 0, 0.6)',
+  overlay: 'rgba(0, 0, 0, 0.4)',
 };
 
 export const TABLE_STATUS_COLORS: Record<string, string> = {

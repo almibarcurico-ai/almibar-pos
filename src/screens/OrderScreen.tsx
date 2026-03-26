@@ -10,7 +10,9 @@ import { COLORS } from '../theme';
 
 const { width } = Dimensions.get('window');
 
-interface CartItem { id: string; product: Product; quantity: number; notes: string; }
+interface ModOption { id: string; name: string; price_adjust: number; }
+interface ModGroup { id: string; name: string; type: string; required: boolean; max_select: number; options: ModOption[]; }
+interface CartItem { id: string; product: Product; quantity: number; notes: string; modifiers: ModOption[]; }
 interface Props { table: TableWithOrder; onBack: () => void; }
 
 export default function OrderScreen({ table, onBack }: Props) {
@@ -53,6 +55,21 @@ export default function OrderScreen({ table, onBack }: Props) {
     const { data: c } = await supabase.from('categories').select('*').eq('active', true).order('sort_order');
     const { data: p } = await supabase.from('products').select('*').eq('active', true).order('sort_order');
     if (c) setCategories(c); if (p) setProducts(p);
+    // Load modifier groups per product
+    const { data: pmg } = await supabase.from('product_modifier_groups').select('product_id, group_id');
+    const { data: mg } = await supabase.from('modifier_groups').select('*').eq('active', true).order('sort_order');
+    const { data: mo } = await supabase.from('modifier_options').select('*').eq('active', true).order('sort_order');
+    if (pmg && mg && mo) {
+      const map: Record<string, ModGroup[]> = {};
+      pmg.forEach((link: any) => {
+        const group = mg.find((g: any) => g.id === link.group_id);
+        if (!group) return;
+        const opts = mo.filter((o: any) => o.group_id === group.id).map((o: any) => ({ id: o.id, name: o.name, price_adjust: o.price_adjust }));
+        if (!map[link.product_id]) map[link.product_id] = [];
+        map[link.product_id].push({ id: group.id, name: group.name, type: group.type, required: group.required, max_select: group.max_select, options: opts });
+      });
+      setProductModGroups(map);
+    }
   };
   const setupRT = () => {
     const ch = supabase.channel(`ord-${table.current_order_id}`)
@@ -65,15 +82,52 @@ export default function OrderScreen({ table, onBack }: Props) {
   const fmt = (p: number) => '$' + p.toLocaleString('es-CL');
   const pending = orderItems.filter(i => !i.printed);
   const sent = orderItems.filter(i => i.printed);
-  const cartTotal = cart.reduce((s, c) => s + c.product.price * c.quantity, 0);
+  const cartTotal = cart.reduce((s, c) => s + (c.product.price + (c.modifiers || []).reduce((a: number, m: any) => a + m.price_adjust, 0)) * c.quantity, 0);
   const searchResults = searchQuery.length >= 1 ? products.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase())).slice(0, 8) : [];
   const recentProducts = products.slice(0, 6);
+  const [productModGroups, setProductModGroups] = useState<Record<string, ModGroup[]>>({});
+  const [modPickerProduct, setModPickerProduct] = useState<Product | null>(null);
+  const [modPickerSelections, setModPickerSelections] = useState<Record<string, ModOption[]>>({});
 
   const addToCart = (product: Product) => {
-    const existing = cart.find(c => c.product.id === product.id && c.notes === '');
+    const groups = productModGroups[product.id];
+    if (groups && groups.length > 0) {
+      setModPickerProduct(product);
+      setModPickerSelections({});
+      setSearchQuery(''); setShowDropdown(false);
+      return;
+    }
+    const existing = cart.find(c => c.product.id === product.id && c.notes === '' && c.modifiers.length === 0);
     if (existing) setCart(prev => prev.map(c => c.id === existing.id ? { ...c, quantity: c.quantity + 1 } : c));
-    else setCart(prev => [...prev, { id: `c-${Date.now()}-${Math.random()}`, product, quantity: 1, notes: '' }]);
+    else setCart(prev => [...prev, { id: `c-${Date.now()}-${Math.random()}`, product, quantity: 1, notes: '', modifiers: [] }]);
     setSearchQuery(''); setShowDropdown(false);
+  };
+
+  const confirmModifiers = () => {
+    if (!modPickerProduct) return;
+    const groups = productModGroups[modPickerProduct.id] || [];
+    for (const g of groups) {
+      if (g.required && !(modPickerSelections[g.id]?.length > 0)) {
+        const ok = typeof window !== 'undefined' ? window.confirm('Debes elegir: ' + g.name) : true;
+        return;
+      }
+    }
+    const allMods = Object.values(modPickerSelections).flat();
+    const modKey = allMods.map(m => m.id).sort().join(',');
+    const existing = cart.find(c => c.product.id === modPickerProduct.id && c.modifiers.map(m => m.id).sort().join(',') === modKey);
+    if (existing) setCart(prev => prev.map(c => c.id === existing.id ? { ...c, quantity: c.quantity + 1 } : c));
+    else setCart(prev => [...prev, { id: `c-${Date.now()}-${Math.random()}`, product: modPickerProduct, quantity: 1, notes: '', modifiers: allMods }]);
+    setModPickerProduct(null);
+  };
+
+  const toggleModOption = (groupId: string, option: ModOption, type: string) => {
+    setModPickerSelections(prev => {
+      const current = prev[groupId] || [];
+      if (type === 'single') return { ...prev, [groupId]: [option] };
+      const exists = current.find(o => o.id === option.id);
+      if (exists) return { ...prev, [groupId]: current.filter(o => o.id !== option.id) };
+      return { ...prev, [groupId]: [...current, option] };
+    });
   };
   const removeFromCart = (id: string) => setCart(prev => prev.filter(c => c.id !== id));
   const updateCartQty = (id: string, d: number) => setCart(prev => prev.map(c => c.id !== id ? c : { ...c, quantity: Math.max(1, c.quantity + d) }));
@@ -83,10 +137,20 @@ export default function OrderScreen({ table, onBack }: Props) {
   const sendCartToKitchen = async () => {
     if (!order || !user || cart.length === 0) return;
     try {
-      const items = cart.map(c => ({ order_id: order.id, product_id: c.product.id, quantity: c.quantity, unit_price: c.product.price, total_price: c.product.price * c.quantity, notes: c.notes || null, status: 'pendiente', printed: false, created_by: user.id }));
+      const items = cart.map(c => {
+        const modAdjust = c.modifiers.reduce((s, m) => s + m.price_adjust, 0);
+        const modNames = c.modifiers.length > 0 ? c.modifiers.map(m => m.name).join(', ') : '';
+        return { order_id: order.id, product_id: c.product.id, quantity: c.quantity, unit_price: c.product.price + modAdjust, total_price: (c.product.price + modAdjust) * c.quantity, notes: [c.notes, modNames].filter(Boolean).join(' | ') || null, status: 'pendiente', printed: false, created_by: user.id };
+      });
       const { data: inserted, error } = await supabase.from('order_items').insert(items).select('id');
       if (error) throw error;
       const ids = (inserted || []).map((i: any) => i.id);
+      // Save modifier details
+      for (let i = 0; i < cart.length; i++) {
+        if (cart[i].modifiers.length > 0 && inserted && inserted[i]) {
+          await supabase.from('order_item_modifiers').insert(cart[i].modifiers.map(m => ({ order_item_id: inserted[i].id, option_id: m.id, option_name: m.name, price_adjust: m.price_adjust })));
+        }
+      }
       if (ids.length > 0) { const { error: re } = await supabase.rpc('send_order_and_deduct_stock', { p_item_ids: ids }); if (re) throw re; }
       setCart([]); Alert.alert('✅ Comanda enviada', `${items.length} productos`); await loadOrder();
     } catch (e: any) { Alert.alert('Error', e.message); }
@@ -227,8 +291,15 @@ export default function OrderScreen({ table, onBack }: Props) {
                   <TouchableOpacity style={s.qBtn} onPress={() => { if (ci.quantity === 1) removeFromCart(ci.id); else updateCartQty(ci.id, -1); }}><Text style={s.qBtnT}>−</Text></TouchableOpacity>
                   <Text style={s.cQty}>{ci.quantity}</Text>
                   <TouchableOpacity style={s.qBtn} onPress={() => updateCartQty(ci.id, 1)}><Text style={s.qBtnT}>+</Text></TouchableOpacity>
-                  <Text style={s.cName} numberOfLines={1}>{ci.product.name}</Text>
-                  <Text style={s.cPrice}>{fmt(ci.product.price * ci.quantity)}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.cName} numberOfLines={1}>{ci.product.name}</Text>
+                    {ci.modifiers && ci.modifiers.length > 0 && (
+                      <Text style={{ fontSize: 10, color: COLORS.primary, marginTop: 1 }} numberOfLines={1}>
+                        {ci.modifiers.map(m => m.name).join(', ')}
+                      </Text>
+                    )}
+                  </View>
+                  <Text style={s.cPrice}>{fmt((ci.product.price + (ci.modifiers || []).reduce((s: number, m: any) => s + m.price_adjust, 0)) * ci.quantity)}</Text>
                   <TouchableOpacity onPress={() => openEditCartItem(ci)} style={{ padding: 4 }}><Text style={{ fontSize: 14, opacity: ci.notes ? 1 : 0.3 }}>💬</Text></TouchableOpacity>
                   <TouchableOpacity onPress={() => removeFromCart(ci.id)} style={{ padding: 4 }}><Text style={{ fontSize: 14 }}>✕</Text></TouchableOpacity>
                 </View>
@@ -280,6 +351,70 @@ export default function OrderScreen({ table, onBack }: Props) {
           }}><Text style={s.clBtnT}>Liberar mesa {table.number}</Text></TouchableOpacity>
         )}
       </View>
+
+      {/* MODIFIER PICKER */}
+      <Modal visible={!!modPickerProduct} transparent animationType="fade">
+        <View style={s.ov}><View style={[s.md, { maxWidth: 420 }]}>
+          <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.text, marginBottom: 4 }}>
+            {modPickerProduct?.name}
+          </Text>
+          <Text style={{ fontSize: 13, color: COLORS.textMuted, marginBottom: 16 }}>
+            Selecciona las opciones
+          </Text>
+          <ScrollView style={{ maxHeight: 400 }}>
+            {modPickerProduct && (productModGroups[modPickerProduct.id] || []).map(group => (
+              <View key={group.id} style={{ marginBottom: 16 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.text }}>
+                    {group.name}
+                  </Text>
+                  <Text style={{ fontSize: 11, color: COLORS.textMuted }}>
+                    {group.required ? 'Obligatorio' : 'Opcional'} · {group.type === 'single' ? 'Elige 1' : 'Hasta ' + group.max_select}
+                  </Text>
+                </View>
+                {group.options.map(opt => {
+                  const isSelected = (modPickerSelections[group.id] || []).some(o => o.id === opt.id);
+                  return (
+                    <TouchableOpacity
+                      key={opt.id}
+                      style={{
+                        flexDirection: 'row', alignItems: 'center', padding: 12,
+                        borderWidth: 1.5, borderRadius: 10, marginBottom: 6,
+                        borderColor: isSelected ? COLORS.primary : COLORS.border,
+                        backgroundColor: isSelected ? COLORS.primary + '10' : COLORS.card,
+                      }}
+                      onPress={() => toggleModOption(group.id, opt, group.type)}
+                    >
+                      <View style={{
+                        width: 22, height: 22, borderRadius: group.type === 'single' ? 11 : 4,
+                        borderWidth: 2, borderColor: isSelected ? COLORS.primary : COLORS.textMuted,
+                        backgroundColor: isSelected ? COLORS.primary : 'transparent',
+                        alignItems: 'center', justifyContent: 'center', marginRight: 10,
+                      }}>
+                        {isSelected && <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>✓</Text>}
+                      </View>
+                      <Text style={{ flex: 1, fontSize: 14, fontWeight: '600', color: COLORS.text }}>{opt.name}</Text>
+                      {opt.price_adjust !== 0 && (
+                        <Text style={{ fontSize: 12, fontWeight: '600', color: opt.price_adjust > 0 ? COLORS.warning : COLORS.success }}>
+                          {opt.price_adjust > 0 ? '+' : ''}{('$' + opt.price_adjust.toLocaleString('es-CL'))}
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            ))}
+          </ScrollView>
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+            <TouchableOpacity style={s.bC} onPress={() => setModPickerProduct(null)}>
+              <Text style={s.bCT}>Cancelar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={s.bOk} onPress={confirmModifiers}>
+              <Text style={s.bOkT}>Agregar</Text>
+            </TouchableOpacity>
+          </View>
+        </View></View>
+      </Modal>
 
       {/* EDIT CART ITEM */}
       <Modal visible={!!editingCartItem} transparent animationType="fade">
