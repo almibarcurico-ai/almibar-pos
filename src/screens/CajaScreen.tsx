@@ -81,16 +81,29 @@ function VentasTab() {
       until = end.toISOString().split('T')[0];
     }
 
-    const { data } = await supabase.from('orders').select('*').eq('status', 'cerrada').gte('closed_at', since).lt('closed_at', until).order('closed_at', { ascending: false });
-    if (data) {
-      setOrders(data);
-      // Load payments for tip details
-      const orderIds = data.map((o: any) => o.id);
-      if (orderIds.length > 0) {
-        const { data: pays } = await supabase.from('payments').select('*, order:order_id(waiter_id, table_number)').in('order_id', orderIds);
-        if (pays) setPayments(pays);
-      } else setPayments([]);
-    }
+    // Mesa orders
+    const { data: mesaData } = await supabase.from('orders').select('*').eq('status', 'cerrada').gte('closed_at', since).lt('closed_at', until).order('closed_at', { ascending: false });
+    // Delivery orders
+    const { data: delivData } = await supabase.from('delivery_orders').select('*').eq('status', 'entregado').gte('closed_at', since).lt('closed_at', until).order('closed_at', { ascending: false });
+
+    const mesaOrders = (mesaData || []).map((o: any) => ({ ...o, _type: 'mesa' }));
+    const delivOrders = (delivData || []).map((o: any) => ({
+      ...o,
+      _type: 'delivery',
+      table_number: '🛵',
+      waiter_id: o.accepted_by || '',
+      tip_amount: o.tip_total || 0,
+      payment_method: 'efectivo',
+    }));
+    const allOrders = [...mesaOrders, ...delivOrders].sort((a, b) => new Date(b.closed_at).getTime() - new Date(a.closed_at).getTime());
+    setOrders(allOrders);
+
+    // Load payments for mesa orders
+    const mesaIds = mesaOrders.map((o: any) => o.id);
+    if (mesaIds.length > 0) {
+      const { data: pays } = await supabase.from('payments').select('*, order:order_id(waiter_id, table_number)').in('order_id', mesaIds);
+      if (pays) setPayments(pays);
+    } else setPayments([]);
     setLoading(false);
   };
 
