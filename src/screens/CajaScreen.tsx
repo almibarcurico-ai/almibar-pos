@@ -349,6 +349,8 @@ function ArqueosTab() {
   // Modals
   const [openModal, setOpenModal] = useState(false);
   const [openingAmount, setOpeningAmount] = useState('');
+  const [openFecha, setOpenFecha] = useState(new Date().toISOString().split('T')[0]);
+  const [openHora, setOpenHora] = useState(new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false }));
   const [closeModal, setCloseModal] = useState(false);
   const [movModal, setMovModal] = useState(false);
   const [movType, setMovType] = useState<'gasto' | 'ingreso'>('gasto');
@@ -394,9 +396,9 @@ function ArqueosTab() {
 
   const handleOpen = async () => {
     if (!user) return;
-    const { data, error } = await supabase.from('cash_registers').insert({ opened_by: user.id, opening_amount: parseInt(openingAmount) || 0 }).select().single();
+    const { data, error } = await supabase.from('cash_registers').insert({ opened_by: user.id, opening_amount: parseInt(openingAmount) || 0, opened_at: new Date(openFecha + 'T' + openHora + ':00').toISOString() }).select().single();
     if (error) { Alert.alert('Error', error.message); return; }
-    setCashRegister(data); setOpenModal(false); setOpeningAmount('');
+    setCashRegister(data); setOpenModal(false); setOpeningAmount(''); setOpenFecha(new Date().toISOString().split('T')[0]); setOpenHora(new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false }));
     Alert.alert('✅ Arqueo iniciado'); await loadData();
   };
 
@@ -529,8 +531,15 @@ function ArqueosTab() {
       <Modal visible={openModal} transparent animationType="fade">
         <View style={s.ov}><View style={s.md}>
           <Text style={[s.mdT, { color: COLORS.primary }]}>NUEVO ARQUEO DE CAJA</Text>
-          <Text style={s.lb}>Hora de apertura</Text>
-          <Text style={[s.inp, { paddingVertical: 14 }]}>{new Date().toLocaleString('es-CL')}</Text>
+          <Text style={s.lb}>Fecha (AAAA-MM-DD)</Text>
+          <TextInput style={s.inp} value={openFecha} onChangeText={setOpenFecha} placeholder="2026-03-28" placeholderTextColor={COLORS.textMuted} />
+          <Text style={s.lb}>Hora (HH:MM)</Text>
+          <TextInput style={s.inp} value={openHora} onChangeText={setOpenHora} placeholder="17:00" placeholderTextColor={COLORS.textMuted} />
+          <View style={{ flexDirection: 'row', gap: 6, marginTop: 6, marginBottom: 4 }}>
+            <TouchableOpacity style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 6, backgroundColor: COLORS.primary + '15', borderWidth: 1, borderColor: COLORS.primary + '40' }} onPress={() => { setOpenFecha(new Date().toISOString().split('T')[0]); setOpenHora(new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false })); }}><Text style={{ fontSize: 12, fontWeight: '600', color: COLORS.primary }}>Ahora</Text></TouchableOpacity>
+            <TouchableOpacity style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 6, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border }} onPress={() => { setOpenFecha(new Date().toISOString().split('T')[0]); setOpenHora('17:00'); }}><Text style={{ fontSize: 12, color: COLORS.textSecondary }}>Hoy 17:00</Text></TouchableOpacity>
+            <TouchableOpacity style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 6, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border }} onPress={() => { const d = new Date(); d.setDate(d.getDate() - 1); setOpenFecha(d.toISOString().split('T')[0]); setOpenHora('17:00'); }}><Text style={{ fontSize: 12, color: COLORS.textSecondary }}>Ayer 17:00</Text></TouchableOpacity>
+          </View>
           <Text style={s.lb}>Monto Inicial *</Text>
           <TextInput style={s.inp} placeholder="$0" placeholderTextColor={COLORS.textMuted} keyboardType="number-pad" value={openingAmount} onChangeText={setOpeningAmount} autoFocus />
           <View style={s.mBs}>
