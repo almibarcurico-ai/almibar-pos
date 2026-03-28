@@ -15,8 +15,9 @@ import UsersScreen from './admin/UsersScreen';
 import ReportsScreen from './admin/ReportsScreen';
 import ClientsScreen from './admin/ClientsScreen';
 import ModifiersScreen from './admin/ModifiersScreen';
+import PrintersScreen from './admin/PrintersScreen';
 
-type Sub = 'menu'|'products'|'ingredients'|'recipes'|'suppliers'|'purchases'|'users'|'reports'|'clients'|'modifiers';
+type Sub = 'menu'|'products'|'ingredients'|'recipes'|'suppliers'|'purchases'|'users'|'reports'|'clients'|'modifiers'|'printers';
 
 interface Props { onOpenEditor: () => void; }
 
@@ -38,6 +39,7 @@ export default function AdminScreen({ onOpenEditor }: Props) {
       {sub === 'reports' && <ReportsScreen />}
       {sub === 'clients' && <ClientsScreen />}
       {sub === 'modifiers' && <ModifiersScreen />}
+      {sub === 'printers' && <PrintersScreen />}
     </View>
   );
 }
@@ -52,6 +54,7 @@ function Menu({ onSelect, onOpenEditor }: { onSelect: (s: Sub) => void; onOpenEd
     { key: 'users', icon: '👥', title: 'Usuarios', desc: 'Roles y accesos' },
     { key: 'reports', icon: '📊', title: 'Reportes', desc: 'Ventas y análisis' },
     { key: 'modifiers', icon: '🎛️', title: 'Modificadores', desc: 'Sabores y opciones' },
+    { key: 'printers', icon: '🖨️', title: 'Impresoras', desc: 'Cocina, Barra, Caja' },
     { key: 'clients', icon: '👥', title: 'Socios', desc: 'Club de Amigos' },
   ];
   return (

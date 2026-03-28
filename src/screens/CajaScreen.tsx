@@ -357,9 +357,14 @@ function ArqueosTab() {
   const [movAmount, setMovAmount] = useState('');
   const [movDesc, setMovDesc] = useState('');
 
-  // Arqueo conteo
+  // Arqueo conteo por método
   const [cEfectivo, setCEfectivo] = useState('');
+  const [cDebito, setCDebito] = useState('');
+  const [cCredito, setCCredito] = useState('');
+  const [cTransferencia, setCTransferencia] = useState('');
   const [cNotas, setCNotas] = useState('');
+  const [shiftPayments, setShiftPayments] = useState<any[]>([]);
+  const [shiftDelivPayments, setShiftDelivPayments] = useState<any[]>([]);
 
   useEffect(() => { loadData(); }, []);
 
@@ -379,6 +384,15 @@ function ArqueosTab() {
       } else setMovements([]);
 
       const { data: hist } = await supabase.from('cash_registers').select('*, opener:opened_by(name), closer:closed_by(name)').not('closed_at', 'is', null).order('closed_at', { ascending: false }).limit(30);
+
+      // Load payments for shift
+      if (caja) {
+        const since = caja.opened_at;
+        const { data: sp } = await supabase.from('payments').select('*').gte('created_at', since);
+        if (sp) setShiftPayments(sp);
+        const { data: dp } = await supabase.from('delivery_payments').select('*').gte('created_at', since);
+        if (dp) setShiftDelivPayments(dp);
+      }
       if (hist) setHistorial(hist);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
@@ -386,12 +400,31 @@ function ArqueosTab() {
 
   const fmt = (p: number) => '$' + Math.round(p).toLocaleString('es-CL');
 
+  // Combine all payments
+  const allPayments = [...shiftPayments, ...shiftDelivPayments];
+  const payByMethod = {
+    efectivo: allPayments.filter(p => p.method === 'efectivo' && !p.is_tip).reduce((a, p) => a + p.amount, 0),
+    debito: allPayments.filter(p => p.method === 'debito' && !p.is_tip).reduce((a, p) => a + p.amount, 0),
+    credito: allPayments.filter(p => p.method === 'credito' && !p.is_tip).reduce((a, p) => a + p.amount, 0),
+    transferencia: allPayments.filter(p => p.method === 'transferencia' && !p.is_tip).reduce((a, p) => a + p.amount, 0),
+  };
+  const tipsByMethod = {
+    efectivo: allPayments.filter(p => p.method === 'efectivo' && p.is_tip).reduce((a, p) => a + p.amount, 0),
+    debito: allPayments.filter(p => p.method === 'debito' && p.is_tip).reduce((a, p) => a + p.amount, 0),
+    credito: allPayments.filter(p => p.method === 'credito' && p.is_tip).reduce((a, p) => a + p.amount, 0),
+    transferencia: allPayments.filter(p => p.method === 'transferencia' && p.is_tip).reduce((a, p) => a + p.amount, 0),
+  };
   const totals = {
-    efectivo: todayOrders.filter(o => o.payment_method === 'efectivo').reduce((a, o) => a + o.total, 0),
+    efectivo: payByMethod.efectivo + tipsByMethod.efectivo,
+    debito: payByMethod.debito + tipsByMethod.debito,
+    credito: payByMethod.credito + tipsByMethod.credito,
+    transferencia: payByMethod.transferencia + tipsByMethod.transferencia,
     ventas: todayOrders.reduce((a, o) => a + (o.total || 0), 0),
+    propinas: Object.values(tipsByMethod).reduce((a, v) => a + v, 0),
     gastos: movements.filter(m => m.type === 'gasto').reduce((a, m) => a + m.amount, 0),
     ingresos: movements.filter(m => m.type === 'ingreso').reduce((a, m) => a + m.amount, 0),
   };
+  const totalIngresos = totals.efectivo + totals.debito + totals.credito + totals.transferencia;
   const saldoActual = (cashRegister?.opening_amount || 0) + totals.efectivo + totals.ingresos - totals.gastos;
 
   const handleOpen = async () => {
@@ -404,14 +437,16 @@ function ArqueosTab() {
 
   const handleClose = async () => {
     if (!cashRegister || !user) return;
+    const userTotal = (parseInt(cEfectivo)||0) + (parseInt(cDebito)||0) + (parseInt(cCredito)||0) + (parseInt(cTransferencia)||0);
     await supabase.from('cash_registers').update({
       closed_at: new Date().toISOString(), closed_by: user.id,
-      closing_amount: parseInt(cEfectivo) || 0,
+      closing_amount: userTotal,
       total_cash: totals.efectivo, total_sales: totals.ventas,
       total_orders: todayOrders.length, total_expenses: totals.gastos, total_cash_in: totals.ingresos,
       notes: cNotas || null,
     }).eq('id', cashRegister.id);
-    setCashRegister(null); setCloseModal(false); setCEfectivo(''); setCNotas('');
+    setCashRegister(null); setCloseModal(false);
+    setCEfectivo(''); setCDebito(''); setCCredito(''); setCTransferencia(''); setCNotas('');
     Alert.alert('✅ Arqueo cerrado'); await loadData();
   };
 
@@ -574,31 +609,113 @@ function ArqueosTab() {
         </View></View>
       </Modal>
 
-      {/* MODAL: Cerrar Caja */}
+      {/* MODAL: Cerrar Caja - Fudo style */}
       <Modal visible={closeModal} transparent animationType="fade">
         <View style={s.ov}><ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 16 }}>
-          <View style={[s.md, { maxWidth: 500 }]}>
-            <Text style={[s.mdT, { color: COLORS.error }]}>CERRAR ARQUEO</Text>
+          <View style={[s.md, { maxWidth: 560 }]}>
+            <Text style={[s.mdT, { color: COLORS.primary }]}>ARQUEO DE CAJA</Text>
+            <Text style={{ fontSize: 12, color: COLORS.textSecondary, marginBottom: 12 }}>
+              Apertura: {cashRegister ? new Date(cashRegister.opened_at).toLocaleString('es-CL') : '-'}
+            </Text>
 
-            <View style={{ marginTop: 16, backgroundColor: COLORS.background, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: COLORS.border }}>
-              <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 8 }}>RESUMEN SISTEMA</Text>
-              <ARQ label="Apertura" val={fmt(cashRegister?.opening_amount || 0)} />
-              <ARQ label="Ventas efectivo" val={fmt(totals.efectivo)} />
-              <ARQ label="Ingresos" val={fmt(totals.ingresos)} />
-              <ARQ label="Egresos" val={`-${fmt(totals.gastos)}`} />
-              <View style={{ borderTopWidth: 2, borderTopColor: COLORS.primary, marginTop: 6, paddingTop: 6 }}>
-                <ARQ label="Esperado" val={fmt(saldoActual)} bold />
+            {/* TIMELINE - órdenes del turno */}
+            <View style={{ backgroundColor: COLORS.background, borderRadius: 10, padding: 12, marginBottom: 14, borderWidth: 1, borderColor: COLORS.border, maxHeight: 180 }}>
+              <Text style={{ fontSize: 11, fontWeight: '700', color: COLORS.textSecondary, letterSpacing: 1, marginBottom: 8 }}>VENTAS DEL TURNO ({todayOrders.length})</Text>
+              <ScrollView style={{ maxHeight: 140 }}>
+                {todayOrders.map((o: any, i: number) => (
+                  <View key={o.id} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4, borderBottomWidth: i < todayOrders.length-1 ? 1 : 0, borderBottomColor: COLORS.border }}>
+                    <Text style={{ fontSize: 11, color: COLORS.textSecondary, width: 50 }}>
+                      {new Date(o.closed_at).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
+                    </Text>
+                    <Text style={{ fontSize: 11, color: COLORS.text, flex: 1 }}>
+                      {o._type === 'delivery' ? '🛵 Delivery' : '🪑 Mesa ' + (o.table_number || '?')} #{o.order_number || '-'}
+                    </Text>
+                    <Text style={{ fontSize: 11, fontWeight: '600', color: COLORS.primary }}>{fmt(o.total || 0)}</Text>
+                  </View>
+                ))}
+                {todayOrders.length === 0 && <Text style={{ fontSize: 11, color: COLORS.textMuted, textAlign: 'center' }}>Sin ventas en este turno</Text>}
+              </ScrollView>
+            </View>
+
+            {/* SEGÚN SISTEMA */}
+            <View style={{ backgroundColor: '#F0F0F0', borderRadius: 10, padding: 14, marginBottom: 14 }}>
+              <Text style={{ fontSize: 12, fontWeight: '800', color: COLORS.text, marginBottom: 10, backgroundColor: '#999', color: '#fff', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 4, overflow: 'hidden' }}>SEGÚN SISTEMA</Text>
+              <ARQ label="MONTO INICIAL" val={fmt(cashRegister?.opening_amount || 0)} bold />
+              <View style={{ borderTopWidth: 1, borderTopColor: COLORS.border, marginTop: 4, paddingTop: 4 }}>
+                <Text style={{ fontSize: 11, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 4 }}>INGRESOS</Text>
+                <ARQ label="    Efectivo" val={fmt(totals.efectivo)} />
+                <ARQ label="    Tarj. Débito" val={fmt(totals.debito)} />
+                <ARQ label="    Tarj. Crédito" val={fmt(totals.credito)} />
+                <ARQ label="    Transferencia" val={fmt(totals.transferencia)} />
+                <ARQ label="TOTAL INGRESOS" val={fmt(totalIngresos)} bold />
+              </View>
+              {totals.propinas > 0 && <ARQ label="Propinas" val={fmt(totals.propinas)} />}
+              {totals.gastos > 0 && (
+                <View style={{ borderTopWidth: 1, borderTopColor: COLORS.border, marginTop: 4, paddingTop: 4 }}>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 4 }}>EGRESOS</Text>
+                  <ARQ label="    Efectivo" val={'-' + fmt(totals.gastos)} />
+                </View>
+              )}
+              {totals.ingresos > 0 && <ARQ label="Otros ingresos" val={fmt(totals.ingresos)} />}
+              <View style={{ borderTopWidth: 2, borderTopColor: COLORS.primary, marginTop: 8, paddingTop: 8 }}>
+                <ARQ label="Total" val={fmt(totalIngresos + totals.ingresos - totals.gastos)} bold />
               </View>
             </View>
 
-            <Text style={s.lb}>Efectivo contado *</Text>
-            <TextInput style={[s.inp, { fontSize: 22, fontWeight: '700' }]} placeholder="Contar efectivo..." placeholderTextColor={COLORS.textMuted} keyboardType="number-pad" value={cEfectivo} onChangeText={setCEfectivo} />
-            {cEfectivo !== '' && (() => {
-              const d = (parseInt(cEfectivo) || 0) - saldoActual;
-              return <View style={{ flexDirection: 'row', justifyContent: 'space-between', backgroundColor: (d === 0 ? COLORS.success : d > 0 ? COLORS.warning : COLORS.error) + '15', borderRadius: 8, padding: 10, marginTop: 6, borderWidth: 1, borderColor: (d === 0 ? COLORS.success : d > 0 ? COLORS.warning : COLORS.error) + '30' }}>
-                <Text style={{ fontSize: 12, color: COLORS.textSecondary }}>Diferencia</Text>
-                <Text style={{ fontSize: 14, fontWeight: '800', color: d === 0 ? COLORS.success : d > 0 ? COLORS.warning : COLORS.error }}>{d === 0 ? '✅ $0' : (d > 0 ? '+' : '') + fmt(d)}</Text>
-              </View>;
+            {/* SEGÚN USUARIO */}
+            <View style={{ backgroundColor: '#F0F0F0', borderRadius: 10, padding: 14, marginBottom: 14 }}>
+              <Text style={{ fontSize: 12, fontWeight: '800', color: '#fff', marginBottom: 10, backgroundColor: '#999', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 4, overflow: 'hidden' }}>SEGÚN USUARIO</Text>
+              
+              <Text style={{ fontSize: 11, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 4 }}>Efectivo contado</Text>
+              <TextInput style={[s.inp, { fontSize: 18, fontWeight: '700', marginBottom: 8 }]} placeholder="$0" placeholderTextColor={COLORS.textMuted} keyboardType="number-pad" value={cEfectivo} onChangeText={setCEfectivo} />
+              
+              <Text style={{ fontSize: 11, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 4 }}>Tarj. Débito</Text>
+              <TextInput style={[s.inp, { fontSize: 18, fontWeight: '700', marginBottom: 8 }]} placeholder="$0" placeholderTextColor={COLORS.textMuted} keyboardType="number-pad" value={cDebito} onChangeText={setCDebito} />
+              
+              <Text style={{ fontSize: 11, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 4 }}>Tarj. Crédito</Text>
+              <TextInput style={[s.inp, { fontSize: 18, fontWeight: '700', marginBottom: 8 }]} placeholder="$0" placeholderTextColor={COLORS.textMuted} keyboardType="number-pad" value={cCredito} onChangeText={setCCredito} />
+              
+              <Text style={{ fontSize: 11, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 4 }}>Transferencia</Text>
+              <TextInput style={[s.inp, { fontSize: 18, fontWeight: '700', marginBottom: 8 }]} placeholder="$0" placeholderTextColor={COLORS.textMuted} keyboardType="number-pad" value={cTransferencia} onChangeText={setCTransferencia} />
+
+              <View style={{ borderTopWidth: 2, borderTopColor: COLORS.primary, marginTop: 4, paddingTop: 8 }}>
+                <ARQ label="Total usuario" val={fmt((parseInt(cEfectivo)||0) + (parseInt(cDebito)||0) + (parseInt(cCredito)||0) + (parseInt(cTransferencia)||0))} bold />
+              </View>
+            </View>
+
+            {/* DIFERENCIA */}
+            {(() => {
+              const sysTotal = totalIngresos + totals.ingresos - totals.gastos;
+              const userTotal = (parseInt(cEfectivo)||0) + (parseInt(cDebito)||0) + (parseInt(cCredito)||0) + (parseInt(cTransferencia)||0);
+              const diff = userTotal - sysTotal;
+              const hasInput = cEfectivo || cDebito || cCredito || cTransferencia;
+              if (!hasInput) return null;
+              return (
+                <View style={{ backgroundColor: (diff === 0 ? COLORS.success : diff > 0 ? '#8BC34A' : COLORS.error) + '20', borderRadius: 10, padding: 14, marginBottom: 14, borderWidth: 1, borderColor: (diff === 0 ? COLORS.success : diff > 0 ? '#8BC34A' : COLORS.error) + '40' }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 14, fontWeight: '800', color: diff === 0 ? COLORS.success : COLORS.error }}>Diferencia</Text>
+                    <Text style={{ fontSize: 24, fontWeight: '800', color: diff === 0 ? COLORS.success : diff > 0 ? '#8BC34A' : COLORS.error }}>
+                      {diff === 0 ? '✅ $0' : (diff > 0 ? '+' : '') + fmt(diff)}
+                    </Text>
+                  </View>
+                  {diff !== 0 && (
+                    <View style={{ marginTop: 8 }}>
+                      {(() => {
+                        const dEf = (parseInt(cEfectivo)||0) - (totals.efectivo + (cashRegister?.opening_amount||0) + totals.ingresos - totals.gastos);
+                        const dDe = (parseInt(cDebito)||0) - totals.debito;
+                        const dCr = (parseInt(cCredito)||0) - totals.credito;
+                        const dTr = (parseInt(cTransferencia)||0) - totals.transferencia;
+                        return <>
+                          {dEf !== 0 && <Text style={{ fontSize: 11, color: COLORS.textSecondary }}>Efectivo: {dEf > 0 ? '+' : ''}{fmt(dEf)}</Text>}
+                          {dDe !== 0 && <Text style={{ fontSize: 11, color: COLORS.textSecondary }}>Débito: {dDe > 0 ? '+' : ''}{fmt(dDe)}</Text>}
+                          {dCr !== 0 && <Text style={{ fontSize: 11, color: COLORS.textSecondary }}>Crédito: {dCr > 0 ? '+' : ''}{fmt(dCr)}</Text>}
+                          {dTr !== 0 && <Text style={{ fontSize: 11, color: COLORS.textSecondary }}>Transferencia: {dTr > 0 ? '+' : ''}{fmt(dTr)}</Text>}
+                        </>;
+                      })()}
+                    </View>
+                  )}
+                </View>
+              );
             })()}
 
             <Text style={s.lb}>Notas</Text>
