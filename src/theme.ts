@@ -1,40 +1,40 @@
 // src/theme.ts
 
 export const COLORS = {
-  // Brand
-  primary: '#C8952A',       // Gold Almíbar
-  primaryDark: '#A67A1E',
-  primaryLight: '#E8C44A',
+  // Brand - Fudo style
+  primary: '#E8562A',       // Naranja Fudo
+  primaryDark: '#D04520',
+  primaryLight: '#F4845F',
   
-  // Backgrounds
-  background: '#0A0908',    // Fondo oscuro
-  card: '#1A1714',           // Tarjetas
-  cardHover: '#221E17',     // Hover estado
+  // Backgrounds - Light grays
+  background: '#F5F5F5',
+  card: '#FFFFFF',
+  cardHover: '#EAEAEA',
   
   // Text
-  text: '#FFFFFF',
-  textSecondary: '#8A7A5A',
-  textMuted: '#6B5A3A',
+  text: '#2D2D2D',
+  textSecondary: '#666666',
+  textMuted: '#999999',
   
   // Status - Mesas
-  tableLibre: '#1D6B4F',     // Verde barra
-  tableOcupada: '#B22222',   // Rojo cocina
-  tableCuenta: '#E8C44A',    // Gold bright
-  tableReservada: '#C8952A', // Gold
+  tableLibre: '#4CAF50',
+  tableOcupada: '#E53935',
+  tableCuenta: '#FFA726',
+  tableReservada: '#42A5F5',
   
   // UI
-  border: '#2A2318',
-  error: '#B22222',
-  success: '#1D6B4F',
-  warning: '#E8C44A',
-  info: '#C8952A',
+  border: '#E0E0E0',
+  error: '#E53935',
+  success: '#4CAF50',
+  warning: '#FFA726',
+  info: '#42A5F5',
   
   // Category accent
-  cocina: '#B22222',
-  barra: '#1D6B4F',
+  cocina: '#E53935',
+  barra: '#2E7D32',
   
   // Overlay
-  overlay: 'rgba(0, 0, 0, 0.6)',
+  overlay: 'rgba(0, 0, 0, 0.4)',
 };
 
 export const TABLE_STATUS_COLORS: Record<string, string> = {

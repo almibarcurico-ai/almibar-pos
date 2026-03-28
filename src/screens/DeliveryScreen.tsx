@@ -313,11 +313,11 @@ export default function DeliveryScreen({ user }: { user: User }) {
   const S = {
     screen: {
       display: 'flex', flexDirection: 'column' as const, height: '100%',
-      background: '#0f172a', color: '#e2e8f0', fontFamily: "'Inter', system-ui, sans-serif",
+      background: '#F0F0F0', color: '#e2e8f0', fontFamily: "'Inter', system-ui, sans-serif",
     },
     topBar: {
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      padding: '12px 16px', background: '#1e293b', borderBottom: '1px solid #334155',
+      padding: '12px 16px', background: '#FFFFFF', borderBottom: '1px solid #334155',
     },
     topTitle: { fontSize: 18, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 },
     topBtns: { display: 'flex', gap: 8 },
@@ -338,11 +338,11 @@ export default function DeliveryScreen({ user }: { user: User }) {
     },
     column: {
       flex: 1, minWidth: 220, maxWidth: 320, display: 'flex', flexDirection: 'column' as const,
-      background: '#1e293b', borderRadius: 10, overflow: 'hidden',
+      background: '#FFFFFF', borderRadius: 10, overflow: 'hidden',
     },
     colHeader: (color: string) => ({
       padding: '10px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      borderBottom: `2px solid ${color}`, background: '#1e293b',
+      borderBottom: `2px solid ${color}`, background: '#FFFFFF',
     }),
     colTitle: (color: string) => ({
       fontSize: 13, fontWeight: 700, color, display: 'flex', alignItems: 'center', gap: 6,
@@ -365,13 +365,13 @@ export default function DeliveryScreen({ user }: { user: User }) {
       fontSize: 10, fontWeight: 600, padding: '2px 6px', borderRadius: 4,
       background: bg, color: '#1e293b', display: 'inline-block',
     }),
-    cardCustomer: { fontSize: 12, color: '#94a3b8', marginTop: 4 },
+    cardCustomer: { fontSize: 12, color: '#999999', marginTop: 4 },
     cardTotal: { fontSize: 14, fontWeight: 700, color: '#f8fafc', marginTop: 4 },
     cardTime: { fontSize: 11, color: '#64748b', marginTop: 2 },
     // Detail panel
     detail: {
       width: 420, minWidth: 380, borderLeft: '1px solid #334155',
-      display: 'flex', flexDirection: 'column' as const, background: '#1e293b',
+      display: 'flex', flexDirection: 'column' as const, background: '#FFFFFF',
       overflow: 'auto',
     },
     detailHeader: {
@@ -395,7 +395,7 @@ export default function DeliveryScreen({ user }: { user: User }) {
       display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
     },
     modal: {
-      background: '#1e293b', borderRadius: 12, padding: 0, width: 560,
+      background: '#FFFFFF', borderRadius: 12, padding: 0, width: 560,
       maxHeight: '90vh', overflow: 'auto', border: '1px solid #334155',
     },
     modalHeader: {
@@ -405,19 +405,19 @@ export default function DeliveryScreen({ user }: { user: User }) {
     modalBody: { padding: '16px 20px' },
     input: {
       width: '100%', padding: '8px 12px', borderRadius: 6,
-      border: '1px solid #475569', background: '#0f172a', color: '#e2e8f0',
+      border: '1px solid #475569', background: '#F0F0F0', color: '#e2e8f0',
       fontSize: 13, outline: 'none', boxSizing: 'border-box' as const,
     },
     select: {
       padding: '8px 12px', borderRadius: 6, border: '1px solid #475569',
-      background: '#0f172a', color: '#e2e8f0', fontSize: 13, outline: 'none',
+      background: '#F0F0F0', color: '#e2e8f0', fontSize: 13, outline: 'none',
     },
-    label: { fontSize: 12, fontWeight: 600, color: '#94a3b8', marginBottom: 4, display: 'block' },
+    label: { fontSize: 12, fontWeight: 600, color: '#999999', marginBottom: 4, display: 'block' },
     row: { display: 'flex', gap: 8, marginBottom: 10 },
     flex1: { flex: 1 },
     // Close modal sections
     sectionTitle: {
-      fontSize: 13, fontWeight: 700, color: '#94a3b8', padding: '8px 0',
+      fontSize: 13, fontWeight: 700, color: '#999999', padding: '8px 0',
       textTransform: 'uppercase' as const, letterSpacing: 1,
     },
     payRow: {
@@ -524,7 +524,7 @@ export default function DeliveryScreen({ user }: { user: User }) {
         <div style={{ ...S.modal, width: 620 }} onClick={(e) => e.stopPropagation()}>
           <div style={S.modalHeader}>
             <span style={{ fontSize: 16, fontWeight: 700 }}>🛵 Nuevo Pedido</span>
-            <button style={S.btnSm('#475569')} onClick={() => setShowNewOrder(false)}>✕</button>
+            <button style={S.btnSm('#999999')} onClick={() => setShowNewOrder(false)}>✕</button>
           </div>
           <div style={S.modalBody}>
             {/* Source selector */}
@@ -593,7 +593,7 @@ export default function DeliveryScreen({ user }: { user: User }) {
                 <div
                   style={{
                     position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10,
-                    background: '#0f172a', border: '1px solid #475569', borderRadius: 6,
+                    background: '#F0F0F0', border: '1px solid #475569', borderRadius: 6,
                     maxHeight: 200, overflow: 'auto',
                   }}
                 >
@@ -610,7 +610,7 @@ export default function DeliveryScreen({ user }: { user: User }) {
                       onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                     >
                       <span>{p.name}</span>
-                      <span style={{ color: '#94a3b8' }}>{fmt(p.price)}</span>
+                      <span style={{ color: '#999999' }}>{fmt(p.price)}</span>
                     </div>
                   ))}
                 </div>
@@ -624,9 +624,9 @@ export default function DeliveryScreen({ user }: { user: User }) {
                   display: 'flex', alignItems: 'center', gap: 6, padding: '6px 0',
                   borderBottom: '1px solid #334155',
                 }}>
-                  <button style={S.btnSm('#334155')} onClick={() => updateQty(i, -1)}>−</button>
+                  <button style={S.btnSm('#E0E0E0')} onClick={() => updateQty(i, -1)}>−</button>
                   <span style={{ fontSize: 14, fontWeight: 700, width: 24, textAlign: 'center' }}>{c.qty}</span>
-                  <button style={S.btnSm('#334155')} onClick={() => updateQty(i, 1)}>+</button>
+                  <button style={S.btnSm('#E0E0E0')} onClick={() => updateQty(i, 1)}>+</button>
                   <span style={{ flex: 1, fontSize: 13 }}>{c.product.name}</span>
                   <input
                     style={{ ...S.input, width: 100, padding: '4px 8px', fontSize: 11 }}
@@ -637,19 +637,19 @@ export default function DeliveryScreen({ user }: { user: User }) {
                   <span style={{ fontSize: 13, fontWeight: 600, minWidth: 60, textAlign: 'right' }}>
                     {fmt(c.product.price * c.qty)}
                   </span>
-                  <button style={S.btnSm('#ef4444')} onClick={() => updateQty(i, -c.qty)}>✕</button>
+                  <button style={S.btnSm('#E53935')} onClick={() => updateQty(i, -c.qty)}>✕</button>
                 </div>
               ))}
             </div>
 
             {/* Totals */}
             {cart.length > 0 && (
-              <div style={{ marginTop: 12, padding: '10px', background: '#0f172a', borderRadius: 8 }}>
+              <div style={{ marginTop: 12, padding: '10px', background: '#F0F0F0', borderRadius: 8 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
                   <span>Subtotal</span><span>{fmt(cartTotal)}</span>
                 </div>
                 {delivFee > 0 && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#94a3b8' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#999999' }}>
                     <span>Despacho</span><span>{fmt(delivFee)}</span>
                   </div>
                 )}
@@ -685,7 +685,7 @@ export default function DeliveryScreen({ user }: { user: User }) {
       <div style={{ ...S.modal, width: 400 }} onClick={(e) => e.stopPropagation()}>
         <div style={S.modalHeader}>
           <span style={{ fontSize: 16, fontWeight: 700 }}>❌ Rechazar Pedido</span>
-          <button style={S.btnSm('#475569')} onClick={() => setShowRejectModal(false)}>✕</button>
+          <button style={S.btnSm('#999999')} onClick={() => setShowRejectModal(false)}>✕</button>
         </div>
         <div style={S.modalBody}>
           <label style={S.label}>Motivo del rechazo</label>
@@ -815,12 +815,12 @@ export default function DeliveryScreen({ user }: { user: User }) {
             <span style={{ fontSize: 16, fontWeight: 700 }}>
               💰 Cerrar Pedido #{selected.order_number}
             </span>
-            <button style={S.btnSm('#475569')} onClick={() => setShowCloseModal(false)}>✕</button>
+            <button style={S.btnSm('#999999')} onClick={() => setShowCloseModal(false)}>✕</button>
           </div>
           <div style={S.modalBody}>
             {/* ── ADICIONES (items resumen) ── */}
             <div style={S.sectionTitle}>CONSUMO</div>
-            <div style={{ background: '#0f172a', borderRadius: 8, padding: 10, marginBottom: 8 }}>
+            <div style={{ background: '#F0F0F0', borderRadius: 8, padding: 10, marginBottom: 8 }}>
               {selectedItems.map((item) => (
                 <div key={item.id} style={S.itemRow}>
                   <span>{item.quantity}x {item.product_name}</span>
@@ -828,14 +828,14 @@ export default function DeliveryScreen({ user }: { user: User }) {
                 </div>
               ))}
               {delivFee > 0 && (
-                <div style={{ ...S.itemRow, color: '#94a3b8' }}>
+                <div style={{ ...S.itemRow, color: '#999999' }}>
                   <span>🛵 Despacho</span>
                   <span>{fmt(delivFee)}</span>
                 </div>
               )}
               {/* Discount */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, borderTop: '1px solid #334155', paddingTop: 6 }}>
-                <span style={{ fontSize: 12, color: '#94a3b8' }}>Descuento</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, borderTop: '1px solid #E0E0E0', paddingTop: 6 }}>
+                <span style={{ fontSize: 12, color: '#999999' }}>Descuento</span>
                 <input
                   style={{ ...S.input, width: 80, padding: '4px 8px', textAlign: 'right' }}
                   type="number"
@@ -850,12 +850,12 @@ export default function DeliveryScreen({ user }: { user: User }) {
             {/* ── PROPINA ── */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={S.sectionTitle}>PROPINA</div>
-              <button style={S.btnSm('#6366f1')} onClick={addTip}>+ Propina</button>
+              <button style={S.btnSm('#E8562A')} onClick={addTip}>+ Propina</button>
             </div>
             {tips.map((t, i) => (
               <div key={i} style={S.payRow}>
                 <button
-                  style={S.btnSm('#334155')}
+                  style={S.btnSm('#E0E0E0')}
                   onClick={() => cycleTipMethod(i)}
                   title="Click para cambiar método"
                 >
@@ -873,13 +873,13 @@ export default function DeliveryScreen({ user }: { user: User }) {
                   placeholder="$0"
                 />
                 <button
-                  style={S.btnSm('#ef4444')}
+                  style={S.btnSm('#E53935')}
                   onClick={() => setTips(tips.filter((_, j) => j !== i))}
                 >✕</button>
               </div>
             ))}
             {totalTips > 0 && (
-              <div style={{ textAlign: 'right', fontSize: 13, fontWeight: 600, color: '#a78bfa', margin: '4px 0' }}>
+              <div style={{ textAlign: 'right', fontSize: 13, fontWeight: 600, color: '#E8562A', margin: '4px 0' }}>
                 Total propinas: {fmt(totalTips)}
               </div>
             )}
@@ -887,12 +887,12 @@ export default function DeliveryScreen({ user }: { user: User }) {
             {/* ── PAGO ── */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
               <div style={S.sectionTitle}>PAGO</div>
-              <button style={S.btnSm('#3b82f6')} onClick={addPayment}>+ Pago</button>
+              <button style={S.btnSm('#42A5F5')} onClick={addPayment}>+ Pago</button>
             </div>
             {payments.map((p, i) => (
               <div key={i} style={S.payRow}>
                 <button
-                  style={S.btnSm('#334155')}
+                  style={S.btnSm('#E0E0E0')}
                   onClick={() => cyclePayMethod(i)}
                   title="Click para cambiar método"
                 >
@@ -910,7 +910,7 @@ export default function DeliveryScreen({ user }: { user: User }) {
                   placeholder="$0"
                 />
                 <button
-                  style={S.btnSm('#ef4444')}
+                  style={S.btnSm('#E53935')}
                   onClick={() => setPayments(payments.filter((_, j) => j !== i))}
                 >✕</button>
               </div>
@@ -918,7 +918,7 @@ export default function DeliveryScreen({ user }: { user: User }) {
 
             {/* Pago summary */}
             <div style={{
-              marginTop: 8, padding: 10, background: '#0f172a', borderRadius: 8,
+              marginTop: 8, padding: 10, background: '#F0F0F0', borderRadius: 8,
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
                 <span>Consumo</span><span>{fmt(consumo)}</span>
@@ -935,7 +935,7 @@ export default function DeliveryScreen({ user }: { user: User }) {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, marginTop: 4 }}>
                   <span>Vuelto efectivo: <b>{fmt(excessCash)}</b></span>
                   <button
-                    style={S.btnSm('#6366f1')}
+                    style={S.btnSm('#E8562A')}
                     onClick={() => {
                       setTips([...tips, { method: 'efectivo', amount: excessCash }]);
                     }}
@@ -945,7 +945,7 @@ export default function DeliveryScreen({ user }: { user: User }) {
                 </div>
               )}
               {excessNonCash > 0 && (
-                <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>
+                <div style={{ fontSize: 11, color: '#999999', marginTop: 4 }}>
                   💡 Exceso no-efectivo ({fmt(excessNonCash)}) se suma automáticamente a propina
                 </div>
               )}
@@ -954,7 +954,7 @@ export default function DeliveryScreen({ user }: { user: User }) {
             {/* Close button */}
             <button
               style={{
-                ...S.btn(canClose ? '#10b981' : '#475569'),
+                ...S.btn(canClose ? '#4CAF50' : '#CCCCCC'),
                 width: '100%', justifyContent: 'center', marginTop: 12, padding: '14px',
                 fontSize: 15, opacity: canClose ? 1 : 0.5,
               }}
@@ -987,7 +987,7 @@ export default function DeliveryScreen({ user }: { user: User }) {
             <span style={{ fontSize: 16, fontWeight: 700 }}>
               📋 Pedidos Cerrados Hoy ({all.length})
             </span>
-            <button style={S.btnSm('#475569')} onClick={() => setShowDelivered(false)}>✕</button>
+            <button style={S.btnSm('#999999')} onClick={() => setShowDelivered(false)}>✕</button>
           </div>
           <div style={S.modalBody}>
             {/* Summary bar */}
@@ -1032,11 +1032,11 @@ export default function DeliveryScreen({ user }: { user: User }) {
                         onClick={() => { setSelectedId(o.id); setShowDelivered(false); }}
                       >
                         <td style={{ padding: 6, fontWeight: 700 }}>{o.order_number}</td>
-                        <td style={{ padding: 6, color: '#94a3b8' }}>{fmtTime(o.created_at)}</td>
+                        <td style={{ padding: 6, color: '#999999' }}>{fmtTime(o.created_at)}</td>
                         <td style={{ padding: 6 }}>{SOURCE_LABELS[o.source]}</td>
                         <td style={{ padding: 6 }}>{o.customer_name || '—'}</td>
                         <td style={{ padding: 6, textAlign: 'right', fontWeight: 600 }}>{fmt(o.total)}</td>
-                        <td style={{ padding: 6, textAlign: 'right', color: '#a78bfa' }}>
+                        <td style={{ padding: 6, textAlign: 'right', color: '#E8562A' }}>
                           {o.tip_total > 0 ? fmt(o.tip_total) : '—'}
                         </td>
                         <td style={{ padding: 6 }}>
@@ -1100,7 +1100,7 @@ export default function DeliveryScreen({ user }: { user: User }) {
                   {repartidores.map((r) => (
                     <button
                       key={r.id}
-                      style={S.btnSm('#334155')}
+                      style={S.btnSm('#E0E0E0')}
                       onClick={() => assignRepartidor(selected.id, r)}
                     >
                       {r.name}
@@ -1233,7 +1233,7 @@ export default function DeliveryScreen({ user }: { user: User }) {
                         <span style={S.cardTime}>⏱ {elapsed(order.created_at)}</span>
                       </div>
                       {order.repartidor_name && (
-                        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                        <div style={{ fontSize: 11, color: '#999999', marginTop: 2 }}>
                           🛵 {order.repartidor_name}
                         </div>
                       )}
@@ -1264,7 +1264,7 @@ export default function DeliveryScreen({ user }: { user: User }) {
                   </div>
                 </div>
                 <button
-                  style={S.btnSm('#334155')}
+                  style={S.btnSm('#E0E0E0')}
                   onClick={() => setSelectedId(null)}
                 >✕</button>
               </div>
@@ -1301,12 +1301,12 @@ export default function DeliveryScreen({ user }: { user: User }) {
                 </div>
               ))}
               {selected.delivery_fee > 0 && (
-                <div style={{ ...S.itemRow, color: '#94a3b8' }}>
+                <div style={{ ...S.itemRow, color: '#999999' }}>
                   <span>🛵 Despacho</span>
                   <span>{fmt(selected.delivery_fee)}</span>
                 </div>
               )}
-              <div style={{ ...S.itemRow, borderTop: '1px solid #334155', paddingTop: 6, marginTop: 4 }}>
+              <div style={{ ...S.itemRow, borderTop: '1px solid #E0E0E0', paddingTop: 6, marginTop: 4 }}>
                 <span style={{ fontWeight: 700, fontSize: 15 }}>TOTAL</span>
                 <span style={{ fontWeight: 700, fontSize: 15 }}>{fmt(selected.total || selected.subtotal)}</span>
               </div>
@@ -1330,7 +1330,7 @@ export default function DeliveryScreen({ user }: { user: User }) {
                 {selectedTips.map((t) => (
                   <div key={t.id} style={S.itemRow}>
                     <span>{METHOD_LABELS[t.method]}</span>
-                    <span style={{ fontWeight: 600, color: '#a78bfa' }}>{fmt(t.amount)}</span>
+                    <span style={{ fontWeight: 600, color: '#E8562A' }}>{fmt(t.amount)}</span>
                   </div>
                 ))}
               </div>
@@ -1339,7 +1339,7 @@ export default function DeliveryScreen({ user }: { user: User }) {
             {/* Timeline */}
             <div style={{ padding: '10px 16px', borderBottom: '1px solid #334155' }}>
               <div style={S.sectionTitle}>TIMELINE</div>
-              <div style={{ fontSize: 12, color: '#94a3b8' }}>
+              <div style={{ fontSize: 12, color: '#999999' }}>
                 {selected.created_at && <div>📥 Creado: {fmtTime(selected.created_at)}</div>}
                 {selected.accepted_at && <div>✅ Aceptado: {fmtTime(selected.accepted_at)}</div>}
                 {selected.preparation_at && <div>🔥 En cocina: {fmtTime(selected.preparation_at)}</div>}
