@@ -1,31 +1,39 @@
-// src/screens/admin/IngredientsScreen.tsx
-
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Platform } from 'react-native';
+// IngredientsScreen — Excel import/export + price history
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Platform } from 'react-native';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../contexts/AuthContext';
 import { COLORS } from '../../theme';
+import * as XLSX from 'xlsx';
 
 const CATS = ['Carnes','Pescados','Mariscos','Lácteos','Verduras','Frutas','Licores','Cervezas','Destilados','Insumos','Especias','Otros'];
 const UNITS = ['gr','kg','ml','lt','unidad'];
+const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-CL');
+const alert = (title: string, msg?: string) => typeof window !== 'undefined' ? window.alert(title + (msg ? '\n' + msg : '')) : null;
+const confirm = (msg: string) => typeof window !== 'undefined' ? window.confirm(msg) : true;
 
-interface Props { onBack: () => void }
-
-export default function IngredientsScreen({ onBack }: Props) {
+export default function IngredientsScreen() {
+  const { user } = useAuth();
   const [items, setItems] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   const [filterCat, setFilterCat] = useState('all');
   const [modal, setModal] = useState(false);
   const [ed, setEd] = useState<any>({});
   const [isNew, setIsNew] = useState(false);
+  const [historyModal, setHistoryModal] = useState(false);
+  const [history, setHistory] = useState<any[]>([]);
+  const [historyName, setHistoryName] = useState('');
+  const fileRef = useRef<any>(null);
+  const [diffModal, setDiffModal] = useState(false);
+  const [diffRows, setDiffRows] = useState<any[]>([]);
+  const [pendingImport, setPendingImport] = useState<any[]>([]);
 
-  useEffect(() => { load() }, []);
-
-  const load = async () => {
+  const load = useCallback(async () => {
     const { data } = await supabase.from('ingredients').select('*').eq('active', true).order('name');
     if (data) setItems(data);
-  };
+  }, []);
 
-  const fmt = (p: number) => '$' + Math.round(p).toLocaleString('es-CL');
+  useEffect(() => { load(); }, [load]);
 
   const filtered = items.filter(i => {
     const ms = !search || i.name.toLowerCase().includes(search.toLowerCase());
@@ -35,247 +43,440 @@ export default function IngredientsScreen({ onBack }: Props) {
 
   const lowStock = items.filter(i => i.stock_current <= i.stock_min && i.stock_min > 0);
 
-  const openNew = () => { setEd({ name:'', unit:'gr', stock_current:0, stock_min:0, cost_per_unit:0, category:'Otros' }); setIsNew(true); setModal(true); };
-  const openEdit = (i: any) => { setEd({...i}); setIsNew(false); setModal(true); };
+  const openNew = () => {
+    setEd({ name: '', unit: 'gr', stock_current: 0, stock_min: 0, cost_per_unit: 0, category: 'Otros' });
+    setIsNew(true); setModal(true);
+  };
+
+  const openEdit = (i: any) => {
+    setEd({ ...i }); setIsNew(false); setModal(true);
+  };
 
   const save = async () => {
-    if (!ed.name?.trim()) { Alert.alert('Error','Ingresa un nombre'); return; }
-    const payload = { name: ed.name.trim(), unit: ed.unit, stock_current: parseFloat(ed.stock_current)||0, stock_min: parseFloat(ed.stock_min)||0, cost_per_unit: parseFloat(ed.cost_per_unit)||0, category: ed.category };
+    if (!ed.name?.trim()) { alert('Error', 'Ingresa un nombre'); return; }
+    const newCost = parseFloat(ed.cost_per_unit) || 0;
+    const payload = {
+      name: ed.name.trim(), unit: ed.unit,
+      stock_current: parseFloat(ed.stock_current) || 0,
+      stock_min: parseFloat(ed.stock_min) || 0,
+      cost_per_unit: newCost, category: ed.category,
+    };
+
     try {
-      if (isNew) { const { error } = await supabase.from('ingredients').insert(payload); if (error) throw error; }
-      else { const { error } = await supabase.from('ingredients').update(payload).eq('id', ed.id); if (error) throw error; }
+      if (isNew) {
+        await supabase.from('ingredients').insert(payload);
+      } else {
+        // Track price change
+        const oldCost = items.find(x => x.id === ed.id)?.cost_per_unit || 0;
+        if (oldCost !== newCost) {
+          await supabase.from('ingredient_price_history').insert({
+            ingredient_id: ed.id, old_price: oldCost, new_price: newCost,
+            changed_by: user?.id || null,
+          });
+        }
+        await supabase.from('ingredients').update(payload).eq('id', ed.id);
+      }
       setModal(false); await load();
-    } catch (e: any) { Alert.alert('Error', e.message); }
+    } catch (e: any) { alert('Error', e.message); }
   };
 
-  const del = (i: any) => Alert.alert(`Eliminar ${i.name}`, '¿Seguro?', [{ text:'No' }, { text:'Sí', style:'destructive', onPress: async () => { await supabase.from('ingredients').update({ active: false }).eq('id', i.id); await load(); }}]);
-
-  const [importModal, setImportModal] = useState(false);
-  const [importText, setImportText] = useState('');
-  const fileInputRef = useRef<any>(null);
-
-  // EXPORT CSV
-  const exportCSV = () => {
-    const header = 'nombre,unidad,stock_actual,stock_minimo,costo_por_unidad,categoria';
-    const rows = items.map(i => `${i.name},${i.unit},${i.stock_current},${i.stock_min},${i.cost_per_unit},${i.category}`);
-    const csv = [header, ...rows].join('\n');
-
-    if (Platform.OS === 'web') {
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `ingredientes_${new Date().toISOString().split('T')[0]}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
-      Alert.alert('✅', `${items.length} ingredientes exportados`);
-    } else {
-      Alert.alert('CSV', csv);
-    }
+  const del = (i: any) => {
+    if (!confirm('¿Eliminar "' + i.name + '"?')) return;
+    supabase.from('ingredients').update({ active: false }).eq('id', i.id).then(() => load());
   };
 
-  // IMPORT CSV
-  const handleFileSelect = (e: any) => {
+  // Price history
+  const showHistory = async (i: any) => {
+    setHistoryName(i.name);
+    const { data } = await supabase.from('ingredient_price_history')
+      .select('*, user:changed_by(name)')
+      .eq('ingredient_id', i.id)
+      .order('changed_at', { ascending: false })
+      .limit(20);
+    setHistory(data || []);
+    setHistoryModal(true);
+  };
+
+  // EXPORT EXCEL
+  const exportExcel = () => {
+    const data = items.map(i => ({
+      Nombre: i.name,
+      Unidad: i.unit,
+      Stock_Actual: i.stock_current,
+      Stock_Minimo: i.stock_min,
+      Costo_Unidad: i.cost_per_unit,
+      Categoria: i.category,
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    // Column widths
+    ws['!cols'] = [{ wch: 30 }, { wch: 8 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 15 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Ingredientes');
+    XLSX.writeFile(wb, `ingredientes_${new Date().toISOString().split('T')[0]}.xlsx`);
+    alert('✅ Exportado', `${items.length} ingredientes`);
+  };
+
+  // IMPORT EXCEL — show diff first
+  const handleFile = (e: any) => {
     const file = e.target?.files?.[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (ev) => {
-      const text = ev.target?.result as string;
-      setImportText(text);
-      setImportModal(true);
-    };
-    reader.readAsText(file);
-  };
+      try {
+        const data = new Uint8Array(ev.target?.result as ArrayBuffer);
+        const wb = XLSX.read(data, { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows: any[] = XLSX.utils.sheet_to_json(ws);
+        if (rows.length === 0) { alert('Error', 'Archivo vacío'); return; }
 
-  const openImport = () => {
-    if (Platform.OS === 'web' && fileInputRef.current) {
-      fileInputRef.current.click();
-    } else {
-      setImportText('');
-      setImportModal(true);
-    }
-  };
+        const diffs: any[] = [];
+        const pending: any[] = [];
 
-  const processImport = async () => {
-    if (!importText.trim()) { Alert.alert('Error', 'Sin datos para importar'); return; }
-    try {
-      const lines = importText.trim().split('\n');
-      // Skip header if present
-      const startIdx = lines[0].toLowerCase().includes('nombre') ? 1 : 0;
-      let count = 0;
+        for (const row of rows) {
+          const name = (row.Nombre || row.nombre || '').trim();
+          if (!name) continue;
+          const payload = {
+            name,
+            unit: UNITS.includes(row.Unidad || row.unidad) ? (row.Unidad || row.unidad) : 'gr',
+            stock_current: parseFloat(row.Stock_Actual || row.stock_actual) || 0,
+            stock_min: parseFloat(row.Stock_Minimo || row.stock_minimo) || 0,
+            cost_per_unit: parseFloat(row.Costo_Unidad || row.costo_unidad) || 0,
+            category: CATS.includes(row.Categoria || row.categoria) ? (row.Categoria || row.categoria) : 'Otros',
+          };
 
-      for (let i = startIdx; i < lines.length; i++) {
-        const cols = lines[i].split(',').map(c => c.trim());
-        if (cols.length < 2 || !cols[0]) continue;
-
-        const payload = {
-          name: cols[0],
-          unit: UNITS.includes(cols[1]) ? cols[1] : 'gr',
-          stock_current: parseFloat(cols[2]) || 0,
-          stock_min: parseFloat(cols[3]) || 0,
-          cost_per_unit: parseFloat(cols[4]) || 0,
-          category: cols[5] && CATS.includes(cols[5]) ? cols[5] : 'Otros',
-        };
-
-        // Check if exists (update) or new (insert)
-        const existing = items.find(x => x.name.toLowerCase() === payload.name.toLowerCase());
-        if (existing) {
-          await supabase.from('ingredients').update(payload).eq('id', existing.id);
-        } else {
-          await supabase.from('ingredients').insert(payload);
+          const existing = items.find(x => x.name.toLowerCase() === name.toLowerCase());
+          if (existing) {
+            const stockDiff = payload.stock_current - existing.stock_current;
+            const costDiff = payload.cost_per_unit - existing.cost_per_unit;
+            diffs.push({
+              name, type: 'update', id: existing.id,
+              oldStock: existing.stock_current, newStock: payload.stock_current, stockDiff,
+              oldCost: existing.cost_per_unit, newCost: payload.cost_per_unit, costDiff,
+              unit: payload.unit, hasChanges: stockDiff !== 0 || costDiff !== 0,
+            });
+          } else {
+            diffs.push({
+              name, type: 'new', id: null,
+              oldStock: 0, newStock: payload.stock_current, stockDiff: payload.stock_current,
+              oldCost: 0, newCost: payload.cost_per_unit, costDiff: payload.cost_per_unit,
+              unit: payload.unit, hasChanges: true,
+            });
+          }
+          pending.push({ ...payload, existingId: existing?.id || null, oldCost: existing?.cost_per_unit || 0 });
         }
-        count++;
-      }
 
-      setImportModal(false);
-      setImportText('');
-      Alert.alert('✅ Importación completa', `${count} ingredientes procesados`);
-      await load();
-    } catch (e: any) { Alert.alert('Error', e.message); }
+        // Also check items NOT in the Excel (missing)
+        for (const item of items) {
+          const inExcel = rows.some(r => (r.Nombre || r.nombre || '').trim().toLowerCase() === item.name.toLowerCase());
+          if (!inExcel) {
+            diffs.push({
+              name: item.name, type: 'missing', id: item.id,
+              oldStock: item.stock_current, newStock: null, stockDiff: null,
+              oldCost: item.cost_per_unit, newCost: null, costDiff: null,
+              unit: item.unit, hasChanges: false,
+            });
+          }
+        }
+
+        setDiffRows(diffs);
+        setPendingImport(pending);
+        setDiffModal(true);
+      } catch (e: any) { alert('Error', e.message); }
+    };
+    reader.readAsArrayBuffer(file);
+    if (fileRef.current) fileRef.current.value = '';
+  };
+
+  const applyImport = async () => {
+    let created = 0, updated = 0;
+    for (const p of pendingImport) {
+      if (!p.hasChanges && p.existingId) continue;
+      const payload = { name: p.name, unit: p.unit, stock_current: p.stock_current, stock_min: p.stock_min, cost_per_unit: p.cost_per_unit, category: p.category };
+      if (p.existingId) {
+        if (p.oldCost !== p.cost_per_unit) {
+          await supabase.from('ingredient_price_history').insert({
+            ingredient_id: p.existingId, old_price: p.oldCost,
+            new_price: p.cost_per_unit, changed_by: user?.id || null,
+          });
+        }
+        await supabase.from('ingredients').update(payload).eq('id', p.existingId);
+        updated++;
+      } else {
+        await supabase.from('ingredients').insert(payload);
+        created++;
+      }
+    }
+    setDiffModal(false);
+    alert('✅ Importación aplicada', created + ' creados, ' + updated + ' actualizados');
+    await load();
   };
 
   return (
-    <View style={s.c}>
-      {/* Hidden file input for web */}
+    <View style={s.wrap}>
+      {/* Hidden file input */}
       {Platform.OS === 'web' && (
-        // @ts-ignore
-        <input ref={fileInputRef} type="file" accept=".csv,.txt" onChange={handleFileSelect} style={{ display: 'none' }} />
+        <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleFile} style={{ display: 'none' } as any} />
       )}
 
-      <View style={s.hdr}>
-        <TouchableOpacity onPress={onBack}><Text style={s.back}>← Volver</Text></TouchableOpacity>
-        <Text style={s.hdrT}>🥩 Ingredientes</Text>
+      {/* Header */}
+      <View style={s.header}>
+        <Text style={s.title}>🥩 Ingredientes ({items.length})</Text>
         <View style={{ flexDirection: 'row', gap: 6 }}>
-          <TouchableOpacity style={[s.addBtn, { backgroundColor: COLORS.info }]} onPress={openImport}><Text style={s.addBtnT}>📥</Text></TouchableOpacity>
-          <TouchableOpacity style={[s.addBtn, { backgroundColor: COLORS.success }]} onPress={exportCSV}><Text style={s.addBtnT}>📤</Text></TouchableOpacity>
-          <TouchableOpacity style={s.addBtn} onPress={openNew}><Text style={s.addBtnT}>+</Text></TouchableOpacity>
+          <TouchableOpacity style={[s.btn, { backgroundColor: '#42A5F5' }]} onPress={() => fileRef.current?.click()}>
+            <Text style={s.btnT}>📥 Importar</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[s.btn, { backgroundColor: '#4CAF50' }]} onPress={exportExcel}>
+            <Text style={s.btnT}>📤 Exportar</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.btn} onPress={openNew}>
+            <Text style={s.btnT}>+ Nuevo</Text>
+          </TouchableOpacity>
         </View>
       </View>
 
+      {/* Low stock alert */}
       {lowStock.length > 0 && (
-        <View style={s.alert}>
-          <Text style={s.alertT}>⚠️ {lowStock.length} con stock bajo</Text>
-          <Text style={s.alertS}>{lowStock.map(i=>i.name).join(', ')}</Text>
+        <View style={s.alertBar}>
+          <Text style={{ fontSize: 13, fontWeight: '700', color: '#E53935' }}>
+            ⚠️ {lowStock.length} con stock bajo: {lowStock.slice(0, 3).map(i => i.name).join(', ')}{lowStock.length > 3 ? '...' : ''}
+          </Text>
         </View>
       )}
 
-      <View style={{ paddingHorizontal:16, paddingVertical:10 }}>
-        <TextInput style={s.si} placeholder="🔍 Buscar ingrediente..." placeholderTextColor={COLORS.textMuted} value={search} onChangeText={setSearch} />
+      {/* Search + filter */}
+      <View style={s.toolbar}>
+        <View style={s.searchBox}>
+          <Text style={{ color: '#999' }}>🔍</Text>
+          <TextInput style={s.searchInp} placeholder="Buscar..." placeholderTextColor="#999" value={search} onChangeText={setSearch} />
+          {search ? <TouchableOpacity onPress={() => setSearch('')}><Text style={{ color: '#999' }}>✕</Text></TouchableOpacity> : null}
+        </View>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight:40, marginBottom:8 }} contentContainerStyle={{ paddingHorizontal:12 }}>
-        <Chip label="Todos" active={filterCat==='all'} onPress={()=>setFilterCat('all')} />
-        {CATS.map(c => <Chip key={c} label={c} active={filterCat===c} onPress={()=>setFilterCat(c)} />)}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 38, marginBottom: 6 }} contentContainerStyle={{ paddingHorizontal: 12, gap: 4 }}>
+        <Chip label="Todos" active={filterCat === 'all'} count={items.length} onPress={() => setFilterCat('all')} />
+        {CATS.map(c => {
+          const n = items.filter(i => i.category === c).length;
+          return n > 0 ? <Chip key={c} label={c} count={n} active={filterCat === c} onPress={() => setFilterCat(c)} /> : null;
+        })}
       </ScrollView>
 
-      <Text style={s.cnt}>{filtered.length} ingredientes</Text>
+      {/* Table header */}
+      <View style={s.tHead}>
+        <Text style={[s.th, { flex: 1 }]}>Ingrediente</Text>
+        <Text style={[s.th, { width: 80 }]}>Categoría</Text>
+        <Text style={[s.th, { width: 60, textAlign: 'center' }]}>Unidad</Text>
+        <Text style={[s.th, { width: 80, textAlign: 'right' }]}>Stock</Text>
+        <Text style={[s.th, { width: 80, textAlign: 'right' }]}>Costo</Text>
+        <Text style={[s.th, { width: 70 }]}></Text>
+      </View>
 
-      <ScrollView contentContainerStyle={{ paddingHorizontal:16, paddingBottom:100 }}>
-        {filtered.map(i => (
-          <TouchableOpacity key={i.id} style={s.row} onPress={()=>openEdit(i)}>
-            <View style={{ flex:1 }}>
-              <Text style={s.rn}>{i.name}</Text>
-              <Text style={s.rs}>{i.category} • {i.unit} • Costo: {fmt(i.cost_per_unit)}/{i.unit}</Text>
-            </View>
-            <View style={{ alignItems:'flex-end', gap:4 }}>
-              <Text style={[s.sv, i.stock_current <= i.stock_min && i.stock_min > 0 && { color: COLORS.error }]}>
+      {/* Table body */}
+      <ScrollView>
+        {filtered.map((i, idx) => {
+          const isLow = i.stock_current <= i.stock_min && i.stock_min > 0;
+          return (
+            <TouchableOpacity key={i.id} style={[s.tRow, idx % 2 === 0 && s.tRowAlt]} onPress={() => openEdit(i)}>
+              <Text style={[s.td, { flex: 1, fontWeight: '600' }]}>{i.name}</Text>
+              <Text style={[s.td, { width: 80, fontSize: 11, color: '#888' }]}>{i.category}</Text>
+              <Text style={[s.td, { width: 60, textAlign: 'center', fontSize: 11 }]}>{i.unit}</Text>
+              <Text style={[s.td, { width: 80, textAlign: 'right', fontWeight: '600', color: isLow ? '#E53935' : '#2D2D2D' }]}>
                 {Math.round(i.stock_current)} {i.unit}
               </Text>
-              <TouchableOpacity onPress={()=>del(i)}><Text style={{fontSize:12}}>🗑</Text></TouchableOpacity>
-            </View>
-          </TouchableOpacity>
-        ))}
+              <Text style={[s.td, { width: 80, textAlign: 'right', fontWeight: '700', color: COLORS.primary }]}>
+                {fmt(i.cost_per_unit)}
+              </Text>
+              <View style={{ width: 70, flexDirection: 'row', justifyContent: 'flex-end', gap: 8 }}>
+                <TouchableOpacity onPress={() => showHistory(i)}><Text style={{ fontSize: 13 }}>📊</Text></TouchableOpacity>
+                <TouchableOpacity onPress={() => del(i)}><Text style={{ fontSize: 13 }}>🗑️</Text></TouchableOpacity>
+              </View>
+            </TouchableOpacity>
+          );
+        })}
       </ScrollView>
 
+      {/* EDIT MODAL */}
       <Modal visible={modal} transparent animationType="fade">
-        <View style={s.ov}><ScrollView contentContainerStyle={{ flexGrow:1, justifyContent:'center', alignItems:'center', padding:16 }}><View style={s.md}>
-          <Text style={s.mdT}>{isNew ? 'Nuevo Ingrediente' : 'Editar Ingrediente'}</Text>
+        <View style={s.ov}><ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 16 }}><View style={s.md}>
+          <Text style={s.mdT}>{isNew ? '➕ Nuevo Ingrediente' : '✏️ Editar: ' + (ed.name || '')}</Text>
 
-          <Text style={s.lb}>Nombre</Text>
-          <TextInput style={s.inp} value={ed.name||''} onChangeText={t=>setEd((e:any)=>({...e,name:t}))} placeholder="Ej: Salmón fresco" placeholderTextColor={COLORS.textMuted} />
+          <Text style={s.lb}>Nombre *</Text>
+          <TextInput style={s.inp} value={ed.name || ''} onChangeText={t => setEd((e: any) => ({ ...e, name: t }))} placeholder="Ej: Salmón fresco" placeholderTextColor="#999" />
 
           <Text style={s.lb}>Categoría</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight:40 }}>
-            {CATS.map(c => <Chip key={c} label={c} active={ed.category===c} onPress={()=>setEd((e:any)=>({...e,category:c}))} />)}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 36 }}>
+            {CATS.map(c => <Chip key={c} label={c} active={ed.category === c} onPress={() => setEd((e: any) => ({ ...e, category: c }))} />)}
           </ScrollView>
 
           <Text style={s.lb}>Unidad base</Text>
-          <View style={{ flexDirection:'row', gap:6 }}>
-            {UNITS.map(u => <Chip key={u} label={u} active={ed.unit===u} onPress={()=>setEd((e:any)=>({...e,unit:u}))} />)}
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            {UNITS.map(u => <Chip key={u} label={u} active={ed.unit === u} onPress={() => setEd((e: any) => ({ ...e, unit: u }))} />)}
           </View>
 
-          <Text style={s.lb}>Stock actual ({ed.unit||'unidad'})</Text>
-          <TextInput style={s.inp} value={String(ed.stock_current||'')} onChangeText={t=>setEd((e:any)=>({...e,stock_current:t}))} keyboardType="decimal-pad" placeholder="0" placeholderTextColor={COLORS.textMuted} />
+          <View style={{ flexDirection: 'row', gap: 12, marginTop: 14 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.lb}>Stock actual</Text>
+              <TextInput style={s.inp} value={String(ed.stock_current || '')} onChangeText={t => setEd((e: any) => ({ ...e, stock_current: t }))} keyboardType="decimal-pad" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.lb}>Stock mínimo</Text>
+              <TextInput style={s.inp} value={String(ed.stock_min || '')} onChangeText={t => setEd((e: any) => ({ ...e, stock_min: t }))} keyboardType="decimal-pad" />
+            </View>
+          </View>
 
-          <Text style={s.lb}>Stock mínimo (alerta)</Text>
-          <TextInput style={s.inp} value={String(ed.stock_min||'')} onChangeText={t=>setEd((e:any)=>({...e,stock_min:t}))} keyboardType="decimal-pad" placeholder="0" placeholderTextColor={COLORS.textMuted} />
+          <Text style={s.lb}>Costo por {ed.unit || 'unidad'} *</Text>
+          <TextInput style={[s.inp, { fontSize: 20, fontWeight: '700' }]} value={String(ed.cost_per_unit || '')} onChangeText={t => setEd((e: any) => ({ ...e, cost_per_unit: t }))} keyboardType="decimal-pad" />
 
-          <Text style={s.lb}>Costo por {ed.unit||'unidad'}</Text>
-          <TextInput style={s.inp} value={String(ed.cost_per_unit||'')} onChangeText={t=>setEd((e:any)=>({...e,cost_per_unit:t}))} keyboardType="decimal-pad" placeholder="0" placeholderTextColor={COLORS.textMuted} />
+          {!isNew && ed.id && (() => {
+            const old = items.find(x => x.id === ed.id);
+            const oldCost = old?.cost_per_unit || 0;
+            const newCost = parseFloat(ed.cost_per_unit) || 0;
+            if (oldCost !== newCost && oldCost > 0) {
+              const diff = newCost - oldCost;
+              const pct = ((diff / oldCost) * 100).toFixed(1);
+              return (
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', backgroundColor: diff > 0 ? '#FFF3E0' : '#E8F5E9', borderRadius: 8, padding: 10, marginTop: 8 }}>
+                  <Text style={{ fontSize: 12, color: '#666' }}>Cambio: {fmt(oldCost)} → {fmt(newCost)}</Text>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: diff > 0 ? '#E65100' : '#2E7D32' }}>{diff > 0 ? '+' : ''}{pct}%</Text>
+                </View>
+              );
+            }
+            return null;
+          })()}
 
-          <View style={s.mBs}>
-            <TouchableOpacity style={s.bC} onPress={()=>setModal(false)}><Text style={s.bCT}>Cancelar</Text></TouchableOpacity>
-            <TouchableOpacity style={s.bOk} onPress={save}><Text style={s.bOkT}>Guardar</Text></TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 12, marginTop: 20 }}>
+            <TouchableOpacity style={s.bCancel} onPress={() => setModal(false)}><Text style={s.bCancelT}>Cancelar</Text></TouchableOpacity>
+            <TouchableOpacity style={s.bSave} onPress={save}><Text style={s.bSaveT}>Guardar</Text></TouchableOpacity>
           </View>
         </View></ScrollView></View>
       </Modal>
 
-      {/* Import Modal */}
-      <Modal visible={importModal} transparent animationType="fade">
-        <View style={s.ov}><ScrollView contentContainerStyle={{ flexGrow:1, justifyContent:'center', alignItems:'center', padding:16 }}><View style={s.md}>
-          <Text style={s.mdT}>📥 Importar Ingredientes</Text>
-          <Text style={{ fontSize:12, color:COLORS.textSecondary, textAlign:'center', marginTop:4 }}>Formato CSV: nombre,unidad,stock_actual,stock_minimo,costo_por_unidad,categoria</Text>
-          <Text style={{ fontSize:11, color:COLORS.textMuted, textAlign:'center', marginTop:4 }}>Unidades: gr, kg, ml, lt, unidad</Text>
-          <Text style={{ fontSize:11, color:COLORS.textMuted, textAlign:'center' }}>Categorías: Carnes, Pescados, Mariscos, Lácteos, Verduras, Frutas, Licores, etc.</Text>
+      {/* DIFF MODAL */}
+      <Modal visible={diffModal} transparent animationType="fade">
+        <View style={s.ov}><View style={[s.md, { maxWidth: 700, maxHeight: '90%' as any }]}>
+          <Text style={s.mdT}>📋 Reporte de Diferencias</Text>
+          <Text style={{ textAlign: 'center', fontSize: 12, color: '#666', marginBottom: 12 }}>
+            {diffRows.filter(d => d.type === 'new').length} nuevos · {diffRows.filter(d => d.type === 'update' && d.hasChanges).length} con cambios · {diffRows.filter(d => d.type === 'update' && !d.hasChanges).length} sin cambios · {diffRows.filter(d => d.type === 'missing').length} no en Excel
+          </Text>
 
-          <Text style={s.lb}>Datos CSV</Text>
-          <TextInput
-            style={[s.inp, { minHeight:120, textAlignVertical:'top' }]}
-            value={importText}
-            onChangeText={setImportText}
-            placeholder={"Salmón,gr,5000,1000,15,Pescados\nQueso mozzarella,gr,3000,500,8,Lácteos"}
-            placeholderTextColor={COLORS.textMuted}
-            multiline
-          />
+          <ScrollView style={{ maxHeight: 500 }}>
+            {/* Header */}
+            <View style={{ flexDirection: 'row', paddingVertical: 6, paddingHorizontal: 8, backgroundColor: '#F0F0F0', borderRadius: 6, marginBottom: 4 }}>
+              <Text style={[s.th, { width: 24 }]}></Text>
+              <Text style={[s.th, { flex: 1 }]}>Ingrediente</Text>
+              <Text style={[s.th, { width: 70, textAlign: 'right' }]}>Stock Ant.</Text>
+              <Text style={[s.th, { width: 70, textAlign: 'right' }]}>Stock Nvo.</Text>
+              <Text style={[s.th, { width: 60, textAlign: 'right' }]}>Dif. Stock</Text>
+              <Text style={[s.th, { width: 70, textAlign: 'right' }]}>Costo Ant.</Text>
+              <Text style={[s.th, { width: 70, textAlign: 'right' }]}>Costo Nvo.</Text>
+              <Text style={[s.th, { width: 55, textAlign: 'right' }]}>Dif. %</Text>
+            </View>
 
-          {importText.trim() && (
-            <Text style={{ fontSize:12, color:COLORS.info, marginTop:8 }}>
-              {importText.trim().split('\n').filter(l => l.trim()).length} líneas detectadas
-            </Text>
+            {diffRows.filter(d => d.hasChanges || d.type === 'new' || d.type === 'missing').map((d, i) => {
+              const icon = d.type === 'new' ? '🟢' : d.type === 'missing' ? '⚪' : d.hasChanges ? '🟡' : '⚪';
+              const costPct = d.oldCost > 0 && d.costDiff !== null ? ((d.costDiff / d.oldCost) * 100).toFixed(1) : '—';
+              return (
+                <View key={i} style={{ flexDirection: 'row', paddingVertical: 6, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: '#F0F0F0', alignItems: 'center', backgroundColor: d.type === 'new' ? '#E8F5E9' : d.type === 'missing' ? '#F5F5F5' : d.hasChanges ? '#FFFDE7' : '#FFF' }}>
+                  <Text style={{ width: 24, fontSize: 12 }}>{icon}</Text>
+                  <Text style={{ flex: 1, fontSize: 12, fontWeight: '600', color: '#2D2D2D' }}>{d.name}</Text>
+                  <Text style={{ width: 70, textAlign: 'right', fontSize: 11, color: '#888' }}>{d.oldStock !== null ? Math.round(d.oldStock) : '—'}</Text>
+                  <Text style={{ width: 70, textAlign: 'right', fontSize: 11, fontWeight: '600', color: '#2D2D2D' }}>{d.newStock !== null ? Math.round(d.newStock) : '—'}</Text>
+                  <Text style={{ width: 60, textAlign: 'right', fontSize: 11, fontWeight: '700', color: d.stockDiff > 0 ? '#4CAF50' : d.stockDiff < 0 ? '#E53935' : '#999' }}>
+                    {d.stockDiff !== null ? (d.stockDiff > 0 ? '+' : '') + Math.round(d.stockDiff) : '—'}
+                  </Text>
+                  <Text style={{ width: 70, textAlign: 'right', fontSize: 11, color: '#888' }}>{d.oldCost !== null ? fmt(d.oldCost) : '—'}</Text>
+                  <Text style={{ width: 70, textAlign: 'right', fontSize: 11, fontWeight: '600', color: COLORS.primary }}>{d.newCost !== null ? fmt(d.newCost) : '—'}</Text>
+                  <Text style={{ width: 55, textAlign: 'right', fontSize: 11, fontWeight: '600', color: d.costDiff > 0 ? '#E65100' : d.costDiff < 0 ? '#2E7D32' : '#999' }}>
+                    {costPct !== '—' ? (d.costDiff > 0 ? '+' : '') + costPct + '%' : '—'}
+                  </Text>
+                </View>
+              );
+            })}
+          </ScrollView>
+
+          <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
+            <TouchableOpacity style={s.bCancel} onPress={() => setDiffModal(false)}><Text style={s.bCancelT}>Cancelar</Text></TouchableOpacity>
+            <TouchableOpacity style={s.bSave} onPress={applyImport}><Text style={s.bSaveT}>✅ Aplicar Cambios</Text></TouchableOpacity>
+          </View>
+        </View></View>
+      </Modal>
+
+      {/* HISTORY MODAL */}
+      <Modal visible={historyModal} transparent animationType="fade">
+        <View style={s.ov}><View style={[s.md, { maxWidth: 500 }]}>
+          <Text style={s.mdT}>📊 Historial: {historyName}</Text>
+          
+          {history.length === 0 ? (
+            <Text style={{ textAlign: 'center', color: '#999', paddingVertical: 20 }}>Sin cambios de precio registrados</Text>
+          ) : (
+            <ScrollView style={{ maxHeight: 400 }}>
+              <View style={{ flexDirection: 'row', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#E0E0E0' }}>
+                <Text style={[s.th, { flex: 1 }]}>Fecha</Text>
+                <Text style={[s.th, { width: 80, textAlign: 'right' }]}>Anterior</Text>
+                <Text style={[s.th, { width: 80, textAlign: 'right' }]}>Nuevo</Text>
+                <Text style={[s.th, { width: 60, textAlign: 'right' }]}>Cambio</Text>
+                <Text style={[s.th, { width: 70 }]}>Quién</Text>
+              </View>
+              {history.map(h => {
+                const diff = h.new_price - h.old_price;
+                const pct = h.old_price > 0 ? ((diff / h.old_price) * 100).toFixed(1) : '—';
+                return (
+                  <View key={h.id} style={{ flexDirection: 'row', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#F0F0F0', alignItems: 'center' }}>
+                    <Text style={{ flex: 1, fontSize: 11, color: '#666' }}>
+                      {new Date(h.changed_at).toLocaleDateString('es-CL')} {new Date(h.changed_at).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
+                    </Text>
+                    <Text style={{ width: 80, textAlign: 'right', fontSize: 12, color: '#888' }}>{fmt(h.old_price)}</Text>
+                    <Text style={{ width: 80, textAlign: 'right', fontSize: 12, fontWeight: '700', color: COLORS.primary }}>{fmt(h.new_price)}</Text>
+                    <Text style={{ width: 60, textAlign: 'right', fontSize: 11, fontWeight: '600', color: diff > 0 ? '#E65100' : '#2E7D32' }}>
+                      {diff > 0 ? '+' : ''}{pct}%
+                    </Text>
+                    <Text style={{ width: 70, fontSize: 11, color: '#888', paddingLeft: 6 }}>{h.user?.name || '—'}</Text>
+                  </View>
+                );
+              })}
+            </ScrollView>
           )}
 
-          <View style={s.mBs}>
-            <TouchableOpacity style={s.bC} onPress={() => { setImportModal(false); setImportText(''); }}><Text style={s.bCT}>Cancelar</Text></TouchableOpacity>
-            <TouchableOpacity style={s.bOk} onPress={processImport}><Text style={s.bOkT}>Importar</Text></TouchableOpacity>
-          </View>
-        </View></ScrollView></View>
+          <TouchableOpacity style={[s.bCancel, { marginTop: 16 }]} onPress={() => setHistoryModal(false)}>
+            <Text style={s.bCancelT}>Cerrar</Text>
+          </TouchableOpacity>
+        </View></View>
       </Modal>
     </View>
   );
 }
 
-function Chip({ label, active, onPress }: { label:string; active:boolean; onPress:()=>void }) {
-  return <TouchableOpacity style={{ paddingHorizontal:12, paddingVertical:6, borderRadius:14, backgroundColor:active?COLORS.primary:COLORS.card, borderWidth:1, borderColor:active?COLORS.primary:COLORS.border, marginRight:6 }} onPress={onPress}><Text style={{ fontSize:12, fontWeight:'600', color:active?'#fff':COLORS.textSecondary }}>{label}</Text></TouchableOpacity>;
+function Chip({ label, active, count, onPress }: { label: string; active: boolean; count?: number; onPress: () => void }) {
+  return (
+    <TouchableOpacity style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, backgroundColor: active ? COLORS.primary : '#FFFFFF', borderWidth: 1, borderColor: active ? COLORS.primary : '#E0E0E0', marginRight: 4 }} onPress={onPress}>
+      <Text style={{ fontSize: 11, fontWeight: '600', color: active ? '#fff' : '#666' }}>
+        {label}{count !== undefined ? ` (${count})` : ''}
+      </Text>
+    </TouchableOpacity>
+  );
 }
 
 const s = StyleSheet.create({
-  c:{flex:1,backgroundColor:COLORS.background},
-  hdr:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',paddingHorizontal:16,paddingTop:50,paddingBottom:12,backgroundColor:COLORS.card,borderBottomWidth:1,borderBottomColor:COLORS.border},
-  back:{color:COLORS.primary,fontSize:15,fontWeight:'600'},hdrT:{fontSize:18,fontWeight:'700',color:COLORS.text},
-  addBtn:{paddingHorizontal:14,paddingVertical:8,borderRadius:8,backgroundColor:COLORS.primary},addBtnT:{color:'#fff',fontWeight:'700',fontSize:13},
-  alert:{backgroundColor:COLORS.error+'15',padding:12,marginHorizontal:16,marginTop:10,borderRadius:10,borderWidth:1,borderColor:COLORS.error+'30'},
-  alertT:{fontSize:13,fontWeight:'700',color:COLORS.error},alertS:{fontSize:11,color:COLORS.textSecondary,marginTop:2},
-  si:{backgroundColor:COLORS.card,borderRadius:10,borderWidth:1,borderColor:COLORS.border,paddingHorizontal:14,paddingVertical:10,fontSize:14,color:COLORS.text},
-  cnt:{paddingHorizontal:16,fontSize:12,color:COLORS.textMuted,marginBottom:8},
-  row:{flexDirection:'row',alignItems:'center',backgroundColor:COLORS.card,borderRadius:10,padding:14,marginVertical:3,borderWidth:1,borderColor:COLORS.border},
-  rn:{fontSize:14,fontWeight:'600',color:COLORS.text},rs:{fontSize:11,color:COLORS.textMuted,marginTop:2},
-  sv:{fontSize:14,fontWeight:'700',color:COLORS.success},
-  ov:{flex:1,backgroundColor:COLORS.overlay},
-  md:{width:'92%' as any,maxWidth:450,backgroundColor:COLORS.card,borderRadius:16,padding:24,borderWidth:1,borderColor:COLORS.border},
-  mdT:{fontSize:20,fontWeight:'700',color:COLORS.text,textAlign:'center',marginBottom:8},
-  lb:{fontSize:13,color:COLORS.textSecondary,marginBottom:6,marginTop:14},
-  inp:{backgroundColor:COLORS.background,borderRadius:10,borderWidth:1,borderColor:COLORS.border,paddingHorizontal:14,paddingVertical:12,fontSize:15,color:COLORS.text},
-  mBs:{flexDirection:'row',gap:12,marginTop:20},
-  bC:{flex:1,paddingVertical:14,borderRadius:10,borderWidth:1,borderColor:COLORS.border,alignItems:'center'},bCT:{color:COLORS.textSecondary,fontWeight:'600',fontSize:15},
-  bOk:{flex:1,paddingVertical:14,borderRadius:10,backgroundColor:COLORS.primary,alignItems:'center'},bOkT:{color:'#fff',fontWeight:'700',fontSize:15},
+  wrap: { flex: 1, backgroundColor: '#F5F5F5' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#E0E0E0' },
+  title: { fontSize: 18, fontWeight: '700', color: '#2D2D2D' },
+  btn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 6, backgroundColor: COLORS.primary },
+  btnT: { color: '#fff', fontWeight: '700', fontSize: 12 },
+  alertBar: { backgroundColor: '#FFEBEE', padding: 10, marginHorizontal: 14, marginTop: 8, borderRadius: 8, borderWidth: 1, borderColor: '#FFCDD2' },
+  toolbar: { paddingHorizontal: 14, paddingVertical: 8 },
+  searchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E0E0E0', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 6 },
+  searchInp: { flex: 1, fontSize: 13, color: '#2D2D2D', marginLeft: 6 },
+  tHead: { flexDirection: 'row', paddingHorizontal: 14, paddingVertical: 8, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#E0E0E0' },
+  th: { fontSize: 11, fontWeight: '600', color: '#999' },
+  tRow: { flexDirection: 'row', paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F0F0F0', alignItems: 'center' },
+  tRowAlt: { backgroundColor: '#FAFAFA' },
+  td: { fontSize: 13, color: '#2D2D2D' },
+  ov: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' },
+  md: { width: '92%' as any, maxWidth: 450, backgroundColor: '#FFF', borderRadius: 16, padding: 24 },
+  mdT: { fontSize: 18, fontWeight: '700', color: '#2D2D2D', textAlign: 'center', marginBottom: 8 },
+  lb: { fontSize: 12, fontWeight: '600', color: '#999', marginBottom: 4, marginTop: 12 },
+  inp: { backgroundColor: '#F5F5F5', borderWidth: 1, borderColor: '#E0E0E0', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: '#2D2D2D' },
+  bCancel: { flex: 1, paddingVertical: 14, borderRadius: 10, borderWidth: 1, borderColor: '#E0E0E0', alignItems: 'center' },
+  bCancelT: { color: '#666', fontWeight: '600', fontSize: 14 },
+  bSave: { flex: 1, paddingVertical: 14, borderRadius: 10, backgroundColor: COLORS.primary, alignItems: 'center' },
+  bSaveT: { color: '#fff', fontWeight: '700', fontSize: 14 },
 });

@@ -7,17 +7,16 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { COLORS } from '../theme';
 import IngredientsScreen from './admin/IngredientsScreen';
-import RecipesScreen from './admin/RecipesScreen';
-import SuppliersScreen from './admin/SuppliersScreen';
-import PurchasesScreen from './admin/PurchasesScreen';
 import ProductsScreen from './admin/ProductsScreen';
 import UsersScreen from './admin/UsersScreen';
 import ReportsScreen from './admin/ReportsScreen';
 import ClientsScreen from './admin/ClientsScreen';
 import ModifiersScreen from './admin/ModifiersScreen';
 import PrintersScreen from './admin/PrintersScreen';
+import SuppliersScreen from './admin/SuppliersScreen';
+import PurchasesScreen from './admin/PurchasesScreen';
 
-type Sub = 'menu'|'products'|'ingredients'|'recipes'|'suppliers'|'purchases'|'users'|'reports'|'clients'|'modifiers'|'printers';
+type Sub = 'menu'|'products'|'ingredients'|'suppliers'|'purchases'|'users'|'reports'|'clients'|'modifiers'|'printers';
 
 interface Props { onOpenEditor: () => void; }
 
@@ -32,30 +31,28 @@ export default function AdminScreen({ onOpenEditor }: Props) {
       {sub === 'menu' && <Menu onSelect={setSub} onOpenEditor={onOpenEditor} />}
       {sub === 'products' && <ProductsScreen />}
       {sub === 'ingredients' && <IngredientsScreen />}
-      {sub === 'recipes' && <RecipesScreen />}
-      {sub === 'suppliers' && <SuppliersScreen />}
-      {sub === 'purchases' && <PurchasesScreen />}
       {sub === 'users' && <UsersScreen />}
       {sub === 'reports' && <ReportsScreen />}
       {sub === 'clients' && <ClientsScreen />}
       {sub === 'modifiers' && <ModifiersScreen />}
       {sub === 'printers' && <PrintersScreen />}
+      {sub === 'suppliers' && <SuppliersScreen />}
+      {sub === 'purchases' && <PurchasesScreen />}
     </View>
   );
 }
 
 function Menu({ onSelect, onOpenEditor }: { onSelect: (s: Sub) => void; onOpenEditor: () => void }) {
   const items: { key: Sub; icon: string; title: string; desc: string }[] = [
-    { key: 'products', icon: '🍕', title: 'Productos', desc: 'Menú y categorías' },
-    { key: 'ingredients', icon: '🥩', title: 'Ingredientes', desc: 'Stock y costos' },
-    { key: 'recipes', icon: '📋', title: 'Recetas', desc: 'Food cost y gramajes' },
-    { key: 'suppliers', icon: '🚚', title: 'Proveedores', desc: 'Datos y contactos' },
+    { key: 'products', icon: '🍕', title: 'Productos', desc: 'Menú, recetas y food cost' },
+    { key: 'ingredients', icon: '🥩', title: 'Ingredientes', desc: 'Stock, costos e historial' },
+    { key: 'modifiers', icon: '🎛️', title: 'Modificadores', desc: 'Sabores y opciones' },
+    { key: 'suppliers', icon: '🚚', title: 'Proveedores', desc: 'Contactos y datos' },
     { key: 'purchases', icon: '🧾', title: 'Compras', desc: 'Facturas y stock' },
+    { key: 'printers', icon: '🖨️', title: 'Impresoras', desc: 'Cocina, Barra, Caja' },
+    { key: 'clients', icon: '🤝', title: 'Socios', desc: 'Club de Amigos' },
     { key: 'users', icon: '👥', title: 'Usuarios', desc: 'Roles y accesos' },
     { key: 'reports', icon: '📊', title: 'Reportes', desc: 'Ventas y análisis' },
-    { key: 'modifiers', icon: '🎛️', title: 'Modificadores', desc: 'Sabores y opciones' },
-    { key: 'printers', icon: '🖨️', title: 'Impresoras', desc: 'Cocina, Barra, Caja' },
-    { key: 'clients', icon: '👥', title: 'Socios', desc: 'Club de Amigos' },
   ];
   return (
     <ScrollView contentContainerStyle={s.grid}>
