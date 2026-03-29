@@ -15,8 +15,9 @@ import ModifiersScreen from './admin/ModifiersScreen';
 import PrintersScreen from './admin/PrintersScreen';
 import SuppliersScreen from './admin/SuppliersScreen';
 import PurchasesScreen from './admin/PurchasesScreen';
+import InventoryCountScreen from './admin/InventoryCountScreen';
 
-type Sub = 'menu'|'products'|'ingredients'|'suppliers'|'purchases'|'users'|'reports'|'clients'|'modifiers'|'printers';
+type Sub = 'menu'|'products'|'ingredients'|'suppliers'|'purchases'|'inventory'|'users'|'reports'|'clients'|'modifiers'|'printers';
 
 interface Props { onOpenEditor: () => void; }
 
@@ -38,6 +39,7 @@ export default function AdminScreen({ onOpenEditor }: Props) {
       {sub === 'printers' && <PrintersScreen />}
       {sub === 'suppliers' && <SuppliersScreen />}
       {sub === 'purchases' && <PurchasesScreen />}
+      {sub === 'inventory' && <InventoryCountScreen />}
     </View>
   );
 }
@@ -47,6 +49,7 @@ function Menu({ onSelect, onOpenEditor }: { onSelect: (s: Sub) => void; onOpenEd
     { key: 'products', icon: '🍕', title: 'Productos', desc: 'Menú, recetas y food cost' },
     { key: 'ingredients', icon: '🥩', title: 'Ingredientes', desc: 'Stock, costos e historial' },
     { key: 'modifiers', icon: '🎛️', title: 'Modificadores', desc: 'Sabores y opciones' },
+    { key: 'inventory', icon: '📦', title: 'Inventario', desc: 'Conteo y merma' },
     { key: 'suppliers', icon: '🚚', title: 'Proveedores', desc: 'Contactos y datos' },
     { key: 'purchases', icon: '🧾', title: 'Compras', desc: 'Facturas y stock' },
     { key: 'printers', icon: '🖨️', title: 'Impresoras', desc: 'Cocina, Barra, Caja' },
