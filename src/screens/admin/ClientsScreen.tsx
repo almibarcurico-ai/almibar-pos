@@ -1,7 +1,7 @@
 // src/screens/admin/ClientsScreen.tsx
 // Club de Socios — admin module
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, RefreshControl, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, RefreshControl } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { COLORS } from '../../theme';
 
@@ -50,7 +50,7 @@ export default function ClientsScreen() {
     const { data } = await supabase
       .from('clients')
       .select('*')
-      .order('member_number', { ascending: false });
+      .eq('active', true).order('member_number', { ascending: false });
     if (data) setClients(data);
     setLoading(false);
   }, []);
@@ -86,15 +86,12 @@ export default function ClientsScreen() {
     loadClients();
   };
 
-  const handleDelete = (client: Client) => {
-    Alert.alert('Eliminar socio', `¿Eliminar a ${client.name}?`, [
-      { text: 'Cancelar' },
-      { text: 'Eliminar', style: 'destructive', onPress: async () => {
-        await supabase.from('clients').delete().eq('id', client.id);
-        setSelected(null);
-        loadClients();
-      }},
-    ]);
+  const handleDelete = async (client: Client) => {
+    const ok = typeof window !== 'undefined' ? window.confirm('Eliminar a ' + client.name + '?') : true;
+    if (!ok) return;
+    await supabase.from('clients').update({ active: false }).eq('id', client.id);
+    setSelected(null);
+    loadClients();
   };
 
   const addVisitManual = async (client: Client) => {
