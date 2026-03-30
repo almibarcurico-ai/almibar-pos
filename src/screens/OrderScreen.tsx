@@ -166,11 +166,11 @@ export default function OrderScreen({ table, onBack }: Props) {
       if (ids.length > 0) { const { error: re } = await supabase.rpc('send_order_and_deduct_stock', { p_item_ids: ids }); if (re) throw re; }
       // Print to kitchen/bar
       try {
-        await triggerPrint(
-          table.number, user.name,
-          cart.map(ci => ({ name: ci.product.name, qty: ci.quantity, category_id: ci.product.category_id, modifiers: ci.modifiers.map(m => m.name) })),
-          printers, categoryPrinters, order.order_number
-        );
+        await printOrder({
+          table: table.number, waiter: user.name, orderNumber: order.order_number,
+          items: cart.map(ci => ({ name: ci.product.name, qty: ci.quantity, category_id: ci.product.category_id, modifiers: ci.modifiers.map(m => m.name), notes: ci.notes || undefined })),
+          printers, categoryPrinters,
+        });
       } catch (e) { console.log('Print error:', e); }
       setCart([]); Alert.alert('✅ Comanda enviada', `${items.length} productos`); await loadOrder();
     } catch (e: any) { Alert.alert('Error', e.message); }
@@ -208,6 +208,8 @@ export default function OrderScreen({ table, onBack }: Props) {
     if (unpaidItems.length === selectedItems.length) {
       await supabase.from('orders').update({ status: 'cerrada', closed_at: new Date().toISOString(), payment_method: paymentMethod, tip_amount: tipAmount }).eq('id', order.id);
       await supabase.from('tables').update({ status: 'libre', current_order_id: null }).eq('id', table.id);
+      // Update client stats if assigned
+      if (order?.client_id) await supabase.rpc('update_client_stats', { p_client_id: order.client_id });
       setPaySelectedModal(false); Alert.alert('✅ Mesa cerrada'); onBack();
     } else { setPaySelectedModal(false); setPreCuentaModal(false); Alert.alert('✅ Pago parcial'); resetPayState(); await loadOrder(); }
   };
@@ -252,6 +254,8 @@ export default function OrderScreen({ table, onBack }: Props) {
     await supabase.from('orders').update({ status: 'cerrada', closed_at: new Date().toISOString(), payment_method: mainMethod, tip_amount: tipTotalFinal }).eq('id', order.id);
     await supabase.from('tables').update({ status: 'libre', current_order_id: null }).eq('id', table.id);
     setCloseModal(false); resetPayState();
+    // Update client stats if assigned
+    if (order?.client_id) await supabase.rpc('update_client_stats', { p_client_id: order.client_id });
     Alert.alert('Mesa cerrada', `Consumo: ${fmt(unpaidTotal)}${tipTotalFinal > 0 ? `\nPropina: ${fmt(tipTotalFinal)}` : ''}`);
     onBack();
   };
@@ -318,9 +322,14 @@ export default function OrderScreen({ table, onBack }: Props) {
                         {ci.modifiers.map(m => m.name).join(', ')}
                       </Text>
                     )}
+                    {ci.notes ? (
+                      <Text style={{ fontSize: 10, color: COLORS.warning, marginTop: 1, fontStyle: 'italic' }} numberOfLines={1}>
+                        💬 {ci.notes}
+                      </Text>
+                    ) : null}
                   </View>
                   <Text style={s.cPrice}>{fmt((ci.product.price + (ci.modifiers || []).reduce((s: number, m: any) => s + m.price_adjust, 0)) * ci.quantity)}</Text>
-                  <TouchableOpacity onPress={() => openEditCartItem(ci)} style={{ padding: 4 }}><Text style={{ fontSize: 14, opacity: ci.notes ? 1 : 0.3 }}>💬</Text></TouchableOpacity>
+                  <TouchableOpacity onPress={() => openEditCartItem(ci)} style={{ padding: 6, backgroundColor: ci.notes ? COLORS.warning + '30' : COLORS.border, borderRadius: 6 }}><Text style={{ fontSize: 14 }}>💬</Text></TouchableOpacity>
                   <TouchableOpacity onPress={() => removeFromCart(ci.id)} style={{ padding: 4 }}><Text style={{ fontSize: 14 }}>✕</Text></TouchableOpacity>
                 </View>
               ))}
@@ -364,7 +373,10 @@ export default function OrderScreen({ table, onBack }: Props) {
             const ok = typeof window !== 'undefined' ? window.confirm('¿Liberar mesa ' + table.number + '?') : true;
             if (!ok) return;
             try {
-              if (order?.id) await supabase.from('orders').update({ status: 'cerrada', closed_at: new Date().toISOString() }).eq('id', order.id);
+              if (order?.id) {
+              await supabase.from('orders').update({ status: 'cerrada', closed_at: new Date().toISOString() }).eq('id', order.id);
+              if (order?.client_id) await supabase.rpc('update_client_stats', { p_client_id: order.client_id });
+            }
               await supabase.from('tables').update({ status: 'libre', current_order_id: null }).eq('id', table.id);
               onBack();
             } catch (e: any) { console.log('Error liberando mesa:', e); }
