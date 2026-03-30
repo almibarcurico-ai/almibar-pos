@@ -4,6 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Dimensions } from 'react-native';
 import { supabase } from '../lib/supabase';
+import { printOrder } from '../lib/printService';
 import { useAuth } from '../contexts/AuthContext';
 import { TableWithOrder, Category, Product, OrderItem, Order } from '../types';
 import { COLORS } from '../theme';
@@ -31,6 +32,8 @@ export default function OrderScreen({ table, onBack }: Props) {
   const [editQty, setEditQty] = useState(1);
   const [preCuentaModal, setPreCuentaModal] = useState(false);
   const [closeModal, setCloseModal] = useState(false);
+  const [printers, setPrinters] = useState<any[]>([]);
+  const [categoryPrinters, setCategoryPrinters] = useState<any[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<string>('efectivo');
   const [receivedAmount, setReceivedAmount] = useState('');
   const [tipPercent, setTipPercent] = useState(10);
@@ -41,6 +44,15 @@ export default function OrderScreen({ table, onBack }: Props) {
   // Multi-method payment - Fudo style
   const [tipEntries, setTipEntries] = useState<{method:string;amount:string}[]>([]);
   const [payEntries, setPayEntries] = useState<{method:string;amount:string}[]>([]);
+
+  const loadPrinters = async () => {
+    const { data: p } = await supabase.from('printers').select('*').eq('active', true);
+    const { data: cp } = await supabase.from('category_printer').select('*');
+    if (p) setPrinters(p);
+    if (cp) setCategoryPrinters(cp);
+  };
+
+  useEffect(() => { loadPrinters(); }, []);
 
   useEffect(() => { loadAll(); const c = setupRT(); return c; }, []);
   const loadAll = async () => { await Promise.all([loadOrder(), loadMenu()]); setLoading(false); };
@@ -152,6 +164,14 @@ export default function OrderScreen({ table, onBack }: Props) {
         }
       }
       if (ids.length > 0) { const { error: re } = await supabase.rpc('send_order_and_deduct_stock', { p_item_ids: ids }); if (re) throw re; }
+      // Print to kitchen/bar
+      try {
+        await triggerPrint(
+          table.number, user.name,
+          cart.map(ci => ({ name: ci.product.name, qty: ci.quantity, category_id: ci.product.category_id, modifiers: ci.modifiers.map(m => m.name) })),
+          printers, categoryPrinters, order.order_number
+        );
+      } catch (e) { console.log('Print error:', e); }
       setCart([]); Alert.alert('✅ Comanda enviada', `${items.length} productos`); await loadOrder();
     } catch (e: any) { Alert.alert('Error', e.message); }
   };

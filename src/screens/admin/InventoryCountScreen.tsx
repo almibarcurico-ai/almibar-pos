@@ -6,6 +6,7 @@ import { COLORS } from '../../theme';
 import * as XLSX from 'xlsx';
 
 const alert = (t: string, m?: string) => typeof window !== 'undefined' ? window.alert(t + (m ? '\n' + m : '')) : null;
+const confirm = (m: string) => typeof window !== 'undefined' ? window.confirm(m) : true;
 const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-CL');
 
 export default function InventoryCountScreen() {
@@ -35,6 +36,16 @@ export default function InventoryCountScreen() {
       .eq('count_id', c.id)
       .order('created_at');
     setCountItems(data || []);
+  };
+
+  // Delete inventory count
+  const deleteCount = async (countId: string) => {
+    if (!confirm('¿Eliminar este conteo de inventario?')) return;
+    await supabase.from('inventory_count_items').delete().eq('count_id', countId);
+    await supabase.from('inventory_counts').delete().eq('id', countId);
+    if (selected?.id === countId) { setSelected(null); setCountItems([]); }
+    await load();
+    alert('✅', 'Conteo eliminado');
   };
 
   // STEP 1: Download current stock as Excel
@@ -79,25 +90,36 @@ export default function InventoryCountScreen() {
         const diffs: any[] = [];
         let totalMermaQty = 0;
         let totalMermaValue = 0;
+        let totalSobranteQty = 0;
+        let totalSobranteValue = 0;
+        let matchCount = 0;
+        let noMatchNames: string[] = [];
 
         for (const row of rows) {
           const name = (row.Nombre || row.nombre || '').trim();
           if (!name) continue;
 
-          const counted = parseFloat(row.Stock_Contado || row.stock_contado);
-          if (isNaN(counted)) continue; // Skip if not counted
+          const countedRaw = row.Stock_Contado ?? row.stock_contado ?? row['Stock Contado'] ?? row['stock contado'] ?? row.Contado ?? row.contado;
+          if (countedRaw === undefined || countedRaw === null || countedRaw === '') continue;
+          const counted = parseFloat(String(countedRaw));
+          if (isNaN(counted)) continue;
 
-          const ing = ingredients.find(x => x.name.toLowerCase() === name.toLowerCase());
-          if (!ing) continue;
+          const ing = ingredients.find(x => x.name.toLowerCase().trim() === name.toLowerCase().trim());
+          if (!ing) { noMatchNames.push(name); continue; }
+          matchCount++;
 
           const systemStock = ing.stock_current || 0;
           const diff = counted - systemStock;
-          const mermaValue = diff < 0 ? Math.abs(diff) * ing.cost_per_unit : 0;
+          const diffValue = Math.abs(diff) * ing.cost_per_unit;
 
           if (diff < 0) {
             totalMermaQty += Math.abs(diff);
-            totalMermaValue += mermaValue;
+            totalMermaValue += diffValue;
+          } else if (diff > 0) {
+            totalSobranteQty += diff;
+            totalSobranteValue += diffValue;
           }
+          const mermaValue = diff < 0 ? diffValue : 0;
 
           // Save count item
           await supabase.from('inventory_count_items').insert({
@@ -108,14 +130,20 @@ export default function InventoryCountScreen() {
 
           diffs.push({
             name, unit: ing.unit, category: ing.category,
-            systemStock, counted, diff, mermaValue, costPerUnit: ing.cost_per_unit,
+            systemStock, counted, diff, mermaValue, 
+            sobranteValue: diff > 0 ? diffValue : 0,
+            costPerUnit: ing.cost_per_unit,
           });
         }
 
         // Update count totals
         await supabase.from('inventory_counts').update({
-          total_items: diffs.length, total_merma_qty: totalMermaQty, total_merma_value: totalMermaValue,
+          total_items: matchCount, total_merma_qty: totalMermaQty, total_merma_value: totalMermaValue,
         }).eq('id', countData.id);
+
+        if (noMatchNames.length > 0) {
+          console.log('Sin match:', noMatchNames);
+        }
 
         setPendingCountId(countData.id);
         setDiffRows(diffs.sort((a, b) => a.diff - b.diff)); // Worst merma first
@@ -167,9 +195,7 @@ export default function InventoryCountScreen() {
     XLSX.writeFile(wb, `merma_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
-  const totalMermaQty = diffRows.filter(d => d.diff < 0).reduce((s, d) => s + Math.abs(d.diff), 0);
-  const totalMermaValue = diffRows.filter(d => d.diff < 0).reduce((s, d) => s + d.mermaValue, 0);
-  const totalSobrante = diffRows.filter(d => d.diff > 0).reduce((s, d) => s + d.diff, 0);
+  // Totals calculated inline in JSX
 
   return (
     <View style={s.wrap}>
@@ -200,10 +226,15 @@ export default function InventoryCountScreen() {
                   <Text style={s.rowName}>{new Date(c.created_at).toLocaleDateString('es-CL')} {new Date(c.created_at).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}</Text>
                   <Text style={s.rowSub}>{c.total_items} items · Merma: {fmt(c.total_merma_value || 0)} · {c.creator?.name || '—'}</Text>
                 </View>
-                <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: c.status === 'aplicado' ? '#E8F5E9' : c.status === 'anulado' ? '#FFEBEE' : '#FFF3E0' }}>
-                  <Text style={{ fontSize: 10, fontWeight: '700', color: c.status === 'aplicado' ? '#4CAF50' : c.status === 'anulado' ? '#E53935' : '#F57C00' }}>
-                    {c.status?.toUpperCase()}
-                  </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: c.status === 'aplicado' ? '#E8F5E9' : c.status === 'anulado' ? '#FFEBEE' : '#FFF3E0' }}>
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: c.status === 'aplicado' ? '#4CAF50' : c.status === 'anulado' ? '#E53935' : '#F57C00' }}>
+                      {c.status?.toUpperCase()}
+                    </Text>
+                  </View>
+                  <TouchableOpacity onPress={(e) => { e.stopPropagation(); deleteCount(c.id); }}>
+                    <Text style={{ fontSize: 12 }}>🗑️</Text>
+                  </TouchableOpacity>
                 </View>
               </TouchableOpacity>
             );
@@ -217,8 +248,13 @@ export default function InventoryCountScreen() {
         <ScrollView style={s.detail}>
           <View style={s.dHeader}>
             <Text style={s.dTitle}>Conteo {new Date(selected.created_at).toLocaleDateString('es-CL')}</Text>
-            <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, backgroundColor: selected.status === 'aplicado' ? '#E8F5E9' : '#FFF3E0' }}>
-              <Text style={{ fontSize: 12, fontWeight: '700', color: selected.status === 'aplicado' ? '#4CAF50' : '#F57C00' }}>{selected.status?.toUpperCase()}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, backgroundColor: selected.status === 'aplicado' ? '#E8F5E9' : '#FFF3E0' }}>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: selected.status === 'aplicado' ? '#4CAF50' : '#F57C00' }}>{selected.status?.toUpperCase()}</Text>
+              </View>
+              <TouchableOpacity onPress={() => deleteCount(selected.id)}>
+                <Text style={{ fontSize: 13, color: '#E53935' }}>🗑️ Eliminar</Text>
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -287,17 +323,19 @@ export default function InventoryCountScreen() {
               <Text style={s.sumLabel}>Items contados</Text>
               <Text style={s.sumValue}>{diffRows.length}</Text>
             </View>
-            <View style={[s.sumCard, { flex: 1, borderColor: '#FFCDD2' }]}>
-              <Text style={s.sumLabel}>Merma total</Text>
-              <Text style={[s.sumValue, { color: '#E53935' }]}>{fmt(totalMermaValue)}</Text>
+            <View style={[s.sumCard, { flex: 1, borderColor: '#FFCDD2', backgroundColor: '#FFF5F5' }]}>
+              <Text style={s.sumLabel}>🔻 Merma</Text>
+              <Text style={[s.sumValue, { color: '#E53935' }]}>{fmt(diffRows.filter(d => d.diff < 0).reduce((s, d) => s + d.mermaValue, 0))}</Text>
+              <Text style={{ fontSize: 10, color: '#E53935' }}>{diffRows.filter(d => d.diff < 0).length} items</Text>
             </View>
-            <View style={[s.sumCard, { flex: 1, borderColor: '#C8E6C9' }]}>
-              <Text style={s.sumLabel}>Sobrante</Text>
-              <Text style={[s.sumValue, { color: '#4CAF50' }]}>{Math.round(totalSobrante)} u.</Text>
+            <View style={[s.sumCard, { flex: 1, borderColor: '#C8E6C9', backgroundColor: '#F5FFF5' }]}>
+              <Text style={s.sumLabel}>🔺 Sobrante</Text>
+              <Text style={[s.sumValue, { color: '#4CAF50' }]}>{fmt(diffRows.filter(d => d.diff > 0).reduce((s, d) => s + d.sobranteValue, 0))}</Text>
+              <Text style={{ fontSize: 10, color: '#4CAF50' }}>{diffRows.filter(d => d.diff > 0).length} items</Text>
             </View>
             <View style={[s.sumCard, { flex: 1 }]}>
-              <Text style={s.sumLabel}>Con diferencia</Text>
-              <Text style={s.sumValue}>{diffRows.filter(d => d.diff !== 0).length}</Text>
+              <Text style={s.sumLabel}>Sin cambio</Text>
+              <Text style={s.sumValue}>{diffRows.filter(d => d.diff === 0).length}</Text>
             </View>
           </View>
 
