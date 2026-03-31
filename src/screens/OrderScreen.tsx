@@ -129,6 +129,24 @@ export default function OrderScreen({ table, onBack }: Props) {
   const [modPickerProduct, setModPickerProduct] = useState<Product | null>(null);
   const [modPickerSelections, setModPickerSelections] = useState<Record<string, ModOption[]>>({});
 
+  // Enviar producto directo a cocina (sin carrito)
+  const sendItemDirect = async (product: Product, modifiers: ModOption[] = [], notes: string = '') => {
+    if (!order || !user) return;
+    try {
+      const modAdjust = modifiers.reduce((s, m) => s + m.price_adjust, 0);
+      const modNames = modifiers.length > 0 ? modifiers.map(m => m.name).join(', ') : '';
+      const item = { order_id: order.id, product_id: product.id, quantity: 1, unit_price: product.price + modAdjust, total_price: (product.price + modAdjust) * 1, notes: [notes, modNames].filter(Boolean).join(' | ') || null, status: 'pendiente', printed: false, created_by: user.id };
+      const { data: inserted, error } = await supabase.from('order_items').insert(item).select('id').single();
+      if (error) throw error;
+      if (modifiers.length > 0 && inserted) {
+        await supabase.from('order_item_modifiers').insert(modifiers.map(m => ({ order_item_id: inserted.id, option_id: m.id, option_name: m.name, price_adjust: m.price_adjust })));
+      }
+      const { error: re } = await supabase.rpc('send_order_and_deduct_stock', { p_item_ids: [inserted.id] });
+      if (re) throw re;
+      playClickPOS(); await loadOrder();
+    } catch (e: any) { Alert.alert('Error', e.message); }
+  };
+
   const addToCart = (product: Product) => {
     playClickPOS();
     const groups = productModGroups[product.id];
@@ -138,9 +156,8 @@ export default function OrderScreen({ table, onBack }: Props) {
       setSearchQuery(''); setShowDropdown(false);
       return;
     }
-    const existing = cart.find(c => c.product.id === product.id && c.notes === '' && c.modifiers.length === 0);
-    if (existing) setCart(prev => prev.map(c => c.id === existing.id ? { ...c, quantity: c.quantity + 1 } : c));
-    else setCart(prev => [...prev, { id: `c-${Date.now()}-${Math.random()}`, product, quantity: 1, notes: '', modifiers: [] }]);
+    // Enviar directo sin carrito
+    sendItemDirect(product);
     setSearchQuery(''); setShowDropdown(false);
   };
 
@@ -154,10 +171,7 @@ export default function OrderScreen({ table, onBack }: Props) {
       }
     }
     const allMods = Object.values(modPickerSelections).flat();
-    const modKey = allMods.map(m => m.id).sort().join(',');
-    const existing = cart.find(c => c.product.id === modPickerProduct.id && c.modifiers.map(m => m.id).sort().join(',') === modKey);
-    if (existing) setCart(prev => prev.map(c => c.id === existing.id ? { ...c, quantity: c.quantity + 1 } : c));
-    else setCart(prev => [...prev, { id: `c-${Date.now()}-${Math.random()}`, product: modPickerProduct, quantity: 1, notes: '', modifiers: allMods }]);
+    sendItemDirect(modPickerProduct, allMods);
     setModPickerProduct(null);
   };
 
