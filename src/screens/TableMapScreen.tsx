@@ -8,7 +8,7 @@ import { Sector, TableWithOrder } from '../types';
 import { COLORS } from '../theme';
 import TableCard from '../components/TableCard';
 import AppOrdersPanel from '../components/AppOrdersPanel';
-import { printOrder } from '../lib/printService';
+import { printOrder, sendToPrinter, PRINTER_CONFIG } from '../lib/printService';
 
 const { width: SW, height: SH } = Dimensions.get('window');
 const CANVAS_H = SH - 320;
@@ -140,14 +140,43 @@ export default function TableMapScreen({ onOpenOrder, onOpenEditor }: Props) {
           didWork = true;
         }
 
-        if (didWork) {
-          // Limpiar app_orders pendientes
+        // 3. Notificaciones de app (llamar garzón, pedir cuenta) → imprimir en barra
+        const { data: appNotifs } = await supabase
+          .from('app_orders')
+          .select('id, table_number, customer_name, created_at')
+          .eq('status', 'pendiente');
+
+        if (appNotifs && appNotifs.length > 0) {
+          const barra = PRINTER_CONFIG.barra;
+          for (const notif of appNotifs) {
+            const isLlamada = notif.customer_name?.includes('LLAMADA GARZON');
+            const isCuenta = notif.customer_name?.includes('PEDIR CUENTA');
+            if (isLlamada || isCuenta) {
+              const time = new Date(notif.created_at).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+              const tipo = isLlamada ? 'LLAMADA GARZON' : 'PEDIR CUENTA';
+              const ticket = '\x1B@\x1Ba\x01\x1DE\x01\x1D!\x11'
+                + `${tipo}\n`
+                + '\x1D!\x01\x1BE\x00\x1Ba\x00'
+                + '\n'
+                + `Mesa: ${notif.table_number}\n`
+                + `Hora: ${time}\n`
+                + '\n\n\n\n\n\n'
+                + '\x1DV\x00';
+              try {
+                await sendToPrinter(barra.ip, barra.port, ticket, 'Barra');
+                console.log(`🖨️ ${tipo}: Mesa ${notif.table_number}`);
+              } catch (e) { console.log('Print notif error:', e); }
+            }
+          }
+          // Marcar todas como confirmadas
           await supabase.from('app_orders').update({
             status: 'confirmado',
             confirmed_at: new Date().toISOString(),
           }).eq('status', 'pendiente');
-          await loadTables();
+          didWork = true;
         }
+
+        if (didWork) await loadTables();
       } catch (e) {
         console.log('Auto-process error:', e);
       } finally {
