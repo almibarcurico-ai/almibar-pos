@@ -44,6 +44,10 @@ const CMD = {
   FONT_B: ESC + 'M\x01',
   // Doble ancho+alto para items comanda (más grande que solo doble alto)
   SIZE_COMANDA: GS + '!\x11',
+  // Márgenes: GS L nL nH (margen izquierdo en puntos)
+  MARGIN_LEFT: GS + 'L\x10\x00',   // 16 puntos margen izquierdo
+  // Área de impresión: GS W nL nH (ancho en puntos, 576 = 80mm full)
+  PRINT_WIDTH: GS + 'W\x20\x02',   // 544 puntos (deja margen a ambos lados)
 };
 
 function pad(left: string, right: string, width = 32) {
@@ -68,18 +72,18 @@ export function generateComanda(data: {
   const date = now.toLocaleDateString('es-CL');
 
   let ticket = CMD.INIT;
-  // Font A - más legible
-  ticket += CMD.FONT_A;
+  // Font A + márgenes para centrar en la hoja
+  ticket += CMD.FONT_A + CMD.MARGIN_LEFT + CMD.PRINT_WIDTH;
   // Título grande centrado
   ticket += CMD.CENTER + CMD.BOLD_ON + CMD.DOUBLE_BOTH;
   ticket += `COMANDA\n`;
   ticket += `${data.station.toUpperCase()}\n`;
-  // Info mesa - doble alto (tamaño normal de comanda)
+  // Info mesa - doble alto
   ticket += CMD.SIZE_UP + CMD.BOLD_OFF + CMD.LEFT;
   ticket += CMD.LINE;
   ticket += pad('Mesa:', String(data.table)) + '\n';
   ticket += pad('Garzon:', data.waiter) + '\n';
-  ticket += pad('Hora:', `${date} ${time}`) + '\n';
+  ticket += pad('Fecha:', `${date} ${time}`) + '\n';
   if (data.orderNumber) ticket += pad('Orden:', '#' + data.orderNumber) + '\n';
   ticket += CMD.LINE;
 
@@ -99,9 +103,9 @@ export function generateComanda(data: {
   ticket += CMD.CHAR_SPACING_DEFAULT + CMD.LINE_SPACING_DEFAULT;
   ticket += CMD.BOLD_OFF + CMD.SIZE_UP;
   ticket += CMD.LINE;
-  ticket += CMD.CENTER + CMD.BOLD_ON;
-  ticket += `OJO: Leer bien los comentarios!\n`;
-  ticket += CMD.BOLD_OFF;
+  ticket += CMD.CENTER + CMD.BOLD_ON + CMD.DOUBLE_BOTH;
+  ticket += `OJO: Leer comentarios!\n`;
+  ticket += CMD.BOLD_OFF + CMD.NORMAL;
   ticket += '\n\n\n\n\n\n';
   ticket += CMD.CUT;
 
