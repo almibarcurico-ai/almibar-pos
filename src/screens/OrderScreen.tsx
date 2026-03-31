@@ -88,7 +88,7 @@ export default function OrderScreen({ table, onBack }: Props) {
     if (!table.current_order_id) return;
     const { data: o } = await supabase.from('orders').select('*').eq('id', table.current_order_id).single();
     if (o) { setOrder(o); const { data: w } = await supabase.from('users').select('name').eq('id', o.waiter_id).single(); if (w) setWaiterName(w.name); }
-    const { data: items } = await supabase.from('order_items').select('*, product:product_id(*)').eq('order_id', table.current_order_id).order('created_at');
+    const { data: items } = await supabase.from('order_items').select('*, product:product_id(*), creator:created_by(name, role)').eq('order_id', table.current_order_id).order('created_at');
     if (items) setOrderItems(items);
   };
   const loadMenu = async () => {
@@ -382,7 +382,7 @@ export default function OrderScreen({ table, onBack }: Props) {
               <SecH color={COLORS.warning} title={`Pendientes (${pending.length})`} />
               <TouchableOpacity style={{ paddingHorizontal: 14, paddingVertical: 8, backgroundColor: COLORS.success, borderRadius: 8 }} onPress={sendOrder}><Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>📤 Enviar</Text></TouchableOpacity>
             </View>
-            {pending.map(i => <IR key={i.id} item={i} onRm={removeItem} fmt={fmt} canRm />)}
+            {pending.map(i => <IR key={i.id} item={i} onRm={removeItem} fmt={fmt} canRm orderCreatedBy={order?.created_by} />)}
           </View>
         )}
 
@@ -390,7 +390,7 @@ export default function OrderScreen({ table, onBack }: Props) {
         {sent.length > 0 && (
           <View style={{ paddingHorizontal: 16, marginTop: 8 }}>
             <SecH color={COLORS.success} title={`Enviados (${sent.length})`} />
-            {sent.map(i => <IR key={i.id} item={i} onRm={removeItem} fmt={fmt} canRm={user?.role !== 'garzon'} />)}
+            {sent.map(i => <IR key={i.id} item={i} onRm={removeItem} fmt={fmt} canRm={user?.role !== 'garzon'} orderCreatedBy={order?.created_by} />)}
           </View>
         )}
       </ScrollView>
@@ -693,10 +693,31 @@ export default function OrderScreen({ table, onBack }: Props) {
 }
 
 function SecH({ color, title }: { color: string; title: string }) { return <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: color }} /><Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.textSecondary, textTransform: 'uppercase' }}>{title}</Text></View>; }
-function IR({ item, onRm, fmt, canRm }: { item: OrderItem; onRm: (i: OrderItem) => void; fmt: (n: number) => string; canRm: boolean }) {
+const CREATOR_COLORS: Record<string, string> = {
+  admin: '#9C27B0',
+  cajero: '#2196F3',
+  garzon: '#4CAF50',
+  cliente: '#FF9800',
+  socio: '#E91E63',
+};
+
+function getCreatorColor(item: any, orderCreatedBy?: string): { color: string; label: string } {
+  const creator = (item as any).creator;
+  const role = creator?.role || 'garzon';
+  const name = creator?.name || '';
+  const isOrderOwner = item.created_by === orderCreatedBy;
+
+  if (role === 'admin') return { color: CREATOR_COLORS.admin, label: name };
+  if (role === 'cajero') return { color: CREATOR_COLORS.cajero, label: name };
+  if (!isOrderOwner && role === 'garzon') return { color: '#FF5722', label: name }; // otro garzón
+  return { color: CREATOR_COLORS.garzon, label: name };
+}
+
+function IR({ item, onRm, fmt, canRm, orderCreatedBy }: { item: OrderItem; onRm: (i: OrderItem) => void; fmt: (n: number) => string; canRm: boolean; orderCreatedBy?: string }) {
   const sc = !item.printed ? COLORS.warning : item.status === 'listo' ? COLORS.success : COLORS.info;
   const sl = !item.printed ? 'NUEVO' : item.status === 'preparando' ? 'PREPARANDO' : item.status === 'listo' ? 'LISTO' : 'ENVIADO';
-  return <View style={s.ir}><View style={{ flex: 1 }}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><Text style={{ fontSize: 15, fontWeight: '800', color: COLORS.primary, minWidth: 28 }}>{item.quantity}x</Text><Text style={{ fontSize: 14, fontWeight: '600', color: COLORS.text, flex: 1 }}>{item.product?.name}</Text></View>{item.notes ? <Text style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 3 }}>📝 {item.notes}</Text> : null}<View style={{ alignSelf: 'flex-start', backgroundColor: sc + '25', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, marginTop: 4 }}><Text style={{ fontSize: 10, fontWeight: '700', color: sc }}>{sl}</Text></View></View><View style={{ alignItems: 'flex-end', gap: 6 }}><Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.text }}>{fmt(item.total_price)}</Text>{canRm && <TouchableOpacity onPress={() => onRm(item)}><Text style={{ fontSize: 14 }}>🗑</Text></TouchableOpacity>}</View></View>;
+  const cr = getCreatorColor(item, orderCreatedBy);
+  return <View style={[s.ir, { borderLeftWidth: 3, borderLeftColor: cr.color }]}><View style={{ flex: 1 }}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><Text style={{ fontSize: 15, fontWeight: '800', color: COLORS.primary, minWidth: 28 }}>{item.quantity}x</Text><Text style={{ fontSize: 14, fontWeight: '600', color: COLORS.text, flex: 1 }}>{item.product?.name}</Text></View>{item.notes ? <Text style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 3 }}>📝 {item.notes}</Text> : null}<View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}><View style={{ alignSelf: 'flex-start', backgroundColor: sc + '25', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 }}><Text style={{ fontSize: 10, fontWeight: '700', color: sc }}>{sl}</Text></View><Text style={{ fontSize: 9, fontWeight: '600', color: cr.color }}>● {cr.label}</Text></View></View><View style={{ alignItems: 'flex-end', gap: 6 }}><Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.text }}>{fmt(item.total_price)}</Text>{canRm && <TouchableOpacity onPress={() => onRm(item)}><Text style={{ fontSize: 14 }}>🗑</Text></TouchableOpacity>}</View></View>;
 }
 
 const s = StyleSheet.create({
