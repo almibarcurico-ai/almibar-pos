@@ -67,8 +67,8 @@ api.listen(3333, () => {
   console.log('║  http://localhost:3333                   ║');
   console.log('║                                          ║');
   console.log('║  Cocina  → 192.168.1.115:9100            ║');
-  console.log('║  Barra   → 192.168.1.9:9100              ║');
-  console.log('║  Caja    → 192.168.1.9:9100              ║');
+  console.log('║  Barra   → 192.168.1.114:9100            ║');
+  console.log('║  Caja    → 192.168.1.114:9100            ║');
   console.log('║                                          ║');
   console.log('║  POST /print { printer, ip, port, data } ║');
   console.log('║  GET  /status                            ║');
