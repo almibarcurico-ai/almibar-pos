@@ -215,7 +215,7 @@ export default function ProductsScreen() {
                 <Text style={[s.td, { flex: 1, fontWeight: '600' }]}>{p.name}</Text>
                 {!selectedCat && <Text style={[s.td, { width: 120, fontSize: 11, color: COLORS.textSecondary }]}>{catName(p.category_id)}</Text>}
                 <Text style={[s.td, { width: 80, textAlign: 'right', fontWeight: '700', color: COLORS.primary }]}>{fmt(p.price)}</Text>
-                <Text style={[s.td, { width: 80, textAlign: 'right', color: cost > 0 ? '#888' : '#555' }]}>{cost > 0 ? fmt(cost) : '-'}</Text>
+                <Text style={[s.td, { width: 80, textAlign: 'right', color: cost > 0 ? COLORS.textSecondary : COLORS.textMuted }]}>{cost > 0 ? fmt(cost) : '-'}</Text>
               </TouchableOpacity>
             );
           })}
@@ -298,7 +298,7 @@ export default function ProductsScreen() {
                 if (!ing) return null;
                 const cost = ing.cost_per_unit * ri.quantity;
                 return (
-                  <View key={ri.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: '#1A1714' }}>
+                  <View key={ri.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: COLORS.border }}>
                     <Text style={{ flex: 1, fontSize: 12, color: COLORS.text }}>{ing.name}</Text>
                     <TextInput
                       style={{ width: 70, fontSize: 12, color: COLORS.text, backgroundColor: COLORS.card, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2, textAlign: 'center', borderWidth: 1, borderColor: COLORS.border }}
@@ -414,7 +414,7 @@ const s = StyleSheet.create({
   addBT: { color: COLORS.background, fontWeight: '700', fontSize: 12 },
   tHead: { flexDirection: 'row', paddingHorizontal: 14, paddingVertical: 8, backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.border },
   th: { fontSize: 11, fontWeight: '600', color: COLORS.textMuted },
-  tRow: { flexDirection: 'row', paddingHorizontal: 14, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#1A1714', alignItems: 'center' },
+  tRow: { flexDirection: 'row', paddingHorizontal: 14, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border, alignItems: 'center' },
   tRowA: { backgroundColor: COLORS.card + '40' },
   td: { fontSize: 12, color: COLORS.text },
   // Detail

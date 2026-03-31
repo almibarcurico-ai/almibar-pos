@@ -1,7 +1,7 @@
 // src/screens/OrderScreen.tsx
 // v9 - Fudo-style: inline ADICIONAR panel with search dropdown
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Dimensions } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { printOrder } from '../lib/printService';
@@ -11,6 +11,22 @@ import { COLORS } from '../theme';
 
 const { width } = Dimensions.get('window');
 
+// Click sound for POS
+let _audioCtx: any = null;
+function playClickPOS() {
+  try {
+    if (typeof window === 'undefined') return;
+    if (!_audioCtx) _audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const osc = _audioCtx.createOscillator();
+    const gain = _audioCtx.createGain();
+    osc.connect(gain); gain.connect(_audioCtx.destination);
+    osc.frequency.value = 600; osc.type = 'sine';
+    gain.gain.setValueAtTime(0.012, _audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, _audioCtx.currentTime + 0.03);
+    osc.start(_audioCtx.currentTime); osc.stop(_audioCtx.currentTime + 0.03);
+  } catch (e) {}
+}
+
 interface ModOption { id: string; name: string; price_adjust: number; }
 interface ModGroup { id: string; name: string; type: string; required: boolean; max_select: number; options: ModOption[]; }
 interface CartItem { id: string; product: Product; quantity: number; notes: string; modifiers: ModOption[]; }
@@ -18,6 +34,15 @@ interface Props { table: TableWithOrder; onBack: () => void; }
 
 export default function OrderScreen({ table, onBack }: Props) {
   const { user } = useAuth();
+
+  // Intercept browser back button
+  useEffect(() => {
+    const handlePop = (e: PopStateEvent) => { e.preventDefault(); onBack(); };
+    window.history.pushState(null, '', window.location.href);
+    window.addEventListener('popstate', handlePop);
+    return () => window.removeEventListener('popstate', handlePop);
+  }, [onBack]);
+
   const [order, setOrder] = useState<Order | null>(null);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [waiterName, setWaiterName] = useState('');
@@ -41,6 +66,9 @@ export default function OrderScreen({ table, onBack }: Props) {
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
   const [payMode, setPayMode] = useState<'full'|'partial'>('full');
   const [paySelectedModal, setPaySelectedModal] = useState(false);
+  // Discount
+  const [discountType, setDiscountType] = useState<'none'|'percent'|'fixed'>('none');
+  const [discountValue, setDiscountValue] = useState('');
   // Multi-method payment - Fudo style
   const [tipEntries, setTipEntries] = useState<{method:string;amount:string}[]>([]);
   const [payEntries, setPayEntries] = useState<{method:string;amount:string}[]>([]);
@@ -102,6 +130,7 @@ export default function OrderScreen({ table, onBack }: Props) {
   const [modPickerSelections, setModPickerSelections] = useState<Record<string, ModOption[]>>({});
 
   const addToCart = (product: Product) => {
+    playClickPOS();
     const groups = productModGroups[product.id];
     if (groups && groups.length > 0) {
       setModPickerProduct(product);
@@ -172,7 +201,7 @@ export default function OrderScreen({ table, onBack }: Props) {
           printers, categoryPrinters,
         });
       } catch (e) { console.log('Print error:', e); }
-      setCart([]); Alert.alert('✅ Comanda enviada', `${items.length} productos`); await loadOrder();
+      setCart([]); playClickPOS(); await loadOrder();
     } catch (e: any) { Alert.alert('Error', e.message); }
   };
   const cancelCart = () => { if (cart.length === 0) return; Alert.alert('Cancelar', '¿Descartar?', [{ text: 'No' }, { text: 'Sí', style: 'destructive', onPress: () => setCart([]) }]); };
@@ -180,7 +209,7 @@ export default function OrderScreen({ table, onBack }: Props) {
     if (pending.length === 0) return;
     const { error } = await supabase.rpc('send_order_and_deduct_stock', { p_item_ids: pending.map(i => i.id) });
     if (error) { Alert.alert('Error', error.message); return; }
-    Alert.alert('✅', `${pending.length} items enviados`); await loadOrder();
+    playClickPOS(); await loadOrder();
   };
   const removeItem = async (item: OrderItem) => {
     if (!user || !order) return;
@@ -191,7 +220,9 @@ export default function OrderScreen({ table, onBack }: Props) {
   // Payment
   const paidItems = orderItems.filter(i => i.paid); const unpaidItems = orderItems.filter(i => !i.paid);
   const paidTotal = paidItems.reduce((a, i) => a + i.total_price, 0);
-  const unpaidTotal = unpaidItems.reduce((a, i) => a + i.total_price, 0);
+  const unpaidSubtotal = unpaidItems.reduce((a, i) => a + i.total_price, 0);
+  const discountAmount = discountType === 'percent' ? Math.round(unpaidSubtotal * (parseInt(discountValue) || 0) / 100) : discountType === 'fixed' ? (parseInt(discountValue) || 0) : 0;
+  const unpaidTotal = Math.max(0, unpaidSubtotal - discountAmount);
   const selectedItems = unpaidItems.filter(i => selectedItemIds.has(i.id));
   const selectedTotal = selectedItems.reduce((a, i) => a + i.total_price, 0);
   const payableTotal = payMode === 'partial' && selectedItems.length > 0 ? selectedTotal : unpaidTotal;
@@ -199,7 +230,7 @@ export default function OrderScreen({ table, onBack }: Props) {
   const toggleItem = (id: string) => setSelectedItemIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const selectAll = () => setSelectedItemIds(new Set(unpaidItems.map(i => i.id)));
   const deselectAll = () => setSelectedItemIds(new Set());
-  const resetPayState = () => { setReceivedAmount(''); setTipPercent(10); setTipCustom(''); setSelectedItemIds(new Set()); setPayMode('full'); setTipEntries([]); setPayEntries([]); };
+  const resetPayState = () => { setReceivedAmount(''); setTipPercent(10); setTipCustom(''); setSelectedItemIds(new Set()); setPayMode('full'); setTipEntries([]); setPayEntries([]); setDiscountType('none'); setDiscountValue(''); };
 
   const paySelected = async () => {
     if (!order || !user || selectedItems.length === 0) return;
@@ -215,27 +246,20 @@ export default function OrderScreen({ table, onBack }: Props) {
   };
   const closeTable = async () => {
     if (!order || !user) return;
-    let finalTipEntries = [...tipEntries];
     let finalPayEntries = [...payEntries];
     const pTotal = finalPayEntries.reduce((a, e) => a + (parseInt(e.amount) || 0), 0);
-    const tTotal = finalTipEntries.reduce((a, e) => a + (parseInt(e.amount) || 0), 0);
-    const hasCash = finalPayEntries.some(e => e.method === 'efectivo');
-    const excess = pTotal - (unpaidTotal + tTotal);
 
-    // Non-cash: auto-move excess to propina
-    if (excess > 0 && !hasCash) {
-      const payMethod = finalPayEntries[finalPayEntries.length - 1].method;
-      const existing = finalTipEntries.find(e => e.method === payMethod);
-      if (existing) {
-        existing.amount = String((parseInt(existing.amount) || 0) + excess);
-      } else {
-        finalTipEntries.push({ method: payMethod, amount: String(excess) });
-      }
-      // Sync all tip methods to pay method
-      finalTipEntries = finalTipEntries.map(e => ({ ...e, method: payMethod }));
-    }
+    // Determine main payment method (biggest amount)
+    const mainMethod = finalPayEntries.length > 0
+      ? finalPayEntries.reduce((a, b) => (parseInt(a.amount) || 0) >= (parseInt(b.amount) || 0) ? a : b).method
+      : 'efectivo';
 
-    const tipTotalFinal = finalTipEntries.reduce((a, e) => a + (parseInt(e.amount) || 0), 0);
+    // Tips ALWAYS follow the main payment method
+    const tipTotalFromEntries = tipEntries.reduce((a, e) => a + (parseInt(e.amount) || 0), 0);
+    const excess = pTotal > unpaidTotal + tipTotalFromEntries ? pTotal - unpaidTotal - tipTotalFromEntries : 0;
+    const tipTotalFinal = tipTotalFromEntries + excess;
+    const finalTipEntries = tipTotalFinal > 0 ? [{ method: mainMethod, amount: String(tipTotalFinal) }] : [];
+
     const payTotalFinal = finalPayEntries.reduce((a, e) => a + (parseInt(e.amount) || 0), 0);
 
     if (payTotalFinal < unpaidTotal) { Alert.alert('Error', `El pago (${fmt(payTotalFinal)}) no cubre el consumo (${fmt(unpaidTotal)})`); return; }
@@ -250,8 +274,7 @@ export default function OrderScreen({ table, onBack }: Props) {
     }
 
     await supabase.from('order_items').update({ paid: true }).eq('order_id', order.id).eq('paid', false);
-    const mainMethod = finalPayEntries.length > 0 ? finalPayEntries.reduce((a, b) => (parseInt(a.amount) || 0) >= (parseInt(b.amount) || 0) ? a : b).method : 'efectivo';
-    await supabase.from('orders').update({ status: 'cerrada', closed_at: new Date().toISOString(), payment_method: mainMethod, tip_amount: tipTotalFinal }).eq('id', order.id);
+    await supabase.from('orders').update({ status: 'cerrada', closed_at: new Date().toISOString(), payment_method: mainMethod, tip_amount: tipTotalFinal, discount_type: discountType, discount_value: discountAmount, total: unpaidTotal }).eq('id', order.id);
     await supabase.from('tables').update({ status: 'libre', current_order_id: null }).eq('id', table.id);
     setCloseModal(false); resetPayState();
     // Update client stats if assigned
@@ -283,7 +306,7 @@ export default function OrderScreen({ table, onBack }: Props) {
         <Text style={s.hT}>MESA {table.number}</Text>
         <TouchableOpacity onPress={() => setPreCuentaModal(true)}><Text style={{ fontSize: 18 }}>🧾</Text></TouchableOpacity>
       </View>
-      <View style={s.subH}><Text style={{ fontSize: 12, color: COLORS.textSecondary }}>👤 {waiterName || user?.name} • {order?.created_at ? new Date(order.created_at).toLocaleString('es-CL') : ''}</Text></View>
+      <View style={s.subH}><Text style={{ fontSize: 12, color: COLORS.textSecondary }}>👤 {waiterName || user?.name} • {order?.opened_at ? new Date(order.opened_at).toLocaleString('es-CL') : ''}</Text></View>
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 120 }}>
         {/* ADICIONAR */}
@@ -369,7 +392,7 @@ export default function OrderScreen({ table, onBack }: Props) {
           <TouchableOpacity style={s.clBtn} onPress={() => { const tip10 = Math.round(unpaidTotal * 0.1); setPayEntries([{ method: 'efectivo', amount: String(unpaidTotal + tip10) }]); setTipEntries([{ method: 'efectivo', amount: String(tip10) }]); setCloseModal(true); }}><Text style={s.clBtnT}>Cerrar mesa {table.number}</Text></TouchableOpacity>
         )}
         {orderItems.length === 0 && (
-          <TouchableOpacity style={[s.clBtn, { backgroundColor: '#475569' }]} onPress={async () => {
+          <TouchableOpacity style={[s.clBtn, { backgroundColor: '#334155' }]} onPress={async () => {
             const ok = typeof window !== 'undefined' ? window.confirm('¿Liberar mesa ' + table.number + '?') : true;
             if (!ok) return;
             try {
@@ -491,7 +514,7 @@ export default function OrderScreen({ table, onBack }: Props) {
           <Text style={{ fontSize: 12, color: COLORS.textMuted, textAlign: 'center', marginTop: 8 }}>Propina sugerida 10%: {fmt(Math.round(payableTotal * 0.1))}</Text>
           <View style={{ flexDirection: 'row', gap: 12, marginTop: 20 }}>
             <TouchableOpacity style={s.bC} onPress={() => { setPreCuentaModal(false); resetPayState(); }}><Text style={s.bCT}>✕ Cerrar</Text></TouchableOpacity>
-            <TouchableOpacity style={[s.bOk, { backgroundColor: COLORS.warning }]} onPress={async () => { try { await supabase.from('tables').update({ status: 'cuenta' }).eq('id', table.id); Alert.alert('🖨', 'Pre-cuenta enviada a impresora'); } catch (e: any) { Alert.alert('Error', e.message); } }}><Text style={s.bOkT}>🖨 Imprimir</Text></TouchableOpacity>
+            <TouchableOpacity style={[s.bOk, { backgroundColor: COLORS.warning }]} onPress={async () => { try { await supabase.from('tables').update({ status: 'cuenta' }).eq('id', table.id); playClickPOS(); setPreCuentaModal(false); onBack(); } catch (e: any) { Alert.alert('Error', e.message); } }}><Text style={s.bOkT}>🖨 Imprimir</Text></TouchableOpacity>
             {(user?.role === 'cajero' || user?.role === 'admin') && unpaidItems.length > 0 && <TouchableOpacity style={[s.bOk, { backgroundColor: COLORS.success }]} onPress={() => { setPreCuentaModal(false); if (payMode === 'partial' && selectedItems.length > 0) { setPaySelectedModal(true); } else { const tip10 = Math.round(unpaidTotal * 0.1); setPayEntries([{ method: 'efectivo', amount: String(unpaidTotal + tip10) }]); setTipEntries([{ method: 'efectivo', amount: String(tip10) }]); setCloseModal(true); } }}><Text style={s.bOkT}>💳 Pagar</Text></TouchableOpacity>}
           </View>
         </View></ScrollView></View>
@@ -533,10 +556,34 @@ export default function OrderScreen({ table, onBack }: Props) {
               </View>
             ))}
             <View style={{ borderTopWidth: 1, borderTopColor: COLORS.border, marginTop: 8, paddingTop: 8 }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}><Text style={{ fontSize: 14, color: COLORS.textSecondary }}>Subtotal</Text><Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.text }}>{fmt(unpaidTotal)}</Text></View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}><Text style={{ fontSize: 14, color: COLORS.textSecondary }}>Subtotal</Text><Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.text }}>{fmt(unpaidSubtotal)}</Text></View>
+              {discountAmount > 0 && <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}><Text style={{ fontSize: 14, color: COLORS.success }}>Descuento {discountType === 'percent' ? `(${discountValue}%)` : ''}</Text><Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.success }}>-{fmt(discountAmount)}</Text></View>}
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}><Text style={{ fontSize: 14, color: COLORS.textSecondary }}>Propina</Text><Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.warning }}>{fmt(tipTotal)}</Text></View>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, paddingTop: 8, borderTopWidth: 2, borderTopColor: COLORS.primary }}><Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.text }}>Total:</Text><Text style={{ fontSize: 20, fontWeight: '800', color: COLORS.primary }}>{fmt(grandTotal)}</Text></View>
             </View>
+          </View>
+
+          {/* DESCUENTO section */}
+          <View style={{ marginTop: 16 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: COLORS.background, borderRadius: 8, padding: 10, borderWidth: 1, borderColor: COLORS.border }}>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.text }}>DESCUENTO</Text>
+              <View style={{ flexDirection: 'row', gap: 4 }}>
+                {([['none','Sin'],['percent','%'],['fixed','$']] as const).map(([t, label]) => (
+                  <TouchableOpacity key={t} onPress={() => { setDiscountType(t); if (t === 'none') setDiscountValue(''); }} style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, backgroundColor: discountType === t ? COLORS.primary : COLORS.card, borderWidth: 1, borderColor: discountType === t ? COLORS.primary : COLORS.border }}>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: discountType === t ? '#fff' : COLORS.text }}>{label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+            {discountType !== 'none' && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.background, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, overflow: 'hidden' as const }}>
+                  <Text style={{ paddingHorizontal: 10, fontSize: 14, color: COLORS.textSecondary }}>{discountType === 'percent' ? '%' : '$'}</Text>
+                  <TextInput style={{ flex: 1, fontSize: 16, fontWeight: '700', color: COLORS.text, paddingVertical: 10, paddingRight: 10 }} value={discountValue} onChangeText={setDiscountValue} keyboardType="number-pad" placeholder={discountType === 'percent' ? '10' : '5000'} placeholderTextColor={COLORS.textMuted} />
+                </View>
+                {discountAmount > 0 && <Text style={{ fontSize: 13, color: COLORS.success, fontWeight: '700' }}>-{fmt(discountAmount)}</Text>}
+              </View>
+            )}
           </View>
 
           {/* PROPINA section */}

@@ -13,10 +13,10 @@ const fmt = (p: number) => '$' + Math.round(p).toLocaleString('es-CL');
 
 type SubView = 'menu' | 'ingredients' | 'suppliers' | 'recipes' | 'purchases';
 
-interface Props { onBack: () => void; }
+interface Props { onBack: () => void; initialSub?: string; }
 
-export default function InventoryScreen({ onBack }: Props) {
-  const [sub, setSub] = useState<SubView>('menu');
+export default function InventoryScreen({ onBack, initialSub }: Props) {
+  const [sub, setSub] = useState<SubView>((initialSub as SubView) || 'menu');
 
   return (
     <View style={s.c}>

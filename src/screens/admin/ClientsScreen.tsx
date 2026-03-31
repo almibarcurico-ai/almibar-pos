@@ -1,7 +1,7 @@
 // src/screens/admin/ClientsScreen.tsx
 // Club de Socios — admin module
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, RefreshControl, Platform } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { COLORS } from '../../theme';
 
@@ -72,7 +72,7 @@ export default function ClientsScreen() {
   });
 
   const handleAdd = async () => {
-    if (!addName.trim()) { Alert.alert('', 'Ingresa el nombre'); return; }
+    if (!addName.trim()) { window.alert('Ingresa el nombre'); return; }
     const { error } = await supabase.from('clients').insert({
       name: addName.trim(),
       phone: addPhone.trim() || null,
@@ -80,7 +80,7 @@ export default function ClientsScreen() {
       notes: addNotes.trim() || null,
       tags: ['manual'],
     });
-    if (error) { Alert.alert('Error', error.message); return; }
+    if (error) { window.alert('Error: ' + error.message); return; }
     setShowAdd(false);
     setAddName(''); setAddPhone(''); setAddEmail(''); setAddNotes('');
     loadClients();
@@ -100,9 +100,9 @@ export default function ClientsScreen() {
       p_method: 'manual',
     });
     if (data && data.reward) {
-      Alert.alert('🎉 ¡Premio!', `${client.name} completó 3 visitas y ganó un premio!`);
+      window.alert(`🎉 ¡Premio!\n${client.name} completó 3 visitas y ganó un premio!`);
     } else {
-      Alert.alert('✅ Visita registrada', `${client.name}: ${data?.visits || '?'}/3 visitas`);
+      window.alert(`✅ Visita registrada\n${client.name}: ${data?.visits || '?'}/3 visitas`);
     }
     loadClients();
   };

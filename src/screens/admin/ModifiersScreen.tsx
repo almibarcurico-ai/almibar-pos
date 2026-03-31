@@ -6,6 +6,7 @@ import { COLORS } from '../../theme';
 interface Group { id: string; name: string; type: string; required: boolean; min_select: number; max_select: number; sort_order: number; active: boolean; }
 interface Option { id: string; group_id: string; name: string; price_adjust: number; ingredient_id: string|null; product_id: string|null; sort_order: number; active: boolean; }
 interface Product { id: string; name: string; }
+interface Ingredient { id: string; name: string; unit: string; }
 
 const fmt = (n: number) => n > 0 ? '+$' + n.toLocaleString('es-CL') : n < 0 ? '-$' + Math.abs(n).toLocaleString('es-CL') : '$0';
 
@@ -13,6 +14,7 @@ export default function ModifiersScreen() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [options, setOptions] = useState<Option[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [linkedProducts, setLinkedProducts] = useState<Record<string, string[]>>({});
   const [selectedGroup, setSelectedGroup] = useState<Group|null>(null);
   const [showAddGroup, setShowAddGroup] = useState(false);
@@ -26,18 +28,24 @@ export default function ModifiersScreen() {
   const [gMax, setGMax] = useState('1');
   const [oName, setOName] = useState('');
   const [oPrice, setOPrice] = useState('0');
+  const [oIngredientId, setOIngredientId] = useState<string|null>(null);
+  const [oProductId, setOProductId] = useState<string|null>(null);
+  const [oLinkSearch, setOLinkSearch] = useState('');
+  const [oLinkType, setOLinkType] = useState<'none'|'ingredient'|'product'>('none');
   const [productSearch, setProductSearch] = useState('');
 
   const load = useCallback(async () => {
-    const [gRes, oRes, pRes, lRes] = await Promise.all([
+    const [gRes, oRes, pRes, iRes, lRes] = await Promise.all([
       supabase.from('modifier_groups').select('*').order('sort_order'),
       supabase.from('modifier_options').select('*').order('sort_order'),
       supabase.from('products').select('id, name').eq('active', true).order('name'),
+      supabase.from('ingredients').select('id, name, unit').eq('active', true).order('name'),
       supabase.from('product_modifier_groups').select('*'),
     ]);
     if (gRes.data) setGroups(gRes.data);
     if (oRes.data) setOptions(oRes.data);
     if (pRes.data) setProducts(pRes.data);
+    if (iRes.data) setIngredients(iRes.data);
     if (lRes.data) {
       const map: Record<string, string[]> = {};
       lRes.data.forEach((l: any) => {
@@ -77,9 +85,11 @@ export default function ModifiersScreen() {
     await supabase.from('modifier_options').insert({
       group_id: selectedGroup.id, name: oName.trim(),
       price_adjust: parseInt(oPrice) || 0,
+      ingredient_id: oLinkType === 'ingredient' ? oIngredientId : null,
+      product_id: oLinkType === 'product' ? oProductId : null,
       sort_order: groupOptions.length + 1,
     });
-    setOName(''); setOPrice('0'); setShowAddOption(false); load();
+    setOName(''); setOPrice('0'); setOLinkType('none'); setOIngredientId(null); setOProductId(null); setOLinkSearch(''); setShowAddOption(false); load();
   };
 
   const deleteOption = async (o: Option) => {
@@ -107,7 +117,7 @@ export default function ModifiersScreen() {
 
   const S = {
     container: { flex: 1, backgroundColor: COLORS.background } as any,
-    header: { flexDirection: 'row' as const, justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+    header: { flexDirection: 'row' as const, justifyContent: 'space-between' as const, alignItems: 'center' as const, padding: 16, borderBottomWidth: 1, borderBottomColor: COLORS.border },
     title: { fontSize: 20, fontWeight: '700' as const, color: COLORS.text },
     body: { flex: 1, flexDirection: 'row' as const },
     panel: { flex: 1, borderRightWidth: 1, borderRightColor: COLORS.border },
@@ -124,7 +134,7 @@ export default function ModifiersScreen() {
     input: { backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: COLORS.text },
     form: { padding: 12, backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.border, gap: 8 },
     label: { fontSize: 12, fontWeight: '600' as const, color: COLORS.textSecondary },
-    formRow: { flexDirection: 'row' as const, gap: 8, alignItems: 'center' as const },
+    formRow: { flexDirection: 'row' as const, gap: 8, alignItems: 'center' as const, flexWrap: 'wrap' as const },
   };
 
   return (
@@ -201,23 +211,58 @@ export default function ModifiersScreen() {
                     <Text style={S.label}>Ajuste precio $:</Text>
                     <TextInput style={[S.input, { width: 80, textAlign: 'center' }]} value={oPrice} onChangeText={setOPrice} keyboardType="number-pad" placeholder="0" placeholderTextColor={COLORS.textMuted} />
                   </View>
+                  <View style={S.formRow}>
+                    <Text style={S.label}>Vincular a:</Text>
+                    {(['none', 'ingredient', 'product'] as const).map(t => (
+                      <TouchableOpacity key={t} style={[S.btnSm, oLinkType === t && { backgroundColor: COLORS.primary }]} onPress={() => { setOLinkType(t); setOIngredientId(null); setOProductId(null); setOLinkSearch(''); }}>
+                        <Text style={{ color: oLinkType === t ? '#fff' : COLORS.text, fontSize: 11, fontWeight: '600' }}>{t === 'none' ? 'Ninguno' : t === 'ingredient' ? 'Ingrediente' : 'Producto'}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  {oLinkType !== 'none' && (
+                    <View>
+                      <TextInput style={S.input} placeholder={'Buscar ' + (oLinkType === 'ingredient' ? 'ingrediente' : 'producto') + '...'} placeholderTextColor={COLORS.textMuted} value={oLinkSearch} onChangeText={setOLinkSearch} />
+                      <ScrollView style={{ maxHeight: 120 }}>
+                        {(oLinkType === 'ingredient'
+                          ? ingredients.filter(i => !oLinkSearch || i.name.toLowerCase().includes(oLinkSearch.toLowerCase()))
+                          : products.filter(p => !oLinkSearch || p.name.toLowerCase().includes(oLinkSearch.toLowerCase()))
+                        ).slice(0, 15).map((item: any) => {
+                          const selected = oLinkType === 'ingredient' ? oIngredientId === item.id : oProductId === item.id;
+                          return (
+                            <TouchableOpacity key={item.id} style={[S.row, selected && { backgroundColor: COLORS.success + '15' }]} onPress={() => { oLinkType === 'ingredient' ? setOIngredientId(item.id) : setOProductId(item.id); }}>
+                              <Text style={{ fontSize: 14 }}>{selected ? '✅' : '⬜'}</Text>
+                              <Text style={S.rowName}>{item.name}{item.unit ? ` (${item.unit})` : ''}</Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </ScrollView>
+                    </View>
+                  )}
                   <TouchableOpacity style={S.btn} onPress={addOption}>
                     <Text style={S.btnT}>Agregar Opción</Text>
                   </TouchableOpacity>
                 </View>
               )}
 
-              {groupOptions.map(o => (
-                <View key={o.id} style={S.row}>
-                  <Text style={S.rowName}>{o.name}</Text>
-                  {o.price_adjust !== 0 && (
-                    <Text style={[S.badge, { backgroundColor: o.price_adjust > 0 ? COLORS.warning + '20' : COLORS.success + '20', color: o.price_adjust > 0 ? COLORS.warning : COLORS.success }]}>{fmt(o.price_adjust)}</Text>
-                  )}
-                  <TouchableOpacity onPress={() => deleteOption(o)}>
-                    <Text style={{ color: COLORS.error, fontSize: 14 }}>✕</Text>
-                  </TouchableOpacity>
-                </View>
-              ))}
+              {groupOptions.map(o => {
+                const linkedIng = o.ingredient_id ? ingredients.find(i => i.id === o.ingredient_id) : null;
+                const linkedProd = o.product_id ? products.find(p => p.id === o.product_id) : null;
+                return (
+                  <View key={o.id} style={S.row}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={S.rowName}>{o.name}</Text>
+                      {linkedIng && <Text style={S.rowSub}>📦 {linkedIng.name} ({linkedIng.unit})</Text>}
+                      {linkedProd && <Text style={S.rowSub}>🍽️ {linkedProd.name}</Text>}
+                    </View>
+                    {o.price_adjust !== 0 && (
+                      <Text style={[S.badge, { backgroundColor: o.price_adjust > 0 ? COLORS.warning + '20' : COLORS.success + '20', color: o.price_adjust > 0 ? COLORS.warning : COLORS.success }]}>{fmt(o.price_adjust)}</Text>
+                    )}
+                    <TouchableOpacity onPress={() => deleteOption(o)}>
+                      <Text style={{ color: COLORS.error, fontSize: 14 }}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
 
               {groupOptions.length === 0 && !showAddOption && <Text style={{ color: COLORS.textMuted, textAlign: 'center', padding: 20 }}>Agrega opciones a este grupo</Text>}
 

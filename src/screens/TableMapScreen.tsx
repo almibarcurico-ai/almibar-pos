@@ -215,7 +215,7 @@ export default function TableMapScreen({ onOpenOrder, onOpenEditor }: Props) {
             {selectedClient && (
               <View style={{ backgroundColor: COLORS.primary + '15', borderRadius: 8, padding: 8, marginBottom: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Text style={{ color: COLORS.primary, fontSize: 12, fontWeight: '600' }}>✅ Socio: {selectedClient.name} (#{selectedClient.member_number})</Text>
-                <TouchableOpacity onPress={() => { setSelectedClient(null); setCustomerName(''); }}><Text style={{ color: COLORS.danger, fontSize: 12 }}>✕</Text></TouchableOpacity>
+                <TouchableOpacity onPress={() => { setSelectedClient(null); setCustomerName(''); }}><Text style={{ color: COLORS.error, fontSize: 12 }}>✕</Text></TouchableOpacity>
               </View>
             )}
             <Text style={s.label}>Cantidad de personas</Text>

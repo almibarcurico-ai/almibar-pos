@@ -70,7 +70,7 @@ export default function SuppliersScreen() {
           <TouchableOpacity style={s.btn} onPress={openNew}><Text style={s.btnT}>+ Nuevo</Text></TouchableOpacity>
         </View>
         <View style={{ paddingHorizontal: 12, paddingVertical: 6 }}>
-          <TextInput style={s.searchInp} placeholder="Buscar..." placeholderTextColor="#999" value={search} onChangeText={setSearch} />
+          <TextInput style={s.searchInp} placeholder="Buscar..." placeholderTextColor={COLORS.textMuted} value={search} onChangeText={setSearch} />
         </View>
         <ScrollView>
           {filtered.map(sup => {
@@ -114,14 +114,14 @@ export default function SuppliersScreen() {
           <View style={s.dBlock}>
             <Text style={s.dBlockTitle}>Ingredientes asignados ({supplierIngredients.length})</Text>
             {supplierIngredients.map(i => (
-              <View key={i.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' }}>
-                <Text style={{ flex: 1, fontSize: 13, color: '#2D2D2D' }}>{i.name}</Text>
+              <View key={i.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: COLORS.border }}>
+                <Text style={{ flex: 1, fontSize: 13, color: COLORS.text }}>{i.name}</Text>
                 <TouchableOpacity onPress={() => unassignIngredient(i.id)}>
                   <Text style={{ fontSize: 11, color: '#E53935' }}>Desvincular</Text>
                 </TouchableOpacity>
               </View>
             ))}
-            {supplierIngredients.length === 0 && <Text style={{ color: '#999', fontSize: 12 }}>Sin ingredientes asignados</Text>}
+            {supplierIngredients.length === 0 && <Text style={{ color: COLORS.textMuted, fontSize: 12 }}>Sin ingredientes asignados</Text>}
           </View>
 
           {/* Assign unassigned */}
@@ -130,8 +130,8 @@ export default function SuppliersScreen() {
               <Text style={s.dBlockTitle}>Asignar ingredientes sin proveedor ({unassigned.length})</Text>
               <ScrollView style={{ maxHeight: 200 }}>
                 {unassigned.map(i => (
-                  <TouchableOpacity key={i.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' }} onPress={() => assignIngredient(i.id)}>
-                    <Text style={{ flex: 1, fontSize: 13, color: '#2D2D2D' }}>{i.name}</Text>
+                  <TouchableOpacity key={i.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: COLORS.border }} onPress={() => assignIngredient(i.id)}>
+                    <Text style={{ flex: 1, fontSize: 13, color: COLORS.text }}>{i.name}</Text>
                     <Text style={{ fontSize: 11, color: COLORS.primary, fontWeight: '600' }}>+ Asignar</Text>
                   </TouchableOpacity>
                 ))}
@@ -142,7 +142,7 @@ export default function SuppliersScreen() {
       ) : (
         <View style={[s.detail, { justifyContent: 'center', alignItems: 'center' }]}>
           <Text style={{ fontSize: 40 }}>🚚</Text>
-          <Text style={{ color: '#999', marginTop: 8 }}>Selecciona un proveedor</Text>
+          <Text style={{ color: COLORS.textMuted, marginTop: 8 }}>Selecciona un proveedor</Text>
         </View>
       )}
 
@@ -150,13 +150,13 @@ export default function SuppliersScreen() {
       <Modal visible={modal} transparent animationType="fade">
         <View style={s.ov}><ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 16 }}><View style={s.md}>
           <Text style={s.mdT}>{isNew ? '➕ Nuevo Proveedor' : '✏️ ' + (ed.name || '')}</Text>
-          <Field label="Nombre *" value={ed.name} onChange={v => setEd((e: any) => ({ ...e, name: v }))} />
-          <Field label="RUT" value={ed.rut} onChange={v => setEd((e: any) => ({ ...e, rut: v }))} placeholder="76.123.456-7" />
-          <Field label="Contacto" value={ed.contact_name} onChange={v => setEd((e: any) => ({ ...e, contact_name: v }))} />
-          <Field label="Teléfono" value={ed.phone} onChange={v => setEd((e: any) => ({ ...e, phone: v }))} />
-          <Field label="Email" value={ed.email} onChange={v => setEd((e: any) => ({ ...e, email: v }))} />
-          <Field label="Datos bancarios" value={ed.bank_info} onChange={v => setEd((e: any) => ({ ...e, bank_info: v }))} multiline />
-          <Field label="Notas" value={ed.notes} onChange={v => setEd((e: any) => ({ ...e, notes: v }))} multiline />
+          <Field label="Nombre *" value={ed.name} onChange={(v: string) => setEd((e: any) => ({ ...e, name: v }))} />
+          <Field label="RUT" value={ed.rut} onChange={(v: string) => setEd((e: any) => ({ ...e, rut: v }))} placeholder="76.123.456-7" />
+          <Field label="Contacto" value={ed.contact_name} onChange={(v: string) => setEd((e: any) => ({ ...e, contact_name: v }))} />
+          <Field label="Teléfono" value={ed.phone} onChange={(v: string) => setEd((e: any) => ({ ...e, phone: v }))} />
+          <Field label="Email" value={ed.email} onChange={(v: string) => setEd((e: any) => ({ ...e, email: v }))} />
+          <Field label="Datos bancarios" value={ed.bank_info} onChange={(v: string) => setEd((e: any) => ({ ...e, bank_info: v }))} multiline />
+          <Field label="Notas" value={ed.notes} onChange={(v: string) => setEd((e: any) => ({ ...e, notes: v }))} multiline />
           <View style={{ flexDirection: 'row', gap: 12, marginTop: 20 }}>
             <TouchableOpacity style={s.bCancel} onPress={() => setModal(false)}><Text style={s.bCancelT}>Cancelar</Text></TouchableOpacity>
             <TouchableOpacity style={s.bSave} onPress={save}><Text style={s.bSaveT}>Guardar</Text></TouchableOpacity>
@@ -169,9 +169,9 @@ export default function SuppliersScreen() {
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <View style={{ flexDirection: 'row', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' }}>
-      <Text style={{ width: 90, fontSize: 12, color: '#999' }}>{label}</Text>
-      <Text style={{ flex: 1, fontSize: 13, color: '#2D2D2D' }}>{value}</Text>
+    <View style={{ flexDirection: 'row', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: COLORS.border }}>
+      <Text style={{ width: 90, fontSize: 12, color: COLORS.textMuted }}>{label}</Text>
+      <Text style={{ flex: 1, fontSize: 13, color: COLORS.text }}>{value}</Text>
     </View>
   );
 }
@@ -179,34 +179,34 @@ function Row({ label, value }: { label: string; value: string }) {
 function Field({ label, value, onChange, placeholder, multiline }: any) {
   return (
     <View style={{ marginTop: 10 }}>
-      <Text style={{ fontSize: 12, fontWeight: '600', color: '#999', marginBottom: 4 }}>{label}</Text>
-      <TextInput style={{ backgroundColor: '#F5F5F5', borderWidth: 1, borderColor: '#E0E0E0', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: '#2D2D2D', ...(multiline ? { minHeight: 60, textAlignVertical: 'top' as any } : {}) }} value={value || ''} onChangeText={onChange} placeholder={placeholder} placeholderTextColor="#999" multiline={multiline} />
+      <Text style={{ fontSize: 12, fontWeight: '600', color: COLORS.textMuted, marginBottom: 4 }}>{label}</Text>
+      <TextInput style={{ backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: COLORS.text, ...(multiline ? { minHeight: 60, textAlignVertical: 'top' as any } : {}) }} value={value || ''} onChangeText={onChange} placeholder={placeholder} placeholderTextColor={COLORS.textMuted} multiline={multiline} />
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  wrap: { flex: 1, flexDirection: 'row', backgroundColor: '#F5F5F5' },
-  list: { width: 320, backgroundColor: '#FFF', borderRightWidth: 1, borderRightColor: '#E0E0E0' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, borderBottomWidth: 1, borderBottomColor: '#E0E0E0' },
-  title: { fontSize: 16, fontWeight: '700', color: '#2D2D2D' },
+  wrap: { flex: 1, flexDirection: 'row', backgroundColor: COLORS.background },
+  list: { width: 320, backgroundColor: COLORS.card, borderRightWidth: 1, borderRightColor: COLORS.border },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  title: { fontSize: 16, fontWeight: '700', color: COLORS.text },
   btn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 6, backgroundColor: COLORS.primary },
   btnT: { color: '#fff', fontWeight: '700', fontSize: 12 },
-  searchInp: { backgroundColor: '#F5F5F5', borderWidth: 1, borderColor: '#E0E0E0', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 6, fontSize: 13, color: '#2D2D2D' },
-  row: { padding: 14, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
+  searchInp: { backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border, borderRadius: 6, paddingHorizontal: 10, paddingVertical: 6, fontSize: 13, color: COLORS.text },
+  row: { padding: 14, borderBottomWidth: 1, borderBottomColor: COLORS.border },
   rowActive: { backgroundColor: COLORS.primary + '10', borderLeftWidth: 3, borderLeftColor: COLORS.primary },
-  rowName: { fontSize: 14, fontWeight: '700', color: '#2D2D2D' },
-  rowSub: { fontSize: 11, color: '#999', marginTop: 2 },
+  rowName: { fontSize: 14, fontWeight: '700', color: COLORS.text },
+  rowSub: { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
   detail: { flex: 1 },
-  dHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, borderBottomWidth: 1, borderBottomColor: '#E0E0E0' },
-  dTitle: { fontSize: 18, fontWeight: '700', color: '#2D2D2D' },
-  dBlock: { padding: 14, borderBottomWidth: 1, borderBottomColor: '#E0E0E0' },
-  dBlockTitle: { fontSize: 14, fontWeight: '700', color: '#2D2D2D', marginBottom: 10 },
-  ov: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' },
-  md: { width: '92%' as any, maxWidth: 450, backgroundColor: '#FFF', borderRadius: 16, padding: 24 },
-  mdT: { fontSize: 18, fontWeight: '700', color: '#2D2D2D', textAlign: 'center', marginBottom: 8 },
-  bCancel: { flex: 1, paddingVertical: 14, borderRadius: 10, borderWidth: 1, borderColor: '#E0E0E0', alignItems: 'center' },
-  bCancelT: { color: '#666', fontWeight: '600', fontSize: 14 },
+  dHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  dTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text },
+  dBlock: { padding: 14, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  dBlockTitle: { fontSize: 14, fontWeight: '700', color: COLORS.text, marginBottom: 10 },
+  ov: { flex: 1, backgroundColor: COLORS.overlay, justifyContent: 'center', alignItems: 'center' },
+  md: { width: '92%' as any, maxWidth: 450, backgroundColor: COLORS.card, borderRadius: 16, padding: 24, borderWidth: 1, borderColor: COLORS.border },
+  mdT: { fontSize: 18, fontWeight: '700', color: COLORS.text, textAlign: 'center', marginBottom: 8 },
+  bCancel: { flex: 1, paddingVertical: 14, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center' },
+  bCancelT: { color: COLORS.textSecondary, fontWeight: '600', fontSize: 14 },
   bSave: { flex: 1, paddingVertical: 14, borderRadius: 10, backgroundColor: COLORS.primary, alignItems: 'center' },
   bSaveT: { color: '#fff', fontWeight: '700', fontSize: 14 },
 });

@@ -72,7 +72,9 @@ export interface Order {
   discount_value: number;
   total: number;
   payment_method: PaymentMethod | null;
+  tip_amount: number;
   notes: string | null;
+  client_id: string | null;
 }
 
 export interface OrderItem {
@@ -85,6 +87,7 @@ export interface OrderItem {
   notes: string | null;
   status: ItemStatus;
   printed: boolean;
+  paid: boolean;
   created_at: string;
   created_by: string;
   // Joined

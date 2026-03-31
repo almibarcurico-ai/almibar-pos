@@ -41,6 +41,7 @@ export default function TabNavigator({ activeTab, onChangeTab, role }: Props) {
           >
             <Text style={styles.icon}>{tab.icon}</Text>
             <Text style={[styles.label, isActive && styles.labelActive]}>{tab.label}</Text>
+            {isActive && <View style={styles.indicator} />}
           </TouchableOpacity>
         );
       })}
@@ -51,16 +52,17 @@ export default function TabNavigator({ activeTab, onChangeTab, role }: Props) {
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    backgroundColor: COLORS.card,
+    backgroundColor: '#0B0D14',
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
-    paddingBottom: 20, // safe area
-    paddingTop: 8,
+    paddingBottom: 20,
+    paddingTop: 6,
   },
   tab: {
     flex: 1,
     alignItems: 'center',
-    paddingVertical: 6,
+    paddingVertical: 8,
+    position: 'relative',
   },
   tabActive: {},
   icon: { fontSize: 20 },
@@ -68,10 +70,18 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     color: COLORS.textMuted,
-    marginTop: 2,
+    marginTop: 3,
   },
   labelActive: {
     color: COLORS.primary,
     fontWeight: '700',
+  },
+  indicator: {
+    position: 'absolute',
+    bottom: 0,
+    width: 32,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: COLORS.primary,
   },
 });

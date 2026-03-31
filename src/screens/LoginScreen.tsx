@@ -6,15 +6,11 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  Dimensions,
   Animated,
   ActivityIndicator,
-  Image,
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { COLORS } from '../theme';
-
-const { width } = Dimensions.get('window');
 
 export default function LoginScreen() {
   const { loginWithPin, loading, error } = useAuth();
@@ -25,21 +21,14 @@ export default function LoginScreen() {
     if (pin.length >= 4) return;
     const newPin = pin + digit;
     setPin(newPin);
-
-    // Auto-submit al completar 4 dígitos
-    if (newPin.length === 4) {
-      handleLogin(newPin);
-    }
+    if (newPin.length === 4) handleLogin(newPin);
   };
 
-  const handleDelete = () => {
-    setPin((prev) => prev.slice(0, -1));
-  };
+  const handleDelete = () => setPin((prev) => prev.slice(0, -1));
 
   const handleLogin = async (currentPin: string) => {
     const success = await loginWithPin(currentPin);
     if (!success) {
-      // Shake animation
       Animated.sequence([
         Animated.timing(shakeAnim, { toValue: 10, duration: 50, useNativeDriver: true }),
         Animated.timing(shakeAnim, { toValue: -10, duration: 50, useNativeDriver: true }),
@@ -56,19 +45,12 @@ export default function LoginScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>ALMÍBAR</Text>
-        <Text style={styles.subtitle}>Punto de Venta</Text>
+        <View style={styles.badge}><Text style={styles.badgeText}>PUNTO DE VENTA</Text></View>
       </View>
 
-      {/* PIN dots */}
       <Animated.View style={[styles.dotsContainer, { transform: [{ translateX: shakeAnim }] }]}>
         {[0, 1, 2, 3].map((i) => (
-          <View
-            key={i}
-            style={[
-              styles.dot,
-              pin.length > i && styles.dotFilled,
-            ]}
-          />
+          <View key={i} style={[styles.dot, pin.length > i && styles.dotFilled]} />
         ))}
       </Animated.View>
 
@@ -81,21 +63,12 @@ export default function LoginScreen() {
           {digits.map((digit, index) => (
             <TouchableOpacity
               key={index}
-              style={[
-                styles.numpadButton,
-                digit === '' && styles.numpadEmpty,
-              ]}
+              style={[styles.numpadButton, digit === '' && styles.numpadEmpty]}
               disabled={digit === ''}
-              onPress={() => {
-                if (digit === 'DEL') handleDelete();
-                else handleDigit(digit);
-              }}
+              onPress={() => digit === 'DEL' ? handleDelete() : handleDigit(digit)}
               activeOpacity={0.6}
             >
-              <Text style={[
-                styles.numpadText,
-                digit === 'DEL' && styles.numpadDelText,
-              ]}>
+              <Text style={[styles.numpadText, digit === 'DEL' && styles.numpadDelText]}>
                 {digit === 'DEL' ? '⌫' : digit}
               </Text>
             </TouchableOpacity>
@@ -118,29 +91,38 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 48,
   },
   title: {
-    fontSize: 36,
+    fontSize: 40,
     fontWeight: '800',
-    color: COLORS.primary,
-    letterSpacing: 4,
+    color: COLORS.text,
+    letterSpacing: 8,
   },
-  subtitle: {
-    fontSize: 16,
-    color: COLORS.textSecondary,
-    marginTop: 4,
-    letterSpacing: 1,
+  badge: {
+    marginTop: 10,
+    backgroundColor: COLORS.primary + '20',
+    paddingHorizontal: 16,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: COLORS.primary + '40',
+  },
+  badgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.primary,
+    letterSpacing: 3,
   },
   dotsContainer: {
     flexDirection: 'row',
-    gap: 16,
+    gap: 20,
     marginBottom: 12,
   },
   dot: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     borderWidth: 2,
     borderColor: COLORS.border,
     backgroundColor: 'transparent',
@@ -160,26 +142,22 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     justifyContent: 'center',
     maxWidth: 300,
-    marginTop: 20,
+    marginTop: 24,
   },
   numpadButton: {
-    width: 80,
-    height: 80,
+    width: 76,
+    height: 76,
     margin: 8,
-    borderRadius: 40,
+    borderRadius: 38,
     backgroundColor: COLORS.card,
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   numpadEmpty: {
     backgroundColor: 'transparent',
-    elevation: 0,
-    shadowOpacity: 0,
+    borderWidth: 0,
   },
   numpadText: {
     fontSize: 28,
@@ -188,11 +166,12 @@ const styles = StyleSheet.create({
   },
   numpadDelText: {
     fontSize: 24,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
   },
   footer: {
-    marginTop: 30,
-    fontSize: 14,
-    color: COLORS.textSecondary,
+    marginTop: 32,
+    fontSize: 13,
+    color: COLORS.textMuted,
+    letterSpacing: 0.5,
   },
 });

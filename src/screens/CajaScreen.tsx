@@ -10,10 +10,11 @@ import { COLORS } from '../theme';
 const SW = Dimensions.get('window').width;
 
 export default function CajaScreen() {
-  const [tab, setTab] = useState<'ventas' | 'arqueos'>('ventas');
+  const [tab, setTab] = useState<'ventas' | 'movimientos' | 'arqueos'>('ventas');
   const TABS = [
     { key: 'ventas', label: 'Ventas' },
-    { key: 'arqueos', label: 'Arqueos de Caja' },
+    { key: 'movimientos', label: 'Ingresos / Egresos' },
+    { key: 'arqueos', label: 'Arqueos' },
   ] as const;
 
   return (
@@ -29,7 +30,9 @@ export default function CajaScreen() {
           </TouchableOpacity>
         ))}
       </View>
-      {tab === 'ventas' ? <VentasTab /> : <ArqueosTab />}
+      {tab === 'ventas' && <VentasTab />}
+      {tab === 'movimientos' && <MovimientosTab />}
+      {tab === 'arqueos' && <ArqueosTab />}
     </View>
   );
 }
@@ -82,11 +85,11 @@ function VentasTab() {
     }
 
     // Mesa orders
-    const { data: mesaData } = await supabase.from('orders').select('*').eq('status', 'cerrada').gte('closed_at', since).lt('closed_at', until).order('closed_at', { ascending: false });
+    const { data: mesaData } = await supabase.from('orders').select('*, table:table_id(number)').eq('status', 'cerrada').gte('closed_at', since).lt('closed_at', until).order('closed_at', { ascending: false });
     // Delivery orders
     const { data: delivData } = await supabase.from('delivery_orders').select('*').eq('status', 'entregado').gte('closed_at', since).lt('closed_at', until).order('closed_at', { ascending: false });
 
-    const mesaOrders = (mesaData || []).map((o: any) => ({ ...o, _type: 'mesa' }));
+    const mesaOrders = (mesaData || []).map((o: any) => ({ ...o, _type: 'mesa', table_number: o.table?.number || null }));
     const delivOrders = (delivData || []).map((o: any) => ({
       ...o,
       _type: 'delivery',
@@ -338,6 +341,153 @@ function VentasTab() {
 // =====================================================
 // ARQUEOS TAB - Fudo style
 // =====================================================
+// =====================================================
+// MOVIMIENTOS TAB - Ingresos y Egresos
+// =====================================================
+function MovimientosTab() {
+  const { user } = useAuth();
+  const [movements, setMovements] = useState<any[]>([]);
+  const [cashRegister, setCashRegister] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [modal, setModal] = useState(false);
+  const [movType, setMovType] = useState<'gasto' | 'ingreso'>('gasto');
+  const [movAmount, setMovAmount] = useState('');
+  const [movDesc, setMovDesc] = useState('');
+
+  const fmt = (p: number) => '$' + Math.round(p).toLocaleString('es-CL');
+
+  const loadData = async () => {
+    const today = new Date().toISOString().split('T')[0];
+    const { data: cajas } = await supabase.from('cash_registers').select('*').gte('opened_at', today).is('closed_at', null).order('opened_at', { ascending: false }).limit(1);
+    const caja = cajas?.[0] || null;
+    setCashRegister(caja);
+    if (caja) {
+      const { data: movs } = await supabase.from('cash_movements').select('*, users:created_by(name)').eq('cash_register_id', caja.id).order('created_at', { ascending: false });
+      if (movs) setMovements(movs);
+    } else {
+      // Show all movements from today even without open register
+      const { data: movs } = await supabase.from('cash_movements').select('*, users:created_by(name)').gte('created_at', today).order('created_at', { ascending: false });
+      if (movs) setMovements(movs);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => { loadData(); }, []);
+
+  const handleAdd = async () => {
+    if (!user) return;
+    const amt = parseInt(movAmount);
+    if (!amt || amt <= 0 || !movDesc.trim()) { Alert.alert('Error', 'Monto y descripción requeridos'); return; }
+    if (!cashRegister) { Alert.alert('Error', 'Debes abrir un arqueo de caja primero'); return; }
+    await supabase.from('cash_movements').insert({ cash_register_id: cashRegister.id, type: movType, amount: amt, description: movDesc.trim(), created_by: user.id });
+    setModal(false); setMovAmount(''); setMovDesc('');
+    await loadData();
+  };
+
+  const delMov = (id: string) => {
+    const ok = typeof window !== 'undefined' ? window.confirm('¿Eliminar este movimiento?') : true;
+    if (ok) { supabase.from('cash_movements').delete().eq('id', id).then(() => loadData()); }
+  };
+
+  const totalIngresos = movements.filter(m => m.type === 'ingreso').reduce((a, m) => a + m.amount, 0);
+  const totalEgresos = movements.filter(m => m.type === 'gasto').reduce((a, m) => a + m.amount, 0);
+
+  if (loading) return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: COLORS.textMuted }}>Cargando...</Text></View>;
+
+  return (
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 100 }}>
+      {/* Header */}
+      <View style={s.arqueoHdr}>
+        <Text style={{ fontSize: 16, fontWeight: '700', color: COLORS.text }}>Movimientos de Caja</Text>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <TouchableOpacity style={[s.fChip, { backgroundColor: COLORS.error, borderColor: COLORS.error }]} onPress={() => { setMovType('gasto'); setMovAmount(''); setMovDesc(''); setModal(true); }}>
+            <Text style={{ fontSize: 12, fontWeight: '600', color: '#fff' }}>📤 Egreso</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[s.fChip, { backgroundColor: COLORS.success, borderColor: COLORS.success }]} onPress={() => { setMovType('ingreso'); setMovAmount(''); setMovDesc(''); setModal(true); }}>
+            <Text style={{ fontSize: 12, fontWeight: '600', color: '#fff' }}>📥 Ingreso</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {!cashRegister && (
+        <View style={{ margin: 16, padding: 14, backgroundColor: COLORS.warning + '20', borderRadius: 10, borderWidth: 1, borderColor: COLORS.warning + '40' }}>
+          <Text style={{ fontSize: 13, color: COLORS.warning, fontWeight: '600' }}>⚠️ No hay arqueo abierto. Abre uno en la pestaña Arqueos para registrar movimientos.</Text>
+        </View>
+      )}
+
+      {/* Summary */}
+      <View style={s.summaryRow}>
+        <SumCard label="📥 Ingresos" value={fmt(totalIngresos)} />
+        <SumCard label="📤 Egresos" value={fmt(totalEgresos)} />
+        <SumCard label="Balance" value={fmt(totalIngresos - totalEgresos)} highlight />
+      </View>
+
+      {/* Movement list */}
+      <View style={{ paddingHorizontal: 16, gap: 6 }}>
+        {movements.map(m => (
+          <View key={m.id} style={s.movRow}>
+            <Text style={{ fontSize: 18, marginRight: 8 }}>{m.type === 'gasto' ? '📤' : '📥'}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 14, fontWeight: '600', color: COLORS.text }}>{m.description}</Text>
+              <Text style={{ fontSize: 11, color: COLORS.textMuted }}>
+                {new Date(m.created_at).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
+                {m.users?.name ? ` • ${m.users.name}` : ''}
+              </Text>
+            </View>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: m.type === 'gasto' ? COLORS.error : COLORS.success }}>
+              {m.type === 'gasto' ? '-' : '+'}{fmt(m.amount)}
+            </Text>
+            <TouchableOpacity onPress={() => delMov(m.id)} style={{ padding: 6, marginLeft: 6 }}><Text>🗑</Text></TouchableOpacity>
+          </View>
+        ))}
+        {movements.length === 0 && <Text style={{ color: COLORS.textMuted, textAlign: 'center', padding: 30 }}>Sin movimientos registrados</Text>}
+      </View>
+
+      {/* Add movement modal */}
+      <Modal visible={modal} transparent animationType="fade">
+        <View style={s.ov}><View style={s.md}>
+          <Text style={s.mdT}>{movType === 'gasto' ? '📤 Registrar Egreso' : '📥 Registrar Ingreso'}</Text>
+          <Text style={s.lb}>Monto</Text>
+          <TextInput style={[s.inp, { fontSize: 24, textAlign: 'center', fontWeight: '800' }]} placeholder="0" placeholderTextColor={COLORS.textMuted} keyboardType="number-pad" value={movAmount} onChangeText={setMovAmount} autoFocus />
+          {movType === 'gasto' && (
+            <>
+              <Text style={s.lb}>Motivo rápido</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                {['Insumos', 'Gas', 'Limpieza', 'Propina staff', 'Uber/Taxi', 'Emergencia', 'Proveedor', 'Delivery'].map(m => (
+                  <TouchableOpacity key={m} onPress={() => setMovDesc(m)} style={[s.fChip, movDesc === m && s.fChipA]}>
+                    <Text style={[s.fChipT, movDesc === m && s.fChipTA]}>{m}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </>
+          )}
+          {movType === 'ingreso' && (
+            <>
+              <Text style={s.lb}>Motivo rápido</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                {['Reembolso', 'Cambio', 'Fondo extra', 'Otro'].map(m => (
+                  <TouchableOpacity key={m} onPress={() => setMovDesc(m)} style={[s.fChip, movDesc === m && s.fChipA]}>
+                    <Text style={[s.fChipT, movDesc === m && s.fChipTA]}>{m}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </>
+          )}
+          <Text style={s.lb}>Descripción</Text>
+          <TextInput style={s.inp} placeholder="Detalle..." placeholderTextColor={COLORS.textMuted} value={movDesc} onChangeText={setMovDesc} />
+          <View style={s.mBs}>
+            <TouchableOpacity style={s.bC} onPress={() => setModal(false)}><Text style={s.bCT}>Cancelar</Text></TouchableOpacity>
+            <TouchableOpacity style={[s.bOk, { backgroundColor: movType === 'gasto' ? COLORS.error : COLORS.success }]} onPress={handleAdd}><Text style={s.bOkT}>Registrar</Text></TouchableOpacity>
+          </View>
+        </View></View>
+      </Modal>
+    </ScrollView>
+  );
+}
+
+// =====================================================
+// ARQUEOS TAB
+// =====================================================
 function ArqueosTab() {
   const { user } = useAuth();
   const [cashRegister, setCashRegister] = useState<any>(null);
@@ -375,8 +525,8 @@ function ArqueosTab() {
       const caja = cajas?.[0] || null;
       setCashRegister(caja);
 
-      const { data: ords } = await supabase.from('orders').select('*').eq('status', 'cerrada').gte('closed_at', today);
-      if (ords) setTodayOrders(ords);
+      const { data: ords } = await supabase.from('orders').select('*, table:table_id(number)').eq('status', 'cerrada').gte('closed_at', today);
+      if (ords) setTodayOrders(ords.map((o: any) => ({ ...o, table_number: o.table?.number || null })));
 
       if (caja) {
         const { data: movs } = await supabase.from('cash_movements').select('*, users:created_by(name)').eq('cash_register_id', caja.id).order('created_at', { ascending: false });
@@ -385,14 +535,15 @@ function ArqueosTab() {
 
       const { data: hist } = await supabase.from('cash_registers').select('*, opener:opened_by(name), closer:closed_by(name)').not('closed_at', 'is', null).order('closed_at', { ascending: false }).limit(30);
 
-      // Load payments for shift
-      if (caja) {
-        const since = caja.opened_at;
-        const { data: sp } = await supabase.from('payments').select('*').gte('created_at', since);
+      // Load payments from closed orders of the shift
+      const orderIds = (ords || []).map((o: any) => o.id);
+      if (orderIds.length > 0) {
+        const { data: sp } = await supabase.from('payments').select('*').in('order_id', orderIds);
         if (sp) setShiftPayments(sp);
-        const { data: dp } = await supabase.from('delivery_payments').select('*').gte('created_at', since);
-        if (dp) setShiftDelivPayments(dp);
-      }
+      } else { setShiftPayments([]); }
+      // Delivery payments from today
+      const { data: dp } = await supabase.from('delivery_payments').select('*').gte('created_at', today);
+      if (dp) setShiftDelivPayments(dp); else setShiftDelivPayments([]);
       if (hist) setHistorial(hist);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
@@ -400,19 +551,25 @@ function ArqueosTab() {
 
   const fmt = (p: number) => '$' + Math.round(p).toLocaleString('es-CL');
 
-  // Combine all payments
-  const allPayments = [...shiftPayments, ...shiftDelivPayments];
+  // Normalize payments: payments table uses tip_amount (number), delivery_payments uses is_tip (boolean)
+  const normalizedPayments = shiftPayments.map((p: any) => ({ ...p, _isTip: (p.tip_amount || 0) > 0 && p.amount === 0 }));
+  const normalizedDelivPayments = shiftDelivPayments.map((p: any) => ({ ...p, _isTip: !!p.is_tip }));
+  const allPayments = [...normalizedPayments, ...normalizedDelivPayments];
+
+  const sumByMethod = (method: string, isTip: boolean) =>
+    allPayments.filter(p => p.method === method && p._isTip === isTip).reduce((a, p) => a + (isTip && p.tip_amount ? p.tip_amount : p.amount), 0);
+
   const payByMethod = {
-    efectivo: allPayments.filter(p => p.method === 'efectivo' && !p.is_tip).reduce((a, p) => a + p.amount, 0),
-    debito: allPayments.filter(p => p.method === 'debito' && !p.is_tip).reduce((a, p) => a + p.amount, 0),
-    credito: allPayments.filter(p => p.method === 'credito' && !p.is_tip).reduce((a, p) => a + p.amount, 0),
-    transferencia: allPayments.filter(p => p.method === 'transferencia' && !p.is_tip).reduce((a, p) => a + p.amount, 0),
+    efectivo: sumByMethod('efectivo', false),
+    debito: sumByMethod('debito', false),
+    credito: sumByMethod('credito', false),
+    transferencia: sumByMethod('transferencia', false),
   };
   const tipsByMethod = {
-    efectivo: allPayments.filter(p => p.method === 'efectivo' && p.is_tip).reduce((a, p) => a + p.amount, 0),
-    debito: allPayments.filter(p => p.method === 'debito' && p.is_tip).reduce((a, p) => a + p.amount, 0),
-    credito: allPayments.filter(p => p.method === 'credito' && p.is_tip).reduce((a, p) => a + p.amount, 0),
-    transferencia: allPayments.filter(p => p.method === 'transferencia' && p.is_tip).reduce((a, p) => a + p.amount, 0),
+    efectivo: sumByMethod('efectivo', true),
+    debito: sumByMethod('debito', true),
+    credito: sumByMethod('credito', true),
+    transferencia: sumByMethod('transferencia', true),
   };
   const totals = {
     efectivo: payByMethod.efectivo + tipsByMethod.efectivo,
@@ -441,7 +598,12 @@ function ArqueosTab() {
     await supabase.from('cash_registers').update({
       closed_at: new Date().toISOString(), closed_by: user.id,
       closing_amount: userTotal,
-      total_cash: totals.efectivo, total_sales: totals.ventas,
+      total_cash: totals.efectivo,
+      total_debit: totals.debito,
+      total_credit: totals.credito,
+      total_transfer: totals.transferencia,
+      total_sales: totals.ventas,
+      total_tips: totals.propinas,
       total_orders: todayOrders.length, total_expenses: totals.gastos, total_cash_in: totals.ingresos,
       notes: cNotas || null,
     }).eq('id', cashRegister.id);
@@ -532,7 +694,8 @@ function ArqueosTab() {
       <ScrollView horizontal showsHorizontalScrollIndicator={true}>
         <View>
           {historial.map((h, i) => {
-            const diff = (h.closing_amount || 0) - ((h.opening_amount || 0) + (h.total_cash || 0) + (h.total_cash_in || 0) - (h.total_expenses || 0));
+            const sysTotal = (h.opening_amount || 0) + (h.total_cash || 0) + (h.total_debit || 0) + (h.total_credit || 0) + (h.total_transfer || 0) + (h.total_cash_in || 0) - (h.total_expenses || 0);
+            const diff = (h.closing_amount || 0) - sysTotal;
             return (
               <View key={h.id} style={[s.tblRow, i % 2 === 0 && { backgroundColor: COLORS.card }]}>
                 <View style={{ width: 140 }}>
@@ -543,7 +706,7 @@ function ArqueosTab() {
                     {h.closed_at ? new Date(h.closed_at).toLocaleString('es-CL', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-'}
                   </Text>
                 </View>
-                <Text style={[s.tblC, { width: 100, textAlign: 'right', fontWeight: '600' }]}>{fmt(h.total_sales || 0)}</Text>
+                <Text style={[s.tblC, { width: 100, textAlign: 'right', fontWeight: '600' }]}>{fmt(sysTotal)}</Text>
                 <Text style={[s.tblC, { width: 100, textAlign: 'right' }]}>{fmt(h.closing_amount || 0)}</Text>
                 <View style={{ width: 90, alignItems: 'flex-end', justifyContent: 'center' }}>
                   {diff === 0 ? (
@@ -638,33 +801,56 @@ function ArqueosTab() {
             </View>
 
             {/* SEGÚN SISTEMA */}
-            <View style={{ backgroundColor: '#F0F0F0', borderRadius: 10, padding: 14, marginBottom: 14 }}>
-              <Text style={{ fontSize: 12, fontWeight: '800', color: COLORS.text, marginBottom: 10, backgroundColor: '#999', color: '#fff', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 4, overflow: 'hidden' }}>SEGÚN SISTEMA</Text>
-              <ARQ label="MONTO INICIAL" val={fmt(cashRegister?.opening_amount || 0)} bold />
-              <View style={{ borderTopWidth: 1, borderTopColor: COLORS.border, marginTop: 4, paddingTop: 4 }}>
-                <Text style={{ fontSize: 11, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 4 }}>INGRESOS</Text>
-                <ARQ label="    Efectivo" val={fmt(totals.efectivo)} />
-                <ARQ label="    Tarj. Débito" val={fmt(totals.debito)} />
-                <ARQ label="    Tarj. Crédito" val={fmt(totals.credito)} />
-                <ARQ label="    Transferencia" val={fmt(totals.transferencia)} />
-                <ARQ label="TOTAL INGRESOS" val={fmt(totalIngresos)} bold />
+            <View style={{ backgroundColor: COLORS.cardHover, borderRadius: 10, padding: 14, marginBottom: 14 }}>
+              <Text style={{ fontSize: 12, fontWeight: '800', color: '#fff', marginBottom: 10, backgroundColor: COLORS.textMuted, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 4, overflow: 'hidden' }}>SEGÚN SISTEMA</Text>
+
+              <ARQ label="MONTO INICIAL (efectivo)" val={fmt(cashRegister?.opening_amount || 0)} bold />
+
+              <View style={{ borderTopWidth: 1, borderTopColor: COLORS.border, marginTop: 6, paddingTop: 6 }}>
+                <Text style={{ fontSize: 11, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 4 }}>VENTAS POR MÉTODO</Text>
+                <ARQ label="    Efectivo" val={fmt(payByMethod.efectivo)} />
+                <ARQ label="    Tarj. Débito" val={fmt(payByMethod.debito)} />
+                <ARQ label="    Tarj. Crédito" val={fmt(payByMethod.credito)} />
+                <ARQ label="    Transferencia" val={fmt(payByMethod.transferencia)} />
+                <ARQ label="TOTAL VENTAS" val={fmt(payByMethod.efectivo + payByMethod.debito + payByMethod.credito + payByMethod.transferencia)} bold />
               </View>
-              {totals.propinas > 0 && <ARQ label="Propinas" val={fmt(totals.propinas)} />}
-              {totals.gastos > 0 && (
-                <View style={{ borderTopWidth: 1, borderTopColor: COLORS.border, marginTop: 4, paddingTop: 4 }}>
-                  <Text style={{ fontSize: 11, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 4 }}>EGRESOS</Text>
-                  <ARQ label="    Efectivo" val={'-' + fmt(totals.gastos)} />
+
+              {totals.propinas > 0 && (
+                <View style={{ borderTopWidth: 1, borderTopColor: COLORS.border, marginTop: 6, paddingTop: 6 }}>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 4 }}>PROPINAS POR MÉTODO</Text>
+                  {tipsByMethod.efectivo > 0 && <ARQ label="    Efectivo" val={fmt(tipsByMethod.efectivo)} />}
+                  {tipsByMethod.debito > 0 && <ARQ label="    Tarj. Débito" val={fmt(tipsByMethod.debito)} />}
+                  {tipsByMethod.credito > 0 && <ARQ label="    Tarj. Crédito" val={fmt(tipsByMethod.credito)} />}
+                  {tipsByMethod.transferencia > 0 && <ARQ label="    Transferencia" val={fmt(tipsByMethod.transferencia)} />}
+                  <ARQ label="TOTAL PROPINAS" val={fmt(totals.propinas)} bold />
                 </View>
               )}
-              {totals.ingresos > 0 && <ARQ label="Otros ingresos" val={fmt(totals.ingresos)} />}
+
+              {(totals.ingresos > 0 || totals.gastos > 0) && (
+                <View style={{ borderTopWidth: 1, borderTopColor: COLORS.border, marginTop: 6, paddingTop: 6 }}>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 4 }}>MOVIMIENTOS</Text>
+                  {totals.ingresos > 0 && <ARQ label="    📥 Ingresos" val={'+' + fmt(totals.ingresos)} />}
+                  {totals.gastos > 0 && <ARQ label="    📤 Egresos" val={'-' + fmt(totals.gastos)} />}
+                </View>
+              )}
+
               <View style={{ borderTopWidth: 2, borderTopColor: COLORS.primary, marginTop: 8, paddingTop: 8 }}>
-                <ARQ label="Total" val={fmt(totalIngresos + totals.ingresos - totals.gastos)} bold />
+                <ARQ label="EFECTIVO EN CAJA" val={fmt(saldoActual)} bold />
+                <Text style={{ fontSize: 10, color: COLORS.textMuted, marginTop: 2 }}>
+                  Inicial ({fmt(cashRegister?.opening_amount || 0)}) + Efectivo ({fmt(totals.efectivo)}) + Propinas efvo. ({fmt(tipsByMethod.efectivo)}) + Ingresos ({fmt(totals.ingresos)}) - Egresos ({fmt(totals.gastos)})
+                </Text>
+              </View>
+              <View style={{ marginTop: 6 }}>
+                <ARQ label="TARJETAS + TRANSF." val={fmt(totals.debito + totals.credito + totals.transferencia)} bold />
+              </View>
+              <View style={{ borderTopWidth: 2, borderTopColor: COLORS.warning, marginTop: 8, paddingTop: 8 }}>
+                <ARQ label="TOTAL GENERAL" val={fmt(totalIngresos + totals.ingresos - totals.gastos)} bold />
               </View>
             </View>
 
             {/* SEGÚN USUARIO */}
-            <View style={{ backgroundColor: '#F0F0F0', borderRadius: 10, padding: 14, marginBottom: 14 }}>
-              <Text style={{ fontSize: 12, fontWeight: '800', color: '#fff', marginBottom: 10, backgroundColor: '#999', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 4, overflow: 'hidden' }}>SEGÚN USUARIO</Text>
+            <View style={{ backgroundColor: COLORS.cardHover, borderRadius: 10, padding: 14, marginBottom: 14 }}>
+              <Text style={{ fontSize: 12, fontWeight: '800', color: '#fff', marginBottom: 10, backgroundColor: COLORS.textMuted, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 4, overflow: 'hidden' }}>SEGÚN USUARIO</Text>
               
               <Text style={{ fontSize: 11, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 4 }}>Efectivo contado</Text>
               <TextInput style={[s.inp, { fontSize: 18, fontWeight: '700', marginBottom: 8 }]} placeholder="$0" placeholderTextColor={COLORS.textMuted} keyboardType="number-pad" value={cEfectivo} onChangeText={setCEfectivo} />

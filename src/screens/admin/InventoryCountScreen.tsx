@@ -216,7 +216,7 @@ export default function InventoryCountScreen() {
             <Text style={s.btnT}>📤 Subir Conteo</Text>
           </TouchableOpacity>
         </View>
-        <Text style={{ paddingHorizontal: 12, fontSize: 12, fontWeight: '700', color: '#999', marginBottom: 6 }}>HISTORIAL</Text>
+        <Text style={{ paddingHorizontal: 12, fontSize: 12, fontWeight: '700', color: COLORS.textMuted, marginBottom: 6 }}>HISTORIAL</Text>
         <ScrollView>
           {counts.map(c => {
             const isActive = selected?.id === c.id;
@@ -227,7 +227,7 @@ export default function InventoryCountScreen() {
                   <Text style={s.rowSub}>{c.total_items} items · Merma: {fmt(c.total_merma_value || 0)} · {c.creator?.name || '—'}</Text>
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: c.status === 'aplicado' ? '#E8F5E9' : c.status === 'anulado' ? '#FFEBEE' : '#FFF3E0' }}>
+                  <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: c.status === 'aplicado' ? '#4CAF5020' : c.status === 'anulado' ? '#E5393520' : '#F57C0020' }}>
                     <Text style={{ fontSize: 10, fontWeight: '700', color: c.status === 'aplicado' ? '#4CAF50' : c.status === 'anulado' ? '#E53935' : '#F57C00' }}>
                       {c.status?.toUpperCase()}
                     </Text>
@@ -239,7 +239,7 @@ export default function InventoryCountScreen() {
               </TouchableOpacity>
             );
           })}
-          {counts.length === 0 && <Text style={{ padding: 20, textAlign: 'center', color: '#999' }}>Sin conteos realizados</Text>}
+          {counts.length === 0 && <Text style={{ padding: 20, textAlign: 'center', color: COLORS.textMuted }}>Sin conteos realizados</Text>}
         </ScrollView>
       </View>
 
@@ -249,7 +249,7 @@ export default function InventoryCountScreen() {
           <View style={s.dHeader}>
             <Text style={s.dTitle}>Conteo {new Date(selected.created_at).toLocaleDateString('es-CL')}</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, backgroundColor: selected.status === 'aplicado' ? '#E8F5E9' : '#FFF3E0' }}>
+              <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, backgroundColor: selected.status === 'aplicado' ? '#4CAF5020' : '#F57C0020' }}>
                 <Text style={{ fontSize: 12, fontWeight: '700', color: selected.status === 'aplicado' ? '#4CAF50' : '#F57C00' }}>{selected.status?.toUpperCase()}</Text>
               </View>
               <TouchableOpacity onPress={() => deleteCount(selected.id)}>
@@ -264,7 +264,7 @@ export default function InventoryCountScreen() {
               <Text style={s.sumLabel}>Items</Text>
               <Text style={s.sumValue}>{selected.total_items}</Text>
             </View>
-            <View style={[s.sumCard, { borderColor: '#FFCDD2' }]}>
+            <View style={[s.sumCard, { borderColor: '#E5393540' }]}>
               <Text style={s.sumLabel}>Merma</Text>
               <Text style={[s.sumValue, { color: '#E53935' }]}>{fmt(selected.total_merma_value || 0)}</Text>
             </View>
@@ -276,7 +276,7 @@ export default function InventoryCountScreen() {
 
           {/* Items table */}
           <View style={{ paddingHorizontal: 14 }}>
-            <View style={{ flexDirection: 'row', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#E0E0E0' }}>
+            <View style={{ flexDirection: 'row', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border }}>
               <Text style={[s.th, { flex: 1 }]}>Ingrediente</Text>
               <Text style={[s.th, { width: 50 }]}>Unid.</Text>
               <Text style={[s.th, { width: 70, textAlign: 'right' }]}>Sistema</Text>
@@ -285,15 +285,15 @@ export default function InventoryCountScreen() {
               <Text style={[s.th, { width: 80, textAlign: 'right' }]}>Merma $</Text>
             </View>
             {countItems.map(ci => (
-              <View key={ci.id} style={{ flexDirection: 'row', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#F0F0F0', alignItems: 'center', backgroundColor: ci.difference < 0 ? '#FFF8E1' : ci.difference > 0 ? '#E8F5E9' : '#FFF' }}>
-                <Text style={{ flex: 1, fontSize: 12, fontWeight: '600', color: '#2D2D2D' }}>{ci.ingredient?.name}</Text>
-                <Text style={{ width: 50, fontSize: 11, color: '#888' }}>{ci.ingredient?.unit}</Text>
-                <Text style={{ width: 70, textAlign: 'right', fontSize: 12, color: '#888' }}>{Math.round(ci.system_stock)}</Text>
-                <Text style={{ width: 70, textAlign: 'right', fontSize: 12, fontWeight: '600', color: '#2D2D2D' }}>{Math.round(ci.counted_stock)}</Text>
-                <Text style={{ width: 60, textAlign: 'right', fontSize: 12, fontWeight: '700', color: ci.difference < 0 ? '#E53935' : ci.difference > 0 ? '#4CAF50' : '#999' }}>
+              <View key={ci.id} style={{ flexDirection: 'row', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border, alignItems: 'center', backgroundColor: ci.difference < 0 ? '#F59E0B10' : ci.difference > 0 ? '#4CAF5010' : COLORS.card }}>
+                <Text style={{ flex: 1, fontSize: 12, fontWeight: '600', color: COLORS.text }}>{ci.ingredient?.name}</Text>
+                <Text style={{ width: 50, fontSize: 11, color: COLORS.textSecondary }}>{ci.ingredient?.unit}</Text>
+                <Text style={{ width: 70, textAlign: 'right', fontSize: 12, color: COLORS.textSecondary }}>{Math.round(ci.system_stock)}</Text>
+                <Text style={{ width: 70, textAlign: 'right', fontSize: 12, fontWeight: '600', color: COLORS.text }}>{Math.round(ci.counted_stock)}</Text>
+                <Text style={{ width: 60, textAlign: 'right', fontSize: 12, fontWeight: '700', color: ci.difference < 0 ? '#E53935' : ci.difference > 0 ? '#4CAF50' : COLORS.textMuted }}>
                   {ci.difference > 0 ? '+' : ''}{Math.round(ci.difference)}
                 </Text>
-                <Text style={{ width: 80, textAlign: 'right', fontSize: 12, fontWeight: '700', color: ci.merma_value > 0 ? '#E53935' : '#999' }}>
+                <Text style={{ width: 80, textAlign: 'right', fontSize: 12, fontWeight: '700', color: ci.merma_value > 0 ? '#E53935' : COLORS.textMuted }}>
                   {ci.merma_value > 0 ? '-' + fmt(ci.merma_value) : '—'}
                 </Text>
               </View>
@@ -303,8 +303,8 @@ export default function InventoryCountScreen() {
       ) : (
         <View style={[s.detail, { justifyContent: 'center', alignItems: 'center' }]}>
           <Text style={{ fontSize: 48 }}>📦</Text>
-          <Text style={{ color: '#999', marginTop: 8, fontSize: 16 }}>Control de Inventario</Text>
-          <Text style={{ color: '#BBB', marginTop: 4, fontSize: 13, textAlign: 'center', maxWidth: 300 }}>
+          <Text style={{ color: COLORS.textMuted, marginTop: 8, fontSize: 16 }}>Control de Inventario</Text>
+          <Text style={{ color: COLORS.textMuted, marginTop: 4, fontSize: 13, textAlign: 'center', maxWidth: 300 }}>
             1. Descarga el stock actual{'\n'}
             2. Completa "Stock_Contado" en Excel{'\n'}
             3. Sube el archivo para ver diferencias
@@ -323,12 +323,12 @@ export default function InventoryCountScreen() {
               <Text style={s.sumLabel}>Items contados</Text>
               <Text style={s.sumValue}>{diffRows.length}</Text>
             </View>
-            <View style={[s.sumCard, { flex: 1, borderColor: '#FFCDD2', backgroundColor: '#FFF5F5' }]}>
+            <View style={[s.sumCard, { flex: 1, borderColor: '#E5393540' }]}>
               <Text style={s.sumLabel}>🔻 Merma</Text>
               <Text style={[s.sumValue, { color: '#E53935' }]}>{fmt(diffRows.filter(d => d.diff < 0).reduce((s, d) => s + d.mermaValue, 0))}</Text>
               <Text style={{ fontSize: 10, color: '#E53935' }}>{diffRows.filter(d => d.diff < 0).length} items</Text>
             </View>
-            <View style={[s.sumCard, { flex: 1, borderColor: '#C8E6C9', backgroundColor: '#F5FFF5' }]}>
+            <View style={[s.sumCard, { flex: 1, borderColor: '#4CAF5040' }]}>
               <Text style={s.sumLabel}>🔺 Sobrante</Text>
               <Text style={[s.sumValue, { color: '#4CAF50' }]}>{fmt(diffRows.filter(d => d.diff > 0).reduce((s, d) => s + d.sobranteValue, 0))}</Text>
               <Text style={{ fontSize: 10, color: '#4CAF50' }}>{diffRows.filter(d => d.diff > 0).length} items</Text>
@@ -341,7 +341,7 @@ export default function InventoryCountScreen() {
 
           {/* Table */}
           <ScrollView style={{ maxHeight: 400 }}>
-            <View style={{ flexDirection: 'row', paddingVertical: 6, paddingHorizontal: 8, backgroundColor: '#F0F0F0', borderRadius: 6, marginBottom: 4 }}>
+            <View style={{ flexDirection: 'row', paddingVertical: 6, paddingHorizontal: 8, backgroundColor: COLORS.background, borderRadius: 6, marginBottom: 4 }}>
               <Text style={[s.th, { flex: 1 }]}>Ingrediente</Text>
               <Text style={[s.th, { width: 50 }]}>Unid.</Text>
               <Text style={[s.th, { width: 70, textAlign: 'right' }]}>Sistema</Text>
@@ -350,15 +350,15 @@ export default function InventoryCountScreen() {
               <Text style={[s.th, { width: 80, textAlign: 'right' }]}>Merma $</Text>
             </View>
             {diffRows.map((d, i) => (
-              <View key={i} style={{ flexDirection: 'row', paddingVertical: 6, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: '#F0F0F0', backgroundColor: d.diff < 0 ? '#FFF8E1' : d.diff > 0 ? '#E8F5E9' : '#FFF' }}>
-                <Text style={{ flex: 1, fontSize: 12, fontWeight: '600', color: '#2D2D2D' }}>{d.name}</Text>
-                <Text style={{ width: 50, fontSize: 11, color: '#888' }}>{d.unit}</Text>
-                <Text style={{ width: 70, textAlign: 'right', fontSize: 11, color: '#888' }}>{Math.round(d.systemStock)}</Text>
+              <View key={i} style={{ flexDirection: 'row', paddingVertical: 6, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border, backgroundColor: d.diff < 0 ? '#F59E0B10' : d.diff > 0 ? '#4CAF5010' : COLORS.card }}>
+                <Text style={{ flex: 1, fontSize: 12, fontWeight: '600', color: COLORS.text }}>{d.name}</Text>
+                <Text style={{ width: 50, fontSize: 11, color: COLORS.textSecondary }}>{d.unit}</Text>
+                <Text style={{ width: 70, textAlign: 'right', fontSize: 11, color: COLORS.textSecondary }}>{Math.round(d.systemStock)}</Text>
                 <Text style={{ width: 70, textAlign: 'right', fontSize: 12, fontWeight: '600' }}>{Math.round(d.counted)}</Text>
-                <Text style={{ width: 60, textAlign: 'right', fontSize: 12, fontWeight: '700', color: d.diff < 0 ? '#E53935' : d.diff > 0 ? '#4CAF50' : '#999' }}>
+                <Text style={{ width: 60, textAlign: 'right', fontSize: 12, fontWeight: '700', color: d.diff < 0 ? '#E53935' : d.diff > 0 ? '#4CAF50' : COLORS.textMuted }}>
                   {d.diff > 0 ? '+' : ''}{Math.round(d.diff)}
                 </Text>
-                <Text style={{ width: 80, textAlign: 'right', fontSize: 12, fontWeight: '700', color: d.mermaValue > 0 ? '#E53935' : '#999' }}>
+                <Text style={{ width: 80, textAlign: 'right', fontSize: 12, fontWeight: '700', color: d.mermaValue > 0 ? '#E53935' : COLORS.textMuted }}>
                   {d.mermaValue > 0 ? '-' + fmt(d.mermaValue) : '—'}
                 </Text>
               </View>
@@ -383,28 +383,28 @@ export default function InventoryCountScreen() {
 }
 
 const s = StyleSheet.create({
-  wrap: { flex: 1, flexDirection: 'row', backgroundColor: '#F5F5F5' },
-  list: { width: 320, backgroundColor: '#FFF', borderRightWidth: 1, borderRightColor: '#E0E0E0' },
-  header: { padding: 14, borderBottomWidth: 1, borderBottomColor: '#E0E0E0' },
-  title: { fontSize: 18, fontWeight: '700', color: '#2D2D2D' },
+  wrap: { flex: 1, flexDirection: 'row', backgroundColor: COLORS.background },
+  list: { width: 320, backgroundColor: COLORS.card, borderRightWidth: 1, borderRightColor: COLORS.border },
+  header: { padding: 14, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  title: { fontSize: 18, fontWeight: '700', color: COLORS.text },
   btn: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 8, backgroundColor: COLORS.primary, alignItems: 'center' as any },
   btnT: { color: '#fff', fontWeight: '700', fontSize: 13 },
-  row: { padding: 14, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
+  row: { padding: 14, borderBottomWidth: 1, borderBottomColor: COLORS.border },
   rowActive: { backgroundColor: COLORS.primary + '10', borderLeftWidth: 3, borderLeftColor: COLORS.primary },
-  rowName: { fontSize: 14, fontWeight: '700', color: '#2D2D2D' },
-  rowSub: { fontSize: 11, color: '#999', marginTop: 2 },
+  rowName: { fontSize: 14, fontWeight: '700', color: COLORS.text },
+  rowSub: { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
   detail: { flex: 1 },
-  dHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, borderBottomWidth: 1, borderBottomColor: '#E0E0E0' },
-  dTitle: { fontSize: 18, fontWeight: '700', color: '#2D2D2D' },
-  sumCard: { backgroundColor: '#FFF', borderRadius: 10, padding: 14, borderWidth: 1, borderColor: '#E0E0E0', alignItems: 'center' as any },
-  sumLabel: { fontSize: 11, color: '#999' },
-  sumValue: { fontSize: 22, fontWeight: '800', color: '#2D2D2D', marginTop: 4 },
-  th: { fontSize: 11, fontWeight: '600', color: '#999' },
-  ov: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' },
-  md: { width: '95%' as any, backgroundColor: '#FFF', borderRadius: 16, padding: 24 },
-  mdT: { fontSize: 18, fontWeight: '700', color: '#2D2D2D', textAlign: 'center', marginBottom: 12 },
-  bCancel: { paddingVertical: 14, borderRadius: 10, borderWidth: 1, borderColor: '#E0E0E0', alignItems: 'center' as any },
-  bCancelT: { color: '#666', fontWeight: '600', fontSize: 14 },
+  dHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  dTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text },
+  sumCard: { backgroundColor: COLORS.card, borderRadius: 10, padding: 14, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center' as any },
+  sumLabel: { fontSize: 11, color: COLORS.textMuted },
+  sumValue: { fontSize: 22, fontWeight: '800', color: COLORS.text, marginTop: 4 },
+  th: { fontSize: 11, fontWeight: '600', color: COLORS.textMuted },
+  ov: { flex: 1, backgroundColor: COLORS.overlay, justifyContent: 'center', alignItems: 'center' },
+  md: { width: '95%' as any, backgroundColor: COLORS.card, borderRadius: 16, padding: 24, borderWidth: 1, borderColor: COLORS.border },
+  mdT: { fontSize: 18, fontWeight: '700', color: COLORS.text, textAlign: 'center', marginBottom: 12 },
+  bCancel: { paddingVertical: 14, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center' as any },
+  bCancelT: { color: COLORS.textSecondary, fontWeight: '600', fontSize: 14 },
   bSave: { paddingVertical: 14, borderRadius: 10, backgroundColor: '#4CAF50', alignItems: 'center' as any },
   bSaveT: { color: '#fff', fontWeight: '700', fontSize: 14 },
 });

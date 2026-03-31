@@ -6,7 +6,7 @@ import { COLORS } from '../../theme';
 
 interface InvoiceItem { id:string; ingredient:any; quantity:string; unit_price:string; purchase_unit:string; }
 
-export default function PurchasesScreen({onBack}:{onBack:()=>void}){
+export default function PurchasesScreen({onBack}:{onBack?:()=>void}){
   const {user}=useAuth();
   const [invoices,setInvoices]=useState<any[]>([]);const [suppliers,setSuppliers]=useState<any[]>([]);const [ingredients,setIngredients]=useState<any[]>([]);
   const [modal,setModal]=useState(false);const [supplierId,setSupplierId]=useState('');const [invoiceNum,setInvoiceNum]=useState('');

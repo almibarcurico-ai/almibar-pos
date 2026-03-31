@@ -2,6 +2,7 @@
 // Kanban board + order detail + counter sales + Fudo-style close
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
+import { COLORS } from '../theme';
 
 // ─── Types ────────────────────────────────────────────────────
 type Source = 'app' | 'mostrador' | 'whatsapp' | 'telefono';
@@ -96,14 +97,14 @@ const SOURCE_LABELS: Record<Source, string> = {
   telefono: '📞 Teléfono',
 };
 const STATUS_CONFIG: Record<Status, { label: string; color: string; bg: string; icon: string }> = {
-  pendiente:       { label: 'Pendiente',       color: '#f59e0b', bg: '#fef3c7', icon: '🔔' },
-  aceptado:        { label: 'Aceptado',        color: '#3b82f6', bg: '#dbeafe', icon: '✅' },
-  rechazado:       { label: 'Rechazado',       color: '#ef4444', bg: '#fee2e2', icon: '❌' },
-  en_preparacion:  { label: 'En Preparación',  color: '#f97316', bg: '#ffedd5', icon: '🔥' },
-  listo:           { label: 'Listo',           color: '#8b5cf6', bg: '#ede9fe', icon: '📦' },
-  en_camino:       { label: 'En Camino',       color: '#06b6d4', bg: '#cffafe', icon: '🛵' },
-  entregado:       { label: 'Entregado',       color: '#10b981', bg: '#d1fae5', icon: '✔️' },
-  cancelado:       { label: 'Cancelado',       color: '#6b7280', bg: '#f3f4f6', icon: '🚫' },
+  pendiente:       { label: 'Pendiente',       color: '#f59e0b', bg: '#f59e0b20', icon: '🔔' },
+  aceptado:        { label: 'Aceptado',        color: '#3b82f6', bg: '#3b82f620', icon: '✅' },
+  rechazado:       { label: 'Rechazado',       color: '#ef4444', bg: '#ef444420', icon: '❌' },
+  en_preparacion:  { label: 'En Preparación',  color: '#f97316', bg: '#f9731620', icon: '🔥' },
+  listo:           { label: 'Listo',           color: '#8b5cf6', bg: '#8b5cf620', icon: '📦' },
+  en_camino:       { label: 'En Camino',       color: '#06b6d4', bg: '#06b6d420', icon: '🛵' },
+  entregado:       { label: 'Entregado',       color: '#10b981', bg: '#10b98120', icon: '✔️' },
+  cancelado:       { label: 'Cancelado',       color: '#6b7280', bg: '#6b728020', icon: '🚫' },
 };
 
 // Active statuses shown as kanban columns
@@ -316,11 +317,11 @@ export default function DeliveryScreen({ user }: { user: User }) {
   const S = {
     screen: {
       display: 'flex', flexDirection: 'column' as const, height: '100%',
-      background: '#F0F0F0', color: '#2D2D2D', fontFamily: "'Inter', system-ui, sans-serif",
+      background: COLORS.background, color: COLORS.text, fontFamily: "'Inter', system-ui, sans-serif",
     },
     topBar: {
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      padding: '12px 16px', background: '#FFFFFF', borderBottom: '1px solid #E0E0E0',
+      padding: '12px 16px', background: COLORS.card, borderBottom: `1px solid ${COLORS.border}`,
     },
     topTitle: { fontSize: 18, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 },
     topBtns: { display: 'flex', gap: 8 },
@@ -341,17 +342,17 @@ export default function DeliveryScreen({ user }: { user: User }) {
     },
     column: {
       flex: 1, minWidth: 220, maxWidth: 320, display: 'flex', flexDirection: 'column' as const,
-      background: '#FFFFFF', borderRadius: 10, overflow: 'hidden',
+      background: COLORS.card, borderRadius: 10, overflow: 'hidden',
     },
     colHeader: (color: string) => ({
       padding: '10px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      borderBottom: `2px solid ${color}`, background: '#FFFFFF',
+      borderBottom: `2px solid ${color}`, background: COLORS.card,
     }),
     colTitle: (color: string) => ({
       fontSize: 13, fontWeight: 700, color, display: 'flex', alignItems: 'center', gap: 6,
     }),
     colCount: (color: string) => ({
-      fontSize: 11, fontWeight: 700, color: '#FFFFFF', background: color,
+      fontSize: 11, fontWeight: 700, color: '#fff', background: color,
       borderRadius: 10, padding: '2px 8px', minWidth: 20, textAlign: 'center' as const,
     }),
     colBody: {
@@ -359,33 +360,33 @@ export default function DeliveryScreen({ user }: { user: User }) {
     },
     card: (isSelected: boolean, borderColor: string) => ({
       padding: 10, borderRadius: 8, cursor: 'pointer',
-      background: isSelected ? '#E0E0E0' : '#F5F5F5',
-      border: `1px solid ${isSelected ? borderColor : '#E0E0E0'}`,
+      background: isSelected ? COLORS.cardHover : COLORS.background,
+      border: `1px solid ${isSelected ? borderColor : COLORS.border}`,
       transition: 'all 0.15s',
     }),
-    cardNum: { fontSize: 15, fontWeight: 700, color: '#2D2D2D' },
+    cardNum: { fontSize: 15, fontWeight: 700, color: COLORS.text },
     cardSrc: (bg: string) => ({
       fontSize: 10, fontWeight: 600, padding: '2px 6px', borderRadius: 4,
-      background: bg, color: '#FFFFFF', display: 'inline-block',
+      background: bg, color: '#fff', display: 'inline-block',
     }),
-    cardCustomer: { fontSize: 12, color: '#999999', marginTop: 4 },
-    cardTotal: { fontSize: 14, fontWeight: 700, color: '#2D2D2D', marginTop: 4 },
-    cardTime: { fontSize: 11, color: '#666666', marginTop: 2 },
+    cardCustomer: { fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
+    cardTotal: { fontSize: 14, fontWeight: 700, color: COLORS.text, marginTop: 4 },
+    cardTime: { fontSize: 11, color: COLORS.textSecondary, marginTop: 2 },
     // Detail panel
     detail: {
-      width: 420, minWidth: 380, borderLeft: '1px solid #E0E0E0',
-      display: 'flex', flexDirection: 'column' as const, background: '#FFFFFF',
+      width: 420, minWidth: 380, borderLeft: `1px solid ${COLORS.border}`,
+      display: 'flex', flexDirection: 'column' as const, background: COLORS.card,
       overflow: 'auto',
     },
     detailHeader: {
-      padding: '16px', borderBottom: '1px solid #E0E0E0',
+      padding: '16px', borderBottom: `1px solid ${COLORS.border}`,
     },
     detailSection: {
-      padding: '12px 16px', borderBottom: '1px solid #FFFFFF',
+      padding: '12px 16px', borderBottom: `1px solid ${COLORS.border}`,
     },
     itemRow: {
       display: 'flex', justifyContent: 'space-between', padding: '4px 0',
-      fontSize: 13, color: '#2D2D2D',
+      fontSize: 13, color: COLORS.text,
     },
     badge: (bg: string, fg: string) => ({
       display: 'inline-flex', alignItems: 'center', gap: 4,
@@ -394,38 +395,38 @@ export default function DeliveryScreen({ user }: { user: User }) {
     }),
     // Modal overlay
     overlay: {
-      position: 'fixed' as const, inset: 0, background: 'rgba(0,0,0,0.6)',
+      position: 'fixed' as const, inset: 0, background: COLORS.overlay,
       display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
     },
     modal: {
-      background: '#FFFFFF', borderRadius: 12, padding: 0, width: 560,
-      maxHeight: '90vh', overflow: 'auto', border: '1px solid #E0E0E0',
+      background: COLORS.card, borderRadius: 12, padding: 0, width: 560,
+      maxHeight: '90vh', overflow: 'auto', border: `1px solid ${COLORS.border}`,
     },
     modalHeader: {
-      padding: '16px 20px', borderBottom: '1px solid #E0E0E0',
+      padding: '16px 20px', borderBottom: `1px solid ${COLORS.border}`,
       display: 'flex', justifyContent: 'space-between', alignItems: 'center',
     },
     modalBody: { padding: '16px 20px' },
     input: {
       width: '100%', padding: '8px 12px', borderRadius: 6,
-      border: '1px solid #999999', background: '#F0F0F0', color: '#2D2D2D',
+      border: `1px solid ${COLORS.border}`, background: COLORS.background, color: COLORS.text,
       fontSize: 13, outline: 'none', boxSizing: 'border-box' as const,
     },
     select: {
-      padding: '8px 12px', borderRadius: 6, border: '1px solid #999999',
-      background: '#F0F0F0', color: '#2D2D2D', fontSize: 13, outline: 'none',
+      padding: '8px 12px', borderRadius: 6, border: `1px solid ${COLORS.border}`,
+      background: COLORS.background, color: COLORS.text, fontSize: 13, outline: 'none',
     },
-    label: { fontSize: 12, fontWeight: 600, color: '#999999', marginBottom: 4, display: 'block' },
+    label: { fontSize: 12, fontWeight: 600, color: COLORS.textMuted, marginBottom: 4, display: 'block' },
     row: { display: 'flex', gap: 8, marginBottom: 10 },
     flex1: { flex: 1 },
     // Close modal sections
     sectionTitle: {
-      fontSize: 13, fontWeight: 700, color: '#999999', padding: '8px 0',
+      fontSize: 13, fontWeight: 700, color: COLORS.textMuted, padding: '8px 0',
       textTransform: 'uppercase' as const, letterSpacing: 1,
     },
     payRow: {
       display: 'flex', alignItems: 'center', gap: 6, padding: '6px 0',
-      borderBottom: '1px solid #FFFFFF',
+      borderBottom: `1px solid ${COLORS.border}`,
     },
   };
 
@@ -527,7 +528,7 @@ export default function DeliveryScreen({ user }: { user: User }) {
         <div style={{ ...S.modal, width: 620 }} onClick={(e) => e.stopPropagation()}>
           <div style={S.modalHeader}>
             <span style={{ fontSize: 16, fontWeight: 700 }}>🛵 Nuevo Pedido</span>
-            <button style={S.btnSm('#999999')} onClick={() => setShowNewOrder(false)}>✕</button>
+            <button style={S.btnSm(COLORS.textMuted)} onClick={() => setShowNewOrder(false)}>✕</button>
           </div>
           <div style={S.modalBody}>
             {/* Source selector */}
@@ -536,7 +537,7 @@ export default function DeliveryScreen({ user }: { user: User }) {
                 <button
                   key={s}
                   style={{
-                    ...S.btnSm(source === s ? '#3b82f6' : '#E0E0E0'),
+                    ...S.btnSm(source === s ? '#3b82f6' : COLORS.cardHover),
                     padding: '6px 12px',
                   }}
                   onClick={() => setSource(s)}
@@ -596,7 +597,7 @@ export default function DeliveryScreen({ user }: { user: User }) {
                 <div
                   style={{
                     position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10,
-                    background: '#F0F0F0', border: '1px solid #999999', borderRadius: 6,
+                    background: COLORS.cardHover, border: `1px solid ${COLORS.border}`, borderRadius: 6,
                     maxHeight: 200, overflow: 'auto',
                   }}
                 >
@@ -606,14 +607,14 @@ export default function DeliveryScreen({ user }: { user: User }) {
                       style={{
                         padding: '8px 12px', cursor: 'pointer', fontSize: 13,
                         display: 'flex', justifyContent: 'space-between',
-                        borderBottom: '1px solid #FFFFFF',
+                        borderBottom: `1px solid ${COLORS.border}`,
                       }}
                       onClick={() => addToCart(p)}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = '#E0E0E0')}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = COLORS.cardHover)}
                       onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                     >
                       <span>{p.name}</span>
-                      <span style={{ color: '#999999' }}>{fmt(p.price)}</span>
+                      <span style={{ color: COLORS.textMuted }}>{fmt(p.price)}</span>
                     </div>
                   ))}
                 </div>
@@ -625,11 +626,11 @@ export default function DeliveryScreen({ user }: { user: User }) {
               {cart.map((c, i) => (
                 <div key={c.product.id} style={{
                   display: 'flex', alignItems: 'center', gap: 6, padding: '6px 0',
-                  borderBottom: '1px solid #E0E0E0',
+                  borderBottom: `1px solid ${COLORS.border}`,
                 }}>
-                  <button style={S.btnSm('#E0E0E0')} onClick={() => updateQty(i, -1)}>−</button>
+                  <button style={S.btnSm(COLORS.cardHover)} onClick={() => updateQty(i, -1)}>−</button>
                   <span style={{ fontSize: 14, fontWeight: 700, width: 24, textAlign: 'center' }}>{c.qty}</span>
-                  <button style={S.btnSm('#E0E0E0')} onClick={() => updateQty(i, 1)}>+</button>
+                  <button style={S.btnSm(COLORS.cardHover)} onClick={() => updateQty(i, 1)}>+</button>
                   <span style={{ flex: 1, fontSize: 13 }}>{c.product.name}</span>
                   <input
                     style={{ ...S.input, width: 100, padding: '4px 8px', fontSize: 11 }}
@@ -640,19 +641,19 @@ export default function DeliveryScreen({ user }: { user: User }) {
                   <span style={{ fontSize: 13, fontWeight: 600, minWidth: 60, textAlign: 'right' }}>
                     {fmt(c.product.price * c.qty)}
                   </span>
-                  <button style={S.btnSm('#E53935')} onClick={() => updateQty(i, -c.qty)}>✕</button>
+                  <button style={S.btnSm(COLORS.error)} onClick={() => updateQty(i, -c.qty)}>✕</button>
                 </div>
               ))}
             </div>
 
             {/* Totals */}
             {cart.length > 0 && (
-              <div style={{ marginTop: 12, padding: '10px', background: '#F0F0F0', borderRadius: 8 }}>
+              <div style={{ marginTop: 12, padding: '10px', background: COLORS.background, borderRadius: 8 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
                   <span>Subtotal</span><span>{fmt(cartTotal)}</span>
                 </div>
                 {delivFee > 0 && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#999999' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: COLORS.textMuted }}>
                     <span>Despacho</span><span>{fmt(delivFee)}</span>
                   </div>
                 )}
@@ -665,7 +666,7 @@ export default function DeliveryScreen({ user }: { user: User }) {
             {/* Create button */}
             <button
               style={{
-                ...S.btn(cart.length > 0 ? '#10b981' : '#999999'),
+                ...S.btn(cart.length > 0 ? COLORS.primary : COLORS.textMuted),
                 width: '100%', justifyContent: 'center', marginTop: 12, padding: '12px',
                 opacity: cart.length > 0 ? 1 : 0.5,
               }}
@@ -688,7 +689,7 @@ export default function DeliveryScreen({ user }: { user: User }) {
       <div style={{ ...S.modal, width: 400 }} onClick={(e) => e.stopPropagation()}>
         <div style={S.modalHeader}>
           <span style={{ fontSize: 16, fontWeight: 700 }}>❌ Rechazar Pedido</span>
-          <button style={S.btnSm('#999999')} onClick={() => setShowRejectModal(false)}>✕</button>
+          <button style={S.btnSm(COLORS.textMuted)} onClick={() => setShowRejectModal(false)}>✕</button>
         </div>
         <div style={S.modalBody}>
           <label style={S.label}>Motivo del rechazo</label>
@@ -816,59 +817,59 @@ export default function DeliveryScreen({ user }: { user: User }) {
 
     return (
       <div style={S.overlay} onClick={() => setShowCloseModal(false)}>
-        <div style={{ background: '#fff', borderRadius: 16, width: 520, maxHeight: '90vh', overflow: 'auto', padding: 0, boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }} onClick={(e) => e.stopPropagation()}>
-          
+        <div style={{ background: COLORS.card, borderRadius: 16, width: 520, maxHeight: '90vh', overflow: 'auto', padding: 0, boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }} onClick={(e) => e.stopPropagation()}>
+
           {/* Header */}
-          <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid #E0E0E0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 18, fontWeight: 800, color: '#2D2D2D' }}>CERRAR PEDIDO #{selected.order_number}</span>
-            <button style={{ background: 'none', border: 'none', fontSize: 18, color: '#999', cursor: 'pointer' }} onClick={() => setShowCloseModal(false)}>✕</button>
+          <div style={{ padding: '20px 24px 16px', borderBottom: `1px solid ${COLORS.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 18, fontWeight: 800, color: COLORS.text }}>CERRAR PEDIDO #{selected.order_number}</span>
+            <button style={{ background: 'none', border: 'none', fontSize: 18, color: COLORS.textMuted, cursor: 'pointer' }} onClick={() => setShowCloseModal(false)}>✕</button>
           </div>
 
           <div style={{ padding: '16px 24px 24px' }}>
             {/* ADICIONES */}
-            <div style={{ background: '#F5F5F5', borderRadius: 10, padding: 14, marginBottom: 16, border: '1px solid #E0E0E0' }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#999', marginBottom: 10, letterSpacing: 1 }}>ADICIONES</div>
+            <div style={{ background: COLORS.background, borderRadius: 10, padding: 14, marginBottom: 16, border: `1px solid ${COLORS.border}` }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.textMuted, marginBottom: 10, letterSpacing: 1 }}>ADICIONES</div>
               {selectedItems.map((item) => (
                 <div key={item.id} style={{ display: 'flex', paddingTop: 4, paddingBottom: 4, borderLeft: '3px solid #FFA726', paddingLeft: 10, marginBottom: 2 }}>
-                  <span style={{ width: 24, fontSize: 13, fontWeight: 700, color: '#666' }}>{item.quantity}</span>
-                  <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: '#2D2D2D' }}>{item.product_name}</span>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: '#2D2D2D' }}>{fmt(item.subtotal)}</span>
+                  <span style={{ width: 24, fontSize: 13, fontWeight: 700, color: COLORS.textSecondary }}>{item.quantity}</span>
+                  <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: COLORS.text }}>{item.product_name}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: COLORS.text }}>{fmt(item.subtotal)}</span>
                 </div>
               ))}
               {delivFee > 0 && (
-                <div style={{ display: 'flex', paddingTop: 4, paddingBottom: 4, paddingLeft: 10, color: '#999' }}>
+                <div style={{ display: 'flex', paddingTop: 4, paddingBottom: 4, paddingLeft: 10, color: COLORS.textMuted }}>
                   <span style={{ width: 24 }}></span>
                   <span style={{ flex: 1, fontSize: 13 }}>🛵 Despacho</span>
                   <span style={{ fontSize: 13 }}>{fmt(delivFee)}</span>
                 </div>
               )}
-              <div style={{ borderTop: '1px solid #E0E0E0', marginTop: 8, paddingTop: 8 }}>
+              <div style={{ borderTop: `1px solid ${COLORS.border}`, marginTop: 8, paddingTop: 8 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: 14, color: '#666' }}>Subtotal</span>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: '#2D2D2D' }}>{fmt(itemsTotal + delivFee)}</span>
+                  <span style={{ fontSize: 14, color: COLORS.textSecondary }}>Subtotal</span>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: COLORS.text }}>{fmt(itemsTotal + delivFee)}</span>
                 </div>
                 {discount > 0 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-                    <span style={{ fontSize: 14, color: '#666' }}>Descuento</span>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: '#E53935' }}>-{fmt(discount)}</span>
+                    <span style={{ fontSize: 14, color: COLORS.textSecondary }}>Descuento</span>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: COLORS.error }}>-{fmt(discount)}</span>
                   </div>
                 )}
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-                  <span style={{ fontSize: 14, color: '#666' }}>Propina</span>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: '#FFA726' }}>{fmt(totalTips)}</span>
+                  <span style={{ fontSize: 14, color: COLORS.textSecondary }}>Propina</span>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: COLORS.warning }}>{fmt(totalTips)}</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, paddingTop: 8, borderTop: '2px solid #E8562A' }}>
-                  <span style={{ fontSize: 18, fontWeight: 800, color: '#2D2D2D' }}>Total:</span>
-                  <span style={{ fontSize: 20, fontWeight: 800, color: '#E8562A' }}>{fmt(consumo + totalTips)}</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, paddingTop: 8, borderTop: `2px solid ${COLORS.primary}` }}>
+                  <span style={{ fontSize: 18, fontWeight: 800, color: COLORS.text }}>Total:</span>
+                  <span style={{ fontSize: 20, fontWeight: 800, color: COLORS.warning }}>{fmt(consumo + totalTips)}</span>
                 </div>
               </div>
             </div>
 
             {/* Descuento input */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-              <span style={{ fontSize: 13, color: '#666' }}>Descuento:</span>
+              <span style={{ fontSize: 13, color: COLORS.textSecondary }}>Descuento:</span>
               <input
-                style={{ width: 100, padding: '6px 10px', borderRadius: 8, border: '1px solid #E0E0E0', fontSize: 14, textAlign: 'right', background: '#F5F5F5', color: '#2D2D2D' }}
+                style={{ width: 100, padding: '6px 10px', borderRadius: 8, border: `1px solid ${COLORS.border}`, fontSize: 14, textAlign: 'right', background: COLORS.background, color: COLORS.text }}
                 type="number"
                 value={discount || ''}
                 onChange={(e) => setDiscount(Number(e.target.value) || 0)}
@@ -877,40 +878,40 @@ export default function DeliveryScreen({ user }: { user: User }) {
             </div>
 
             {/* PROPINA */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F5F5F5', borderRadius: 8, padding: 10, border: '1px solid #E0E0E0', marginBottom: 6 }}>
-              <span style={{ fontSize: 14, fontWeight: 700, color: '#2D2D2D' }}>PROPINA</span>
-              <button style={{ width: 32, height: 32, borderRadius: 6, background: '#E8562A', color: '#fff', border: 'none', fontSize: 18, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={addTip}>+</button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: COLORS.background, borderRadius: 8, padding: 10, border: `1px solid ${COLORS.border}`, marginBottom: 6 }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: COLORS.text }}>PROPINA</span>
+              <button style={{ width: 32, height: 32, borderRadius: 6, background: COLORS.warning, color: '#fff', border: 'none', fontSize: 18, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={addTip}>+</button>
             </div>
             {tips.map((t, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', background: '#F5F5F5', borderRadius: 8, border: '1px solid #E0E0E0', overflow: 'hidden' }}>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', background: COLORS.background, borderRadius: 8, border: `1px solid ${COLORS.border}`, overflow: 'hidden' }}>
                   <button
-                    style={{ padding: '10px 12px', background: '#fff', borderRight: '1px solid #E0E0E0', border: 'none', cursor: 'pointer', fontSize: 12, color: '#2D2D2D', minWidth: 90 }}
+                    style={{ padding: '10px 12px', background: COLORS.cardHover, borderRight: `1px solid ${COLORS.border}`, border: 'none', cursor: 'pointer', fontSize: 12, color: COLORS.text, minWidth: 90 }}
                     onClick={() => cycleTipMethod(i)}
                   >{METHOD_LABELS[t.method]}</button>
-                  <span style={{ padding: '0 8px', fontSize: 14, color: '#666' }}>$</span>
-                  <input style={{ flex: 1, border: 'none', background: 'transparent', fontSize: 16, fontWeight: 700, color: '#2D2D2D', padding: '10px 10px 10px 0', outline: 'none' }} type="number" value={t.amount || ''} onChange={(e) => { const next = [...tips]; next[i] = { ...next[i], amount: Number(e.target.value) || 0 }; setTips(next); }} />
+                  <span style={{ padding: '0 8px', fontSize: 14, color: COLORS.textSecondary }}>$</span>
+                  <input style={{ flex: 1, border: 'none', background: 'transparent', fontSize: 16, fontWeight: 700, color: COLORS.text, padding: '10px 10px 10px 0', outline: 'none' }} type="number" value={t.amount || ''} onChange={(e) => { const next = [...tips]; next[i] = { ...next[i], amount: Number(e.target.value) || 0 }; setTips(next); }} />
                 </div>
-                <button style={{ background: 'none', border: 'none', fontSize: 16, color: '#E53935', cursor: 'pointer' }} onClick={() => setTips(tips.filter((_, j) => j !== i))}>✕</button>
+                <button style={{ background: 'none', border: 'none', fontSize: 16, color: COLORS.error, cursor: 'pointer' }} onClick={() => setTips(tips.filter((_, j) => j !== i))}>✕</button>
               </div>
             ))}
 
             {/* PAGO */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F5F5F5', borderRadius: 8, padding: 10, border: '1px solid #E0E0E0', marginTop: 16, marginBottom: 6 }}>
-              <span style={{ fontSize: 14, fontWeight: 700, color: '#2D2D2D' }}>PAGO</span>
-              <button style={{ width: 32, height: 32, borderRadius: 6, background: '#E8562A', color: '#fff', border: 'none', fontSize: 18, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={addPayment}>+</button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: COLORS.background, borderRadius: 8, padding: 10, border: `1px solid ${COLORS.border}`, marginTop: 16, marginBottom: 6 }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: COLORS.text }}>PAGO</span>
+              <button style={{ width: 32, height: 32, borderRadius: 6, background: COLORS.warning, color: '#fff', border: 'none', fontSize: 18, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={addPayment}>+</button>
             </div>
             {payments.map((p, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', background: '#F5F5F5', borderRadius: 8, border: '1px solid #E0E0E0', overflow: 'hidden' }}>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', background: COLORS.background, borderRadius: 8, border: `1px solid ${COLORS.border}`, overflow: 'hidden' }}>
                   <button
-                    style={{ padding: '10px 12px', background: '#fff', borderRight: '1px solid #E0E0E0', border: 'none', cursor: 'pointer', fontSize: 12, color: '#2D2D2D', minWidth: 90 }}
+                    style={{ padding: '10px 12px', background: COLORS.cardHover, borderRight: `1px solid ${COLORS.border}`, border: 'none', cursor: 'pointer', fontSize: 12, color: COLORS.text, minWidth: 90 }}
                     onClick={() => cyclePayMethod(i)}
                   >{METHOD_LABELS[p.method]}</button>
-                  <span style={{ padding: '0 8px', fontSize: 14, color: '#666' }}>$</span>
-                  <input style={{ flex: 1, border: 'none', background: 'transparent', fontSize: 16, fontWeight: 700, color: '#2D2D2D', padding: '10px 10px 10px 0', outline: 'none' }} type="number" value={p.amount || ''} onChange={(e) => { const next = [...payments]; next[i] = { ...next[i], amount: Number(e.target.value) || 0 }; setPayments(next); }} />
+                  <span style={{ padding: '0 8px', fontSize: 14, color: COLORS.textSecondary }}>$</span>
+                  <input style={{ flex: 1, border: 'none', background: 'transparent', fontSize: 16, fontWeight: 700, color: COLORS.text, padding: '10px 10px 10px 0', outline: 'none' }} type="number" value={p.amount || ''} onChange={(e) => { const next = [...payments]; next[i] = { ...next[i], amount: Number(e.target.value) || 0 }; setPayments(next); }} />
                 </div>
-                <button style={{ background: 'none', border: 'none', fontSize: 16, color: '#E53935', cursor: 'pointer' }} onClick={() => setPayments(payments.filter((_, j) => j !== i))}>✕</button>
+                <button style={{ background: 'none', border: 'none', fontSize: 16, color: COLORS.error, cursor: 'pointer' }} onClick={() => setPayments(payments.filter((_, j) => j !== i))}>✕</button>
               </div>
             ))}
 
@@ -919,31 +920,31 @@ export default function DeliveryScreen({ user }: { user: User }) {
               const hasCash = payments.some(p => p.method === 'efectivo');
               return (<>
                 {payments.length > 0 && hasCash && (
-                  <div style={{ marginTop: 16, background: excessCash >= 0 ? '#E8F5E9' : '#FFF3E0', borderRadius: 12, padding: 16, textAlign: 'center', border: '1px solid ' + (excessCash >= 0 ? '#C8E6C9' : '#FFE0B2') }}>
-                    <div style={{ fontSize: 13, color: '#666' }}>Vuelto:</div>
-                    <div style={{ fontSize: 32, fontWeight: 800, color: excessCash >= 0 ? '#4CAF50' : '#FFA726' }}>{fmt(excessCash)}</div>
+                  <div style={{ marginTop: 16, background: excessCash >= 0 ? '#10b98120' : '#f59e0b20', borderRadius: 12, padding: 16, textAlign: 'center', border: `1px solid ${excessCash >= 0 ? '#10b98140' : '#f59e0b40'}` }}>
+                    <div style={{ fontSize: 13, color: COLORS.textSecondary }}>Vuelto:</div>
+                    <div style={{ fontSize: 32, fontWeight: 800, color: excessCash >= 0 ? COLORS.success : COLORS.warning }}>{fmt(excessCash)}</div>
                     {excessCash > 0 && (
-                      <button style={{ marginTop: 8, padding: '8px 16px', borderRadius: 8, background: '#FFF3E0', border: '1px solid #FFE0B2', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#F57C00' }}
+                      <button style={{ marginTop: 8, padding: '8px 16px', borderRadius: 8, background: '#f59e0b20', border: '1px solid #f59e0b40', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#f59e0b' }}
                         onClick={() => setTips([...tips, { method: 'efectivo', amount: excessCash }])}
                       >🤝 Sumar {fmt(excessCash)} a propina</button>
                     )}
                   </div>
                 )}
                 {payments.length > 0 && !hasCash && excessNonCash > 0 && (
-                  <div style={{ marginTop: 16, background: '#E8F5E9', borderRadius: 12, padding: 14, textAlign: 'center', border: '1px solid #C8E6C9' }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: '#4CAF50' }}>🤝 Excedente de {fmt(excessNonCash)} se suma a propina</div>
+                  <div style={{ marginTop: 16, background: '#10b98120', borderRadius: 12, padding: 14, textAlign: 'center', border: '1px solid #10b98140' }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: COLORS.success }}>🤝 Excedente de {fmt(excessNonCash)} se suma a propina</div>
                   </div>
                 )}
               </>);
             })()}
 
-            {remaining > 0 && <div style={{ fontSize: 12, color: '#E53935', textAlign: 'center', marginTop: 8 }}>El pago no cubre el consumo (faltan {fmt(remaining)})</div>}
+            {remaining > 0 && <div style={{ fontSize: 12, color: COLORS.error, textAlign: 'center', marginTop: 8 }}>El pago no cubre el consumo (faltan {fmt(remaining)})</div>}
 
             {/* Buttons */}
             <div style={{ display: 'flex', gap: 12, marginTop: 20 }}>
-              <button style={{ flex: 1, padding: 14, borderRadius: 10, background: '#F5F5F5', border: '1px solid #E0E0E0', fontSize: 14, fontWeight: 600, color: '#666', cursor: 'pointer' }} onClick={() => setShowCloseModal(false)}>Cancelar</button>
+              <button style={{ flex: 1, padding: 14, borderRadius: 10, background: COLORS.background, border: `1px solid ${COLORS.border}`, fontSize: 14, fontWeight: 600, color: COLORS.textSecondary, cursor: 'pointer' }} onClick={() => setShowCloseModal(false)}>Cancelar</button>
               <button
-                style={{ flex: 1, padding: 14, borderRadius: 10, background: canClose ? '#4CAF50' : '#CCCCCC', border: 'none', fontSize: 14, fontWeight: 700, color: '#fff', cursor: canClose ? 'pointer' : 'default', opacity: canClose ? 1 : 0.6 }}
+                style={{ flex: 1, padding: 14, borderRadius: 10, background: canClose ? COLORS.success : COLORS.textMuted, border: 'none', fontSize: 14, fontWeight: 700, color: '#fff', cursor: canClose ? 'pointer' : 'default', opacity: canClose ? 1 : 0.6 }}
                 disabled={!canClose}
                 onClick={handleClose}
               >Cerrar pedido #{selected.order_number}</button>
@@ -972,7 +973,7 @@ export default function DeliveryScreen({ user }: { user: User }) {
             <span style={{ fontSize: 16, fontWeight: 700 }}>
               📋 Pedidos Cerrados Hoy ({all.length})
             </span>
-            <button style={S.btnSm('#999999')} onClick={() => setShowDelivered(false)}>✕</button>
+            <button style={S.btnSm(COLORS.textMuted)} onClick={() => setShowDelivered(false)}>✕</button>
           </div>
           <div style={S.modalBody}>
             {/* Summary bar */}
@@ -997,7 +998,7 @@ export default function DeliveryScreen({ user }: { user: User }) {
             <div style={{ maxHeight: 400, overflow: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                 <thead>
-                  <tr style={{ borderBottom: '2px solid #E0E0E0', textAlign: 'left' }}>
+                  <tr style={{ borderBottom: `2px solid ${COLORS.border}`, textAlign: 'left' }}>
                     <th style={{ padding: 6 }}>#</th>
                     <th style={{ padding: 6 }}>Hora</th>
                     <th style={{ padding: 6 }}>Origen</th>
@@ -1013,15 +1014,15 @@ export default function DeliveryScreen({ user }: { user: User }) {
                     return (
                       <tr
                         key={o.id}
-                        style={{ borderBottom: '1px solid #FFFFFF', cursor: 'pointer' }}
+                        style={{ borderBottom: `1px solid ${COLORS.border}`, cursor: 'pointer' }}
                         onClick={() => { setSelectedId(o.id); setShowDelivered(false); }}
                       >
                         <td style={{ padding: 6, fontWeight: 700 }}>{o.order_number}</td>
-                        <td style={{ padding: 6, color: '#999999' }}>{fmtTime(o.created_at)}</td>
+                        <td style={{ padding: 6, color: COLORS.textMuted }}>{fmtTime(o.created_at)}</td>
                         <td style={{ padding: 6 }}>{SOURCE_LABELS[o.source]}</td>
                         <td style={{ padding: 6 }}>{o.customer_name || '—'}</td>
                         <td style={{ padding: 6, textAlign: 'right', fontWeight: 600 }}>{fmt(o.total)}</td>
-                        <td style={{ padding: 6, textAlign: 'right', color: '#E8562A' }}>
+                        <td style={{ padding: 6, textAlign: 'right', color: COLORS.warning }}>
                           {o.tip_total > 0 ? fmt(o.tip_total) : '—'}
                         </td>
                         <td style={{ padding: 6 }}>
@@ -1064,7 +1065,7 @@ export default function DeliveryScreen({ user }: { user: User }) {
             <button style={S.btn('#f97316')} onClick={() => updateStatus(selected.id, 'en_preparacion')}>
               🔥 A Cocina
             </button>
-            <button style={S.btn('#999999')} onClick={() => setShowRejectModal(true)}>
+            <button style={S.btn(COLORS.textMuted)} onClick={() => setShowRejectModal(true)}>
               🚫 Cancelar
             </button>
           </div>
@@ -1085,7 +1086,7 @@ export default function DeliveryScreen({ user }: { user: User }) {
                   {repartidores.map((r) => (
                     <button
                       key={r.id}
-                      style={S.btnSm('#E0E0E0')}
+                      style={S.btnSm(COLORS.cardHover)}
                       onClick={() => assignRepartidor(selected.id, r)}
                     >
                       {r.name}
@@ -1155,10 +1156,10 @@ export default function DeliveryScreen({ user }: { user: User }) {
           <button style={S.btn('#3b82f6')} onClick={() => setShowNewOrder(true)}>
             ➕ Nuevo Pedido
           </button>
-          <button style={S.btn('#E0E0E0')} onClick={() => setShowDelivered(true)}>
+          <button style={S.btn(COLORS.cardHover)} onClick={() => setShowDelivered(true)}>
             📋 Cerrados ({deliveredToday.length + cancelledToday.length})
           </button>
-          <button style={S.btn('#E0E0E0')} onClick={loadOrders}>
+          <button style={S.btn(COLORS.cardHover)} onClick={loadOrders}>
             🔄
           </button>
         </div>
@@ -1188,7 +1189,7 @@ export default function DeliveryScreen({ user }: { user: User }) {
                 </div>
                 <div style={S.colBody}>
                   {colOrders.length === 0 && (
-                    <div style={{ textAlign: 'center', color: '#999999', fontSize: 12, padding: 20 }}>
+                    <div style={{ textAlign: 'center', color: COLORS.textMuted, fontSize: 12, padding: 20 }}>
                       Sin pedidos
                     </div>
                   )}
@@ -1213,7 +1214,7 @@ export default function DeliveryScreen({ user }: { user: User }) {
                         <span style={S.cardTime}>⏱ {elapsed(order.created_at)}</span>
                       </div>
                       {order.repartidor_name && (
-                        <div style={{ fontSize: 11, color: '#999999', marginTop: 2 }}>
+                        <div style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 2 }}>
                           🛵 {order.repartidor_name}
                         </div>
                       )}
@@ -1238,13 +1239,13 @@ export default function DeliveryScreen({ user }: { user: User }) {
                     <span style={S.badge(STATUS_CONFIG[selected.status].bg, STATUS_CONFIG[selected.status].color)}>
                       {STATUS_CONFIG[selected.status].icon} {STATUS_CONFIG[selected.status].label}
                     </span>
-                    <span style={S.badge('#E0E0E0', '#999999')}>
+                    <span style={S.badge(COLORS.cardHover, COLORS.textMuted)}>
                       {SOURCE_LABELS[selected.source]}
                     </span>
                   </div>
                 </div>
                 <button
-                  style={S.btnSm('#E0E0E0')}
+                  style={S.btnSm(COLORS.cardHover)}
                   onClick={() => setSelectedId(null)}
                 >✕</button>
               </div>
@@ -1252,7 +1253,7 @@ export default function DeliveryScreen({ user }: { user: User }) {
 
             {/* Customer info */}
             {(selected.customer_name || selected.customer_phone || selected.customer_address) && (
-              <div style={{ padding: '10px 16px', borderBottom: '1px solid #E0E0E0', fontSize: 13 }}>
+              <div style={{ padding: '10px 16px', borderBottom: `1px solid ${COLORS.border}`, fontSize: 13 }}>
                 {selected.customer_name && <div>👤 <b>{selected.customer_name}</b></div>}
                 {selected.customer_phone && <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span>📞 {selected.customer_phone}</span>
@@ -1269,7 +1270,7 @@ export default function DeliveryScreen({ user }: { user: User }) {
             )}
 
             {/* Items */}
-            <div style={{ padding: '10px 16px', borderBottom: '1px solid #E0E0E0' }}>
+            <div style={{ padding: '10px 16px', borderBottom: `1px solid ${COLORS.border}` }}>
               <div style={S.sectionTitle}>PRODUCTOS</div>
               {selectedItems.map((item) => (
                 <div key={item.id} style={S.itemRow}>
@@ -1281,12 +1282,12 @@ export default function DeliveryScreen({ user }: { user: User }) {
                 </div>
               ))}
               {selected.delivery_fee > 0 && (
-                <div style={{ ...S.itemRow, color: '#999999' }}>
+                <div style={{ ...S.itemRow, color: COLORS.textMuted }}>
                   <span>🛵 Despacho</span>
                   <span>{fmt(selected.delivery_fee)}</span>
                 </div>
               )}
-              <div style={{ ...S.itemRow, borderTop: '1px solid #E0E0E0', paddingTop: 6, marginTop: 4 }}>
+              <div style={{ ...S.itemRow, borderTop: `1px solid ${COLORS.border}`, paddingTop: 6, marginTop: 4 }}>
                 <span style={{ fontWeight: 700, fontSize: 15 }}>TOTAL</span>
                 <span style={{ fontWeight: 700, fontSize: 15 }}>{fmt(selected.total || selected.subtotal)}</span>
               </div>
@@ -1294,7 +1295,7 @@ export default function DeliveryScreen({ user }: { user: User }) {
 
             {/* Payments & tips (if closed) */}
             {selectedPayments.length > 0 && (
-              <div style={{ padding: '10px 16px', borderBottom: '1px solid #E0E0E0' }}>
+              <div style={{ padding: '10px 16px', borderBottom: `1px solid ${COLORS.border}` }}>
                 <div style={S.sectionTitle}>PAGOS</div>
                 {selectedPayments.map((p) => (
                   <div key={p.id} style={S.itemRow}>
@@ -1305,21 +1306,21 @@ export default function DeliveryScreen({ user }: { user: User }) {
               </div>
             )}
             {selectedTips.length > 0 && (
-              <div style={{ padding: '10px 16px', borderBottom: '1px solid #E0E0E0' }}>
+              <div style={{ padding: '10px 16px', borderBottom: `1px solid ${COLORS.border}` }}>
                 <div style={S.sectionTitle}>PROPINAS</div>
                 {selectedTips.map((t) => (
                   <div key={t.id} style={S.itemRow}>
                     <span>{METHOD_LABELS[t.method]}</span>
-                    <span style={{ fontWeight: 600, color: '#E8562A' }}>{fmt(t.amount)}</span>
+                    <span style={{ fontWeight: 600, color: COLORS.warning }}>{fmt(t.amount)}</span>
                   </div>
                 ))}
               </div>
             )}
 
             {/* Timeline */}
-            <div style={{ padding: '10px 16px', borderBottom: '1px solid #E0E0E0' }}>
+            <div style={{ padding: '10px 16px', borderBottom: `1px solid ${COLORS.border}` }}>
               <div style={S.sectionTitle}>TIMELINE</div>
-              <div style={{ fontSize: 12, color: '#999999' }}>
+              <div style={{ fontSize: 12, color: COLORS.textMuted }}>
                 {selected.created_at && <div>📥 Creado: {fmtTime(selected.created_at)}</div>}
                 {selected.accepted_at && <div>✅ Aceptado: {fmtTime(selected.accepted_at)}</div>}
                 {selected.preparation_at && <div>🔥 En cocina: {fmtTime(selected.preparation_at)}</div>}
@@ -1349,7 +1350,7 @@ export default function DeliveryScreen({ user }: { user: User }) {
         ) : (
           <div style={{
             ...S.detail, alignItems: 'center', justifyContent: 'center',
-            color: '#999999', fontSize: 14,
+            color: COLORS.textMuted, fontSize: 14,
           }}>
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: 40, marginBottom: 8 }}>🛵</div>

@@ -246,9 +246,9 @@ export default function IngredientsScreen() {
       {/* Search + filter */}
       <View style={s.toolbar}>
         <View style={s.searchBox}>
-          <Text style={{ color: '#999' }}>🔍</Text>
-          <TextInput style={s.searchInp} placeholder="Buscar..." placeholderTextColor="#999" value={search} onChangeText={setSearch} />
-          {search ? <TouchableOpacity onPress={() => setSearch('')}><Text style={{ color: '#999' }}>✕</Text></TouchableOpacity> : null}
+          <Text style={{ color: COLORS.textMuted }}>🔍</Text>
+          <TextInput style={s.searchInp} placeholder="Buscar..." placeholderTextColor={COLORS.textMuted} value={search} onChangeText={setSearch} />
+          {search ? <TouchableOpacity onPress={() => setSearch('')}><Text style={{ color: COLORS.textMuted }}>✕</Text></TouchableOpacity> : null}
         </View>
       </View>
 
@@ -277,9 +277,9 @@ export default function IngredientsScreen() {
           return (
             <TouchableOpacity key={i.id} style={[s.tRow, idx % 2 === 0 && s.tRowAlt]} onPress={() => openEdit(i)}>
               <Text style={[s.td, { flex: 1, fontWeight: '600' }]}>{i.name}</Text>
-              <Text style={[s.td, { width: 80, fontSize: 11, color: '#888' }]}>{i.category}</Text>
+              <Text style={[s.td, { width: 80, fontSize: 11, color: COLORS.textSecondary }]}>{i.category}</Text>
               <Text style={[s.td, { width: 60, textAlign: 'center', fontSize: 11 }]}>{i.unit}</Text>
-              <Text style={[s.td, { width: 80, textAlign: 'right', fontWeight: '600', color: isLow ? '#E53935' : '#2D2D2D' }]}>
+              <Text style={[s.td, { width: 80, textAlign: 'right', fontWeight: '600', color: isLow ? '#E53935' : COLORS.text }]}>
                 {Math.round(i.stock_current)} {i.unit}
               </Text>
               <Text style={[s.td, { width: 80, textAlign: 'right', fontWeight: '700', color: COLORS.primary }]}>
@@ -300,7 +300,7 @@ export default function IngredientsScreen() {
           <Text style={s.mdT}>{isNew ? '➕ Nuevo Ingrediente' : '✏️ Editar: ' + (ed.name || '')}</Text>
 
           <Text style={s.lb}>Nombre *</Text>
-          <TextInput style={s.inp} value={ed.name || ''} onChangeText={t => setEd((e: any) => ({ ...e, name: t }))} placeholder="Ej: Salmón fresco" placeholderTextColor="#999" />
+          <TextInput style={s.inp} value={ed.name || ''} onChangeText={t => setEd((e: any) => ({ ...e, name: t }))} placeholder="Ej: Salmón fresco" placeholderTextColor={COLORS.textMuted} />
 
           <Text style={s.lb}>Categoría</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 36 }}>
@@ -334,8 +334,8 @@ export default function IngredientsScreen() {
               const diff = newCost - oldCost;
               const pct = ((diff / oldCost) * 100).toFixed(1);
               return (
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', backgroundColor: diff > 0 ? '#FFF3E0' : '#E8F5E9', borderRadius: 8, padding: 10, marginTop: 8 }}>
-                  <Text style={{ fontSize: 12, color: '#666' }}>Cambio: {fmt(oldCost)} → {fmt(newCost)}</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', backgroundColor: diff > 0 ? '#E6510020' : '#2E7D3220', borderRadius: 8, padding: 10, marginTop: 8 }}>
+                  <Text style={{ fontSize: 12, color: COLORS.textSecondary }}>Cambio: {fmt(oldCost)} → {fmt(newCost)}</Text>
                   <Text style={{ fontSize: 12, fontWeight: '700', color: diff > 0 ? '#E65100' : '#2E7D32' }}>{diff > 0 ? '+' : ''}{pct}%</Text>
                 </View>
               );
@@ -354,13 +354,13 @@ export default function IngredientsScreen() {
       <Modal visible={diffModal} transparent animationType="fade">
         <View style={s.ov}><View style={[s.md, { maxWidth: 700, maxHeight: '90%' as any }]}>
           <Text style={s.mdT}>📋 Reporte de Diferencias</Text>
-          <Text style={{ textAlign: 'center', fontSize: 12, color: '#666', marginBottom: 12 }}>
+          <Text style={{ textAlign: 'center', fontSize: 12, color: COLORS.textSecondary, marginBottom: 12 }}>
             {diffRows.filter(d => d.type === 'new').length} nuevos · {diffRows.filter(d => d.type === 'update' && d.hasChanges).length} con cambios · {diffRows.filter(d => d.type === 'update' && !d.hasChanges).length} sin cambios · {diffRows.filter(d => d.type === 'missing').length} no en Excel
           </Text>
 
           <ScrollView style={{ maxHeight: 500 }}>
             {/* Header */}
-            <View style={{ flexDirection: 'row', paddingVertical: 6, paddingHorizontal: 8, backgroundColor: '#F0F0F0', borderRadius: 6, marginBottom: 4 }}>
+            <View style={{ flexDirection: 'row', paddingVertical: 6, paddingHorizontal: 8, backgroundColor: COLORS.background, borderRadius: 6, marginBottom: 4 }}>
               <Text style={[s.th, { width: 24 }]}></Text>
               <Text style={[s.th, { flex: 1 }]}>Ingrediente</Text>
               <Text style={[s.th, { width: 70, textAlign: 'right' }]}>Stock Ant.</Text>
@@ -375,17 +375,17 @@ export default function IngredientsScreen() {
               const icon = d.type === 'new' ? '🟢' : d.type === 'missing' ? '⚪' : d.hasChanges ? '🟡' : '⚪';
               const costPct = d.oldCost > 0 && d.costDiff !== null ? ((d.costDiff / d.oldCost) * 100).toFixed(1) : '—';
               return (
-                <View key={i} style={{ flexDirection: 'row', paddingVertical: 6, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: '#F0F0F0', alignItems: 'center', backgroundColor: d.type === 'new' ? '#E8F5E9' : d.type === 'missing' ? '#F5F5F5' : d.hasChanges ? '#FFFDE7' : '#FFF' }}>
+                <View key={i} style={{ flexDirection: 'row', paddingVertical: 6, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border, alignItems: 'center', backgroundColor: d.type === 'new' ? '#4CAF5015' : d.type === 'missing' ? COLORS.background : d.hasChanges ? '#F59E0B15' : COLORS.card }}>
                   <Text style={{ width: 24, fontSize: 12 }}>{icon}</Text>
-                  <Text style={{ flex: 1, fontSize: 12, fontWeight: '600', color: '#2D2D2D' }}>{d.name}</Text>
-                  <Text style={{ width: 70, textAlign: 'right', fontSize: 11, color: '#888' }}>{d.oldStock !== null ? Math.round(d.oldStock) : '—'}</Text>
-                  <Text style={{ width: 70, textAlign: 'right', fontSize: 11, fontWeight: '600', color: '#2D2D2D' }}>{d.newStock !== null ? Math.round(d.newStock) : '—'}</Text>
-                  <Text style={{ width: 60, textAlign: 'right', fontSize: 11, fontWeight: '700', color: d.stockDiff > 0 ? '#4CAF50' : d.stockDiff < 0 ? '#E53935' : '#999' }}>
+                  <Text style={{ flex: 1, fontSize: 12, fontWeight: '600', color: COLORS.text }}>{d.name}</Text>
+                  <Text style={{ width: 70, textAlign: 'right', fontSize: 11, color: COLORS.textSecondary }}>{d.oldStock !== null ? Math.round(d.oldStock) : '—'}</Text>
+                  <Text style={{ width: 70, textAlign: 'right', fontSize: 11, fontWeight: '600', color: COLORS.text }}>{d.newStock !== null ? Math.round(d.newStock) : '—'}</Text>
+                  <Text style={{ width: 60, textAlign: 'right', fontSize: 11, fontWeight: '700', color: d.stockDiff > 0 ? '#4CAF50' : d.stockDiff < 0 ? '#E53935' : COLORS.textMuted }}>
                     {d.stockDiff !== null ? (d.stockDiff > 0 ? '+' : '') + Math.round(d.stockDiff) : '—'}
                   </Text>
-                  <Text style={{ width: 70, textAlign: 'right', fontSize: 11, color: '#888' }}>{d.oldCost !== null ? fmt(d.oldCost) : '—'}</Text>
+                  <Text style={{ width: 70, textAlign: 'right', fontSize: 11, color: COLORS.textSecondary }}>{d.oldCost !== null ? fmt(d.oldCost) : '—'}</Text>
                   <Text style={{ width: 70, textAlign: 'right', fontSize: 11, fontWeight: '600', color: COLORS.primary }}>{d.newCost !== null ? fmt(d.newCost) : '—'}</Text>
-                  <Text style={{ width: 55, textAlign: 'right', fontSize: 11, fontWeight: '600', color: d.costDiff > 0 ? '#E65100' : d.costDiff < 0 ? '#2E7D32' : '#999' }}>
+                  <Text style={{ width: 55, textAlign: 'right', fontSize: 11, fontWeight: '600', color: d.costDiff > 0 ? '#E65100' : d.costDiff < 0 ? '#2E7D32' : COLORS.textMuted }}>
                     {costPct !== '—' ? (d.costDiff > 0 ? '+' : '') + costPct + '%' : '—'}
                   </Text>
                 </View>
@@ -406,10 +406,10 @@ export default function IngredientsScreen() {
           <Text style={s.mdT}>📊 Historial: {historyName}</Text>
           
           {history.length === 0 ? (
-            <Text style={{ textAlign: 'center', color: '#999', paddingVertical: 20 }}>Sin cambios de precio registrados</Text>
+            <Text style={{ textAlign: 'center', color: COLORS.textMuted, paddingVertical: 20 }}>Sin cambios de precio registrados</Text>
           ) : (
             <ScrollView style={{ maxHeight: 400 }}>
-              <View style={{ flexDirection: 'row', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#E0E0E0' }}>
+              <View style={{ flexDirection: 'row', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border }}>
                 <Text style={[s.th, { flex: 1 }]}>Fecha</Text>
                 <Text style={[s.th, { width: 80, textAlign: 'right' }]}>Anterior</Text>
                 <Text style={[s.th, { width: 80, textAlign: 'right' }]}>Nuevo</Text>
@@ -420,16 +420,16 @@ export default function IngredientsScreen() {
                 const diff = h.new_price - h.old_price;
                 const pct = h.old_price > 0 ? ((diff / h.old_price) * 100).toFixed(1) : '—';
                 return (
-                  <View key={h.id} style={{ flexDirection: 'row', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#F0F0F0', alignItems: 'center' }}>
-                    <Text style={{ flex: 1, fontSize: 11, color: '#666' }}>
+                  <View key={h.id} style={{ flexDirection: 'row', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border, alignItems: 'center' }}>
+                    <Text style={{ flex: 1, fontSize: 11, color: COLORS.textSecondary }}>
                       {new Date(h.changed_at).toLocaleDateString('es-CL')} {new Date(h.changed_at).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
                     </Text>
-                    <Text style={{ width: 80, textAlign: 'right', fontSize: 12, color: '#888' }}>{fmt(h.old_price)}</Text>
+                    <Text style={{ width: 80, textAlign: 'right', fontSize: 12, color: COLORS.textSecondary }}>{fmt(h.old_price)}</Text>
                     <Text style={{ width: 80, textAlign: 'right', fontSize: 12, fontWeight: '700', color: COLORS.primary }}>{fmt(h.new_price)}</Text>
                     <Text style={{ width: 60, textAlign: 'right', fontSize: 11, fontWeight: '600', color: diff > 0 ? '#E65100' : '#2E7D32' }}>
                       {diff > 0 ? '+' : ''}{pct}%
                     </Text>
-                    <Text style={{ width: 70, fontSize: 11, color: '#888', paddingLeft: 6 }}>{h.user?.name || '—'}</Text>
+                    <Text style={{ width: 70, fontSize: 11, color: COLORS.textSecondary, paddingLeft: 6 }}>{h.user?.name || '—'}</Text>
                   </View>
                 );
               })}
@@ -447,8 +447,8 @@ export default function IngredientsScreen() {
 
 function Chip({ label, active, count, onPress }: { label: string; active: boolean; count?: number; onPress: () => void }) {
   return (
-    <TouchableOpacity style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, backgroundColor: active ? COLORS.primary : '#FFFFFF', borderWidth: 1, borderColor: active ? COLORS.primary : '#E0E0E0', marginRight: 4 }} onPress={onPress}>
-      <Text style={{ fontSize: 11, fontWeight: '600', color: active ? '#fff' : '#666' }}>
+    <TouchableOpacity style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, backgroundColor: active ? COLORS.primary : COLORS.card, borderWidth: 1, borderColor: active ? COLORS.primary : COLORS.border, marginRight: 4 }} onPress={onPress}>
+      <Text style={{ fontSize: 11, fontWeight: '600', color: active ? '#fff' : COLORS.textSecondary }}>
         {label}{count !== undefined ? ` (${count})` : ''}
       </Text>
     </TouchableOpacity>
@@ -456,27 +456,27 @@ function Chip({ label, active, count, onPress }: { label: string; active: boolea
 }
 
 const s = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: '#F5F5F5' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#E0E0E0' },
-  title: { fontSize: 18, fontWeight: '700', color: '#2D2D2D' },
+  wrap: { flex: 1, backgroundColor: COLORS.background },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  title: { fontSize: 18, fontWeight: '700', color: COLORS.text },
   btn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 6, backgroundColor: COLORS.primary },
   btnT: { color: '#fff', fontWeight: '700', fontSize: 12 },
-  alertBar: { backgroundColor: '#FFEBEE', padding: 10, marginHorizontal: 14, marginTop: 8, borderRadius: 8, borderWidth: 1, borderColor: '#FFCDD2' },
+  alertBar: { backgroundColor: '#E5393520', padding: 10, marginHorizontal: 14, marginTop: 8, borderRadius: 8, borderWidth: 1, borderColor: '#E5393540' },
   toolbar: { paddingHorizontal: 14, paddingVertical: 8 },
-  searchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E0E0E0', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 6 },
-  searchInp: { flex: 1, fontSize: 13, color: '#2D2D2D', marginLeft: 6 },
-  tHead: { flexDirection: 'row', paddingHorizontal: 14, paddingVertical: 8, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#E0E0E0' },
-  th: { fontSize: 11, fontWeight: '600', color: '#999' },
-  tRow: { flexDirection: 'row', paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F0F0F0', alignItems: 'center' },
-  tRowAlt: { backgroundColor: '#FAFAFA' },
-  td: { fontSize: 13, color: '#2D2D2D' },
-  ov: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' },
-  md: { width: '92%' as any, maxWidth: 450, backgroundColor: '#FFF', borderRadius: 16, padding: 24 },
-  mdT: { fontSize: 18, fontWeight: '700', color: '#2D2D2D', textAlign: 'center', marginBottom: 8 },
-  lb: { fontSize: 12, fontWeight: '600', color: '#999', marginBottom: 4, marginTop: 12 },
-  inp: { backgroundColor: '#F5F5F5', borderWidth: 1, borderColor: '#E0E0E0', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: '#2D2D2D' },
-  bCancel: { flex: 1, paddingVertical: 14, borderRadius: 10, borderWidth: 1, borderColor: '#E0E0E0', alignItems: 'center' },
-  bCancelT: { color: '#666', fontWeight: '600', fontSize: 14 },
+  searchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, borderRadius: 6, paddingHorizontal: 10, paddingVertical: 6 },
+  searchInp: { flex: 1, fontSize: 13, color: COLORS.text, marginLeft: 6 },
+  tHead: { flexDirection: 'row', paddingHorizontal: 14, paddingVertical: 8, backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  th: { fontSize: 11, fontWeight: '600', color: COLORS.textMuted },
+  tRow: { flexDirection: 'row', paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border, alignItems: 'center' },
+  tRowAlt: { backgroundColor: COLORS.card + '40' },
+  td: { fontSize: 13, color: COLORS.text },
+  ov: { flex: 1, backgroundColor: COLORS.overlay, justifyContent: 'center', alignItems: 'center' },
+  md: { width: '92%' as any, maxWidth: 450, backgroundColor: COLORS.card, borderRadius: 16, padding: 24, borderWidth: 1, borderColor: COLORS.border },
+  mdT: { fontSize: 18, fontWeight: '700', color: COLORS.text, textAlign: 'center', marginBottom: 8 },
+  lb: { fontSize: 12, fontWeight: '600', color: COLORS.textMuted, marginBottom: 4, marginTop: 12 },
+  inp: { backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: COLORS.text },
+  bCancel: { flex: 1, paddingVertical: 14, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center' },
+  bCancelT: { color: COLORS.textSecondary, fontWeight: '600', fontSize: 14 },
   bSave: { flex: 1, paddingVertical: 14, borderRadius: 10, backgroundColor: COLORS.primary, alignItems: 'center' },
   bSaveT: { color: '#fff', fontWeight: '700', fontSize: 14 },
 });

@@ -1,7 +1,7 @@
 // App.tsx — Role-based tab navigation
 
 import React, { useState } from 'react';
-import { View, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, Dimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import LoginScreen from './src/screens/LoginScreen';
@@ -13,6 +13,7 @@ import DeliveryScreen from './src/screens/DeliveryScreen';
 import AdminScreen from './src/screens/AdminScreen';
 import InventoryScreen from './src/screens/InventoryScreen';
 import TabNavigator from './src/components/TabNavigator';
+import MobileTableScreen from './src/screens/MobileTableScreen';
 import { COLORS } from './src/theme';
 import { TableWithOrder } from './src/types';
 
@@ -31,6 +32,16 @@ function AppContent() {
     return <View style={s.loading}><ActivityIndicator size="large" color={COLORS.primary} /></View>;
   }
   if (!user) return <LoginScreen />;
+
+  // Mobile view for phones (< 600px)
+  const isMobile = Dimensions.get('window').width < 600;
+
+  if (isMobile) {
+    if (detail?.type === 'order') {
+      return <OrderScreen table={detail.table} onBack={() => setDetail(null)} />;
+    }
+    return <MobileTableScreen onOpenOrder={(table) => setDetail({ type: 'order', table })} />;
+  }
 
   // Detail screens (overlay main tabs)
   if (detail?.type === 'order') {
