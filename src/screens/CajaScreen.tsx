@@ -42,7 +42,7 @@ export default function CajaScreen() {
 // =====================================================
 function VentasTab() {
   const [orders, setOrders] = useState<any[]>([]);
-  const [period, setPeriod] = useState<'diario' | 'semanal' | 'mensual' | 'anual' | 'rango'>('diario');
+  const [period, setPeriod] = useState<'turno' | 'diario' | 'semanal' | 'mensual' | 'anual' | 'rango'>('turno');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [rangoDesde, setRangoDesde] = useState(new Date().toISOString().split('T')[0]);
   const [rangoHasta, setRangoHasta] = useState(new Date().toISOString().split('T')[0]);
@@ -50,6 +50,8 @@ function VentasTab() {
   const [filterGarzon, setFilterGarzon] = useState('todos');
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [openTables, setOpenTables] = useState<any[]>([]);
+  const [currentArqueo, setCurrentArqueo] = useState<any>(null);
 
   // Detail modal
   const [detailModal, setDetailModal] = useState(false);
@@ -67,10 +69,27 @@ function VentasTab() {
 
   const load = async () => {
     setLoading(true);
+
+    // Cargar mesas abiertas siempre
+    const { data: openT } = await supabase.from('tables').select('*, current_order:orders(*, waiter:created_by(name), order_items(total_price))').eq('active', true).in('status', ['ocupada', 'cuenta']).order('number');
+    setOpenTables(openT || []);
+
+    // Cargar arqueo actual
+    const { data: cajas } = await supabase.from('cash_registers').select('*').is('closed_at', null).order('opened_at', { ascending: false }).limit(1);
+    setCurrentArqueo(cajas?.[0] || null);
+
     let since: string, until: string;
     const d = new Date(date + 'T00:00:00');
 
-    if (period === 'diario') {
+    if (period === 'turno') {
+      // Desde la apertura del arqueo actual hasta ahora
+      if (cajas?.[0]) {
+        since = cajas[0].opened_at;
+      } else {
+        since = new Date().toISOString().split('T')[0];
+      }
+      until = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+    } else if (period === 'diario') {
       since = date;
       const next = new Date(d); next.setDate(next.getDate() + 1);
       until = next.toISOString().split('T')[0];
@@ -151,7 +170,7 @@ function VentasTab() {
   };
 
   const changeDate = (dir: number) => {
-    if (period === 'rango') return;
+    if (period === 'rango' || period === 'turno') return;
     const d = new Date(date + 'T12:00:00');
     if (period === 'diario') d.setDate(d.getDate() + dir);
     else if (period === 'semanal') d.setDate(d.getDate() + (dir * 7));
@@ -162,6 +181,7 @@ function VentasTab() {
 
   const dateLabel = () => {
     const d = new Date(date + 'T12:00:00');
+    if (period === 'turno') return currentArqueo ? 'Desde ' + new Date(currentArqueo.opened_at).toLocaleString('es-CL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'Sin arqueo abierto';
     if (period === 'diario') return d.toLocaleDateString('es-CL', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
     if (period === 'semanal') return `Semana del ${d.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}`;
     if (period === 'anual') return String(d.getFullYear());
@@ -175,14 +195,18 @@ function VentasTab() {
       <View style={s.filterBar}>
         {/* Period selector */}
         <View style={s.filterRow}>
-          {(['diario', 'semanal', 'mensual', 'anual', 'rango'] as const).map(p => (
+          {(['turno', 'diario', 'semanal', 'mensual', 'anual', 'rango'] as const).map(p => (
             <TouchableOpacity key={p} style={[s.fChip, period === p && s.fChipA]} onPress={() => setPeriod(p)}>
               <Text style={[s.fChipT, period === p && s.fChipTA]}>{p.charAt(0).toUpperCase() + p.slice(1)}</Text>
             </TouchableOpacity>
           ))}
         </View>
         {/* Date nav */}
-        {period === 'rango' ? (
+        {period === 'turno' ? (
+          <View style={[s.dateNav]}>
+            <Text style={s.dateLabel}>{dateLabel()}</Text>
+          </View>
+        ) : period === 'rango' ? (
           <View style={[s.dateNav, { gap: 8 }]}>
             <Text style={{ fontSize: 12, color: COLORS.textSecondary }}>Desde:</Text>
             <TextInput style={[s.fChip, { paddingHorizontal: 10, fontSize: 13, color: COLORS.text, minWidth: 120, textAlign: 'center' }]} value={rangoDesde} onChangeText={setRangoDesde} placeholder="YYYY-MM-DD" placeholderTextColor={COLORS.textMuted} />
@@ -218,6 +242,30 @@ function VentasTab() {
           </ScrollView>
         </View>
       </View>
+
+      {/* Mesas abiertas */}
+      {openTables.length > 0 && (
+        <View style={{ paddingHorizontal: 16, paddingVertical: 8 }}>
+          <Text style={{ fontSize: 13, fontWeight: '700', color: COLORS.text, marginBottom: 6 }}>Mesas Abiertas ({openTables.length})</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {openTables.map((t: any) => {
+                const order = t.current_order;
+                const total = order?.order_items?.reduce((a: number, i: any) => a + (i.total_price || 0), 0) || 0;
+                const isCuenta = t.status === 'cuenta';
+                return (
+                  <View key={t.id} style={{ backgroundColor: isCuenta ? COLORS.warning + '20' : COLORS.primary + '15', borderWidth: 1, borderColor: isCuenta ? COLORS.warning : COLORS.primary + '40', borderRadius: 10, padding: 10, minWidth: 100, alignItems: 'center' }}>
+                    <Text style={{ fontSize: 18, fontWeight: '800', color: isCuenta ? COLORS.warning : COLORS.primary }}>#{t.number}</Text>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: COLORS.text }}>{fmt(total)}</Text>
+                    <Text style={{ fontSize: 9, color: COLORS.textMuted }}>{order?.waiter?.name || '-'}</Text>
+                    {isCuenta && <Text style={{ fontSize: 9, fontWeight: '700', color: COLORS.warning, marginTop: 2 }}>CUENTA</Text>}
+                  </View>
+                );
+              })}
+            </View>
+          </ScrollView>
+        </View>
+      )}
 
       {/* Summary bar like Fudo */}
       <View style={s.summaryRow}>
