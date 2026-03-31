@@ -279,16 +279,11 @@ export default function OrderScreen({ table, onBack }: Props) {
 
     // Imprimir boleta en Caja al cerrar mesa
     try {
-      const cajaIp = PRINTER_CONFIG.caja?.ip || '192.168.1.114';
-      const cajaPort = PRINTER_CONFIG.caja?.port || 9100;
       const allPayments = finalPayEntries.filter(e => (parseInt(e.amount) || 0) > 0).map(e => ({ method: e.method, amount: parseInt(e.amount) || 0 }));
-      const boletaData = generateBoleta({
-        table: table.number, waiter: user?.name || '',
-        items: unpaidItems.map(i => ({ name: i.product?.name || '', qty: i.quantity, price: i.unit_price, total: i.total_price })),
-        subtotal: unpaidTotal, tip: tipTotalFinal, total: unpaidTotal + tipTotalFinal,
-        payments: allPayments, orderNumber: order?.order_number,
+      await fetch('http://localhost:3333/precuenta', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ table: table.number, waiter: user?.name || '', items: unpaidItems.map(i => ({ name: i.product?.name || '', qty: i.quantity, price: i.unit_price, total: i.total_price })), subtotal: unpaidTotal, tip: tipTotalFinal, total: unpaidTotal + tipTotalFinal, payments: allPayments, orderNumber: order?.order_number }),
       });
-      await sendToPrinter(cajaIp, cajaPort, boletaData, 'Caja');
     } catch (e) { console.error('Error imprimiendo boleta:', e); }
 
     setCloseModal(false); resetPayState();
@@ -529,7 +524,7 @@ export default function OrderScreen({ table, onBack }: Props) {
           <Text style={{ fontSize: 12, color: COLORS.textMuted, textAlign: 'center', marginTop: 8 }}>Propina sugerida 10%: {fmt(Math.round(payableTotal * 0.1))}</Text>
           <View style={{ flexDirection: 'row', gap: 12, marginTop: 20 }}>
             <TouchableOpacity style={s.bC} onPress={() => { setPreCuentaModal(false); resetPayState(); }}><Text style={s.bCT}>✕ Cerrar</Text></TouchableOpacity>
-            <TouchableOpacity style={[s.bOk, { backgroundColor: COLORS.warning }]} onPress={async () => { try { const cajaIp = PRINTER_CONFIG.caja?.ip || '192.168.1.114'; const cajaPort = PRINTER_CONFIG.caja?.port || 9100; const boletaData = generateBoleta({ table: table.number, waiter: user?.name || '', items: unpaidItems.map(i => ({ name: i.product?.name || '', qty: i.quantity, price: i.unit_price, total: i.total_price })), subtotal: unpaidTotal, tip: Math.round(unpaidTotal * 0.1), total: unpaidTotal + Math.round(unpaidTotal * 0.1), payments: [], orderNumber: order?.order_number }); await sendToPrinter(cajaIp, cajaPort, boletaData, 'Caja'); await supabase.from('tables').update({ status: 'cuenta' }).eq('id', table.id); playClickPOS(); setPreCuentaModal(false); onBack(); } catch (e: any) { Alert.alert('Error', e.message); } }}><Text style={s.bOkT}>🖨 Imprimir</Text></TouchableOpacity>
+            <TouchableOpacity style={[s.bOk, { backgroundColor: COLORS.warning }]} onPress={async () => { try { await fetch('http://localhost:3333/precuenta', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ table: table.number, waiter: user?.name || '', items: unpaidItems.map(i => ({ name: i.product?.name || '', qty: i.quantity, price: i.unit_price, total: i.total_price })), subtotal: unpaidTotal, tip: Math.round(unpaidTotal * 0.1), total: unpaidTotal + Math.round(unpaidTotal * 0.1), payments: [], orderNumber: order?.order_number }) }); await supabase.from('tables').update({ status: 'cuenta' }).eq('id', table.id); playClickPOS(); setPreCuentaModal(false); onBack(); } catch (e: any) { Alert.alert('Error', e.message); } }}><Text style={s.bOkT}>🖨 Imprimir</Text></TouchableOpacity>
             {(user?.role === 'cajero' || user?.role === 'admin') && unpaidItems.length > 0 && <TouchableOpacity style={[s.bOk, { backgroundColor: COLORS.success }]} onPress={() => { setPreCuentaModal(false); if (payMode === 'partial' && selectedItems.length > 0) { setPaySelectedModal(true); } else { const tip10 = Math.round(unpaidTotal * 0.1); setPayEntries([{ method: 'efectivo', amount: String(unpaidTotal + tip10) }]); setTipEntries([{ method: 'efectivo', amount: String(tip10) }]); setCloseModal(true); } }}><Text style={s.bOkT}>💳 Pagar</Text></TouchableOpacity>}
           </View>
         </View></ScrollView></View>
