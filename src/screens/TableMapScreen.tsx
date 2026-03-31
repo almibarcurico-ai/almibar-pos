@@ -69,7 +69,6 @@ export default function TableMapScreen({ onOpenOrder, onOpenEditor }: Props) {
     let printers: any[] = [];
     let catPrinters: any[] = [];
 
-    // Cargar config de impresoras una vez
     const loadPrinterConfig = async () => {
       const { data: p } = await supabase.from('printers').select('*').eq('active', true);
       const { data: cp } = await supabase.from('category_printer').select('*');
@@ -78,95 +77,77 @@ export default function TableMapScreen({ onOpenOrder, onOpenEditor }: Props) {
     };
     loadPrinterConfig();
 
+    // Imprimir un grupo de items agrupados por orden
+    const autoPrintItems = async (items: any[]) => {
+      if (printers.length === 0 || items.length === 0) return;
+      const orderIds = [...new Set(items.map(i => i.order_id))];
+      for (const orderId of orderIds) {
+        const orderItems = items.filter(i => i.order_id === orderId);
+        const { data: order } = await supabase.from('orders').select('id, order_number, table_id').eq('id', orderId).single();
+        if (!order) continue;
+        const { data: tableData } = await supabase.from('tables').select('number').eq('id', order.table_id).single();
+        const productIds = orderItems.map(i => i.product_id).filter(Boolean);
+        if (productIds.length === 0) continue;
+        const { data: products } = await supabase.from('products').select('id, name, category_id').in('id', productIds);
+        const prodMap: Record<string, any> = {};
+        if (products) products.forEach(p => { prodMap[p.id] = p; });
+        const printItems = orderItems
+          .filter(i => i.product_id && prodMap[i.product_id])
+          .map(i => ({ name: prodMap[i.product_id].name, qty: i.quantity, category_id: prodMap[i.product_id].category_id, notes: i.notes || undefined }));
+        if (printItems.length > 0) {
+          try {
+            await printOrder({ table: tableData?.number || '?', waiter: '📱 App', items: printItems, printers, categoryPrinters: catPrinters, orderNumber: order.order_number });
+            console.log(`🖨️ Auto-print: Mesa ${tableData?.number}, ${printItems.length} items`);
+          } catch (e) { console.log('Auto-print error:', e); }
+        }
+      }
+    };
+
     const autoProcess = async () => {
       if (processingRef.current) return;
       processingRef.current = true;
       try {
-        // Buscar items pendientes creados por la app cliente
+        let didWork = false;
+
+        // 1. Items PENDIENTES del app user → enviar a cocina + imprimir
         const { data: pendingItems } = await supabase
           .from('order_items')
           .select('id, order_id, product_id, quantity, notes')
           .eq('status', 'pendiente')
           .eq('created_by', APP_USER_ID);
 
-        if (!pendingItems || pendingItems.length === 0) return;
-
-        const itemIds = pendingItems.map(i => i.id);
-
-        // Enviar a cocina (cambiar status + descontar stock)
-        const { error } = await supabase.rpc('send_order_and_deduct_stock', { p_item_ids: itemIds });
-        if (error) { console.log('Auto-process error:', error); return; }
-
-        // Agrupar por order_id para imprimir
-        const orderIds = [...new Set(pendingItems.map(i => i.order_id))];
-
-        for (const orderId of orderIds) {
-          const items = pendingItems.filter(i => i.order_id === orderId);
-          // Obtener datos de la orden y mesa
-          const { data: order } = await supabase
-            .from('orders')
-            .select('id, order_number, table_id, notes')
-            .eq('id', orderId).single();
-          if (!order) continue;
-
-          const { data: tableData } = await supabase
-            .from('tables')
-            .select('number')
-            .eq('id', order.table_id).single();
-
-          // Obtener productos para nombre y category_id
-          const productIds = items.map(i => i.product_id).filter(Boolean);
-          if (productIds.length === 0) continue;
-
-          const { data: products } = await supabase
-            .from('products')
-            .select('id, name, category_id')
-            .in('id', productIds);
-
-          const prodMap: Record<string, any> = {};
-          if (products) products.forEach(p => { prodMap[p.id] = p; });
-
-          const printItems = items
-            .filter(i => i.product_id && prodMap[i.product_id])
-            .map(i => ({
-              name: prodMap[i.product_id].name,
-              qty: i.quantity,
-              category_id: prodMap[i.product_id].category_id,
-              notes: i.notes || undefined,
-            }));
-
-          if (printItems.length > 0 && printers.length > 0) {
-            try {
-              await printOrder({
-                table: tableData?.number || '?',
-                waiter: '📱 App Cliente',
-                items: printItems,
-                printers,
-                categoryPrinters: catPrinters,
-                orderNumber: order.order_number,
-              });
-              console.log(`🖨️ Auto-print: Mesa ${tableData?.number}, ${printItems.length} items`);
-            } catch (e) { console.log('Auto-print error:', e); }
+        if (pendingItems && pendingItems.length > 0) {
+          const itemIds = pendingItems.map(i => i.id);
+          const { error } = await supabase.rpc('send_order_and_deduct_stock', { p_item_ids: itemIds });
+          if (!error) {
+            await autoPrintItems(pendingItems);
+            await supabase.from('order_items').update({ printed: true }).in('id', itemIds);
+            didWork = true;
           }
         }
 
-        // Marcar app_orders relacionados como confirmados
-        const tableNums = new Set<number>();
-        for (const orderId of orderIds) {
-          const { data: order } = await supabase.from('orders').select('table_id').eq('id', orderId).single();
-          if (order) {
-            const { data: t } = await supabase.from('tables').select('number').eq('id', order.table_id).single();
-            if (t) tableNums.add(t.number);
-          }
+        // 2. Items ya PREPARANDO pero sin imprimir del app user (flujo asistente)
+        const { data: unprintedItems } = await supabase
+          .from('order_items')
+          .select('id, order_id, product_id, quantity, notes')
+          .eq('status', 'preparando')
+          .eq('created_by', APP_USER_ID)
+          .eq('printed', false);
+
+        if (unprintedItems && unprintedItems.length > 0) {
+          await autoPrintItems(unprintedItems);
+          await supabase.from('order_items').update({ printed: true }).in('id', unprintedItems.map(i => i.id));
+          didWork = true;
         }
-        for (const tn of tableNums) {
+
+        if (didWork) {
+          // Limpiar app_orders pendientes
           await supabase.from('app_orders').update({
             status: 'confirmado',
             confirmed_at: new Date().toISOString(),
-          }).eq('table_number', tn).eq('status', 'pendiente');
+          }).eq('status', 'pendiente');
+          await loadTables();
         }
-
-        await loadTables();
       } catch (e) {
         console.log('Auto-process error:', e);
       } finally {
