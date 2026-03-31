@@ -36,3 +36,4 @@ yarn-error.*
 *.tsbuildinfo
 server.key
 server.cert
+.last_poll_time

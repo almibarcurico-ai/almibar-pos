@@ -218,14 +218,25 @@ async function loadPrinterMappings() {
 
 // =============================================
 // Polling: buscar items nuevos cada 3 segundos
-// Más confiable que Realtime (RLS bloquea eventos)
+// Guarda lastCheckTime en archivo para sobrevivir restarts
 // =============================================
-const recentlyPrinted = new Set();
-let lastCheckTime = new Date().toISOString();
+const LAST_CHECK_FILE = path.join(__dirname, '.last_poll_time');
+
+function loadLastCheckTime() {
+  try {
+    if (fs.existsSync(LAST_CHECK_FILE)) return fs.readFileSync(LAST_CHECK_FILE, 'utf8').trim();
+  } catch {}
+  return new Date().toISOString();
+}
+
+function saveLastCheckTime(t) {
+  try { fs.writeFileSync(LAST_CHECK_FILE, t); } catch {}
+}
+
+let lastCheckTime = loadLastCheckTime();
 
 async function pollNewItems() {
   try {
-    // Buscar items con status=preparando creados después del último check
     const { data: items, error } = await supabase
       .from('order_items')
       .select('id, order_id, status, created_at')
@@ -236,24 +247,16 @@ async function pollNewItems() {
     if (error) { console.log('  ❌ Poll error: ' + error.message); return; }
     if (!items || items.length === 0) return;
 
-    // Avanzar timestamp siempre (evitar reprocesar)
+    // Avanzar y guardar timestamp
     lastCheckTime = items[items.length - 1].created_at;
+    saveLastCheckTime(lastCheckTime);
 
-    // Filtrar los que ya imprimimos
-    const newItems = items.filter(i => !recentlyPrinted.has(i.id));
-    if (newItems.length === 0) return;
-    console.log('  📡 Poll: ' + newItems.length + ' items nuevos para imprimir');
-
-    // Marcar como procesados
-    for (const i of newItems) {
-      recentlyPrinted.add(i.id);
-      setTimeout(() => recentlyPrinted.delete(i.id), 120000);
-    }
+    console.log('  📡 Poll: ' + items.length + ' items nuevos');
 
     // Agrupar por order_id
-    const orderIds = [...new Set(newItems.map(i => i.order_id))];
+    const orderIds = [...new Set(items.map(i => i.order_id))];
     for (const orderId of orderIds) {
-      await printComandaForOrder(orderId, newItems.filter(i => i.order_id === orderId).map(i => i.id));
+      await printComandaForOrder(orderId, items.filter(i => i.order_id === orderId).map(i => i.id));
     }
   } catch (e) {
     // Silenciar errores de polling
