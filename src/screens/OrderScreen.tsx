@@ -221,14 +221,30 @@ export default function OrderScreen({ table, onBack }: Props) {
           printers, categoryPrinters,
         });
       } catch (e) { console.log('Print error:', e); }
+      // Marcar app_orders pendientes de esta mesa como confirmados
+      if (table.number) {
+        await supabase.from('app_orders').update({
+          status: 'confirmado',
+          confirmed_at: new Date().toISOString(),
+          confirmed_by: user.id,
+        }).eq('table_number', table.number).eq('status', 'pendiente');
+      }
       setCart([]); playSendAlert(); await loadOrder();
     } catch (e: any) { Alert.alert('Error', e.message); }
   };
-  const cancelCart = () => { if (cart.length === 0) return; Alert.alert('Cancelar', '¿Descartar?', [{ text: 'No' }, { text: 'Sí', style: 'destructive', onPress: () => setCart([]) }]); };
+  const cancelCart =() => { if (cart.length === 0) return; Alert.alert('Cancelar', '¿Descartar?', [{ text: 'No' }, { text: 'Sí', style: 'destructive', onPress: () => setCart([]) }]); };
   const sendOrder = async () => {
     if (pending.length === 0) return;
     const { error } = await supabase.rpc('send_order_and_deduct_stock', { p_item_ids: pending.map(i => i.id) });
     if (error) { Alert.alert('Error', error.message); return; }
+    // Marcar app_orders pendientes de esta mesa como confirmados
+    if (table.number) {
+      await supabase.from('app_orders').update({
+        status: 'confirmado',
+        confirmed_at: new Date().toISOString(),
+        confirmed_by: user?.id,
+      }).eq('table_number', table.number).eq('status', 'pendiente');
+    }
     playClickPOS(); await loadOrder();
   };
   const removeItem = async (item: OrderItem) => {

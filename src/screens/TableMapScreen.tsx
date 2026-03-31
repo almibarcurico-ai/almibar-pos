@@ -50,33 +50,10 @@ export default function TableMapScreen({ onOpenOrder, onOpenEditor }: Props) {
 
   useEffect(() => {
     const loadPending = async () => {
-      const tableNums = new Set<number>();
-
-      // 1. Pedidos de app_orders pendientes
+      // Solo revisar app_orders con status pendiente
       const { data: appOrders } = await supabase.from('app_orders').select('table_number').eq('status', 'pendiente');
-      for (const o of (appOrders || [])) tableNums.add(o.table_number);
-
-      // 2. Items pendientes en orders con nota "pedido desde app"
-      const { data: pendingItems } = await supabase.from('order_items')
-        .select('order_id')
-        .eq('status', 'pendiente')
-        .limit(50);
-
-      if (pendingItems && pendingItems.length > 0) {
-        const orderIds = [...new Set(pendingItems.map((i: any) => i.order_id))];
-        const { data: orders } = await supabase.from('orders')
-          .select('id, table_id, notes')
-          .in('id', orderIds)
-          .like('notes', '%pedido desde app%');
-
-        if (orders && orders.length > 0) {
-          const tableIds = orders.map((o: any) => o.table_id).filter(Boolean);
-          const { data: tbs } = await supabase.from('tables').select('id, number').in('id', tableIds);
-          for (const t of (tbs || [])) tableNums.add(t.number);
-        }
-      }
-
-      setAppOrderTables([...tableNums]);
+      const tableNums = (appOrders || []).map((o: any) => o.table_number);
+      setAppOrderTables([...new Set(tableNums)]);
     };
     loadPending();
     const iv = setInterval(loadPending, 3000);
