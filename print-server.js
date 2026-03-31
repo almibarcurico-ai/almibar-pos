@@ -390,32 +390,10 @@ function handler(req, res) {
         const data = job.data || job.text || '';
         const station = name.toLowerCase();
 
-        // Interceptar comandas: regenerar con formato nuevo
+        // Ignorar comandas de cocina/barra por /print — el polling se encarga
+        // Ignorar comandas cocina/barra — el polling ya las maneja
         if ((station === 'cocina' || station === 'barra') && data.length > 0) {
-          console.log('\n🖨️  Comanda ' + name + ' — regenerando con formato nuevo...');
-          // Extraer info del ESC/POS viejo: buscar Mesa, Garzon, items
-          const lines = data.replace(/[\x1B\x1D]./g, '').replace(/[^\x20-\x7E\n\u2500\u2550áéíóúñÁÉÍÓÚÑ]/g, '').split('\n').map(l => l.trim()).filter(l => l);
-          let mesa = '', garzon = '', orden = '', items = [];
-          for (const line of lines) {
-            if (line.startsWith('Mesa:')) mesa = line.replace('Mesa:', '').trim();
-            else if (line.startsWith('Garzon:')) garzon = line.replace('Garzon:', '').trim();
-            else if (line.startsWith('Orden:')) orden = line.replace('Orden:', '').trim().replace('#', '');
-            else if (/^\d+x\s/.test(line)) {
-              const m = line.match(/^(\d+)x\s+(.+)$/);
-              if (m) items.push({ qty: parseInt(m[1]), name: m[2], modifiers: [], notes: '' });
-            }
-            else if (line.startsWith('*') && items.length > 0) items[items.length-1].notes = line.replace(/^\*\s*/, '');
-            else if (line.startsWith('>') && items.length > 0) items[items.length-1].modifiers.push(line.replace(/^>\s*/, ''));
-            else if (line.startsWith('→') && items.length > 0) items[items.length-1].modifiers.push(line.replace(/^→\s*/, ''));
-          }
-          if (items.length > 0) {
-            const ticket = generateComanda({ table: mesa, waiter: garzon, station, items, orderNumber: orden || undefined });
-            queuePrint(name, ip, port, ticket);
-          } else {
-            // Fallback: enviar datos originales
-            console.log('  (sin items detectados, enviando original)');
-            queuePrint(name, ip, port, data);
-          }
+          console.log('  ⏭️  /print ' + name + ' ignorado (polling)');
         } else {
           console.log('\n🖨️  Enviando a ' + name + ' (' + ip + ':' + port + ') — ' + data.length + ' bytes');
           queuePrint(name, ip, port, data);
