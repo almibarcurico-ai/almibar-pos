@@ -229,28 +229,15 @@ supabase.channel('items-changes')
   .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'order_items' }, async (payload) => {
     const item = payload.new;
 
-    // Solo items que están en "preparando" y no impresos
-    if (item.status === 'preparando' && !item.printed) {
+    // Detectar cuando un item cambia a "preparando" (enviado por el garzón)
+    if (item.status === 'preparando') {
       if (recentlyPrinted.has(item.id)) return;
       recentlyPrinted.add(item.id);
-      setTimeout(() => recentlyPrinted.delete(item.id), 30000);
+      setTimeout(() => recentlyPrinted.delete(item.id), 60000);
 
-      // Acumular order_id para agrupar
       pendingOrderIds.add(item.order_id);
 
       // Debounce: esperar 2s para agrupar items del mismo envío
-      if (printTimer) clearTimeout(printTimer);
-      printTimer = setTimeout(() => processNewItems(), 2000);
-    }
-  })
-  .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'order_items' }, async (payload) => {
-    const item = payload.new;
-    // Items nuevos insertados directamente con status preparando
-    if (item.status === 'preparando' && !item.printed) {
-      if (recentlyPrinted.has(item.id)) return;
-      recentlyPrinted.add(item.id);
-      setTimeout(() => recentlyPrinted.delete(item.id), 30000);
-      pendingOrderIds.add(item.order_id);
       if (printTimer) clearTimeout(printTimer);
       printTimer = setTimeout(() => processNewItems(), 2000);
     }
@@ -274,9 +261,9 @@ async function processNewItems() {
 
       if (!order) continue;
 
-      // Filtrar solo items recién enviados (preparando + no impresos + en nuestro set)
+      // Filtrar items recién enviados (en nuestro set de recentlyPrinted)
       const newItems = (order.order_items || []).filter(i =>
-        i.status === 'preparando' && !i.printed && recentlyPrinted.has(i.id)
+        i.status === 'preparando' && recentlyPrinted.has(i.id)
       );
       if (newItems.length === 0) continue;
 
