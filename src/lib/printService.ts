@@ -239,8 +239,8 @@ export async function printOrder(params: {
       orderNumber,
     });
 
-    // Usar IP del config local si existe (override BD)
-    const override = PRINTER_CONFIG[printer.station];
+    // Usar IP del config local si existe (override BD por station o nombre)
+    const override = PRINTER_CONFIG[printer.station] || PRINTER_CONFIG[printer.name?.toLowerCase()];
     const ip = override?.ip || printer.ip_address;
     const port = override?.port || printer.port;
     console.log(`🖨️ printOrder: ${printer.name} station=${printer.station} -> ${ip}:${port} (override=${!!override})`);
