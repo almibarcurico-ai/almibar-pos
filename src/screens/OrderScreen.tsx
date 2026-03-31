@@ -233,8 +233,35 @@ export default function OrderScreen({ table, onBack }: Props) {
   };
   const removeItem = async (item: OrderItem) => {
     if (!user || !order) return;
-    if (user.role === 'garzon' && item.printed) { Alert.alert('No permitido'); return; }
-    await supabase.from('order_items').delete().eq('id', item.id); await loadOrder();
+    const isEnviado = item.status === 'preparando' || item.status === 'listo' || item.status === 'entregado' || item.printed;
+    // Solo admin puede eliminar enviados
+    if (isEnviado && user.role !== 'admin') {
+      Alert.alert('No permitido', 'Solo un administrador puede eliminar productos ya enviados');
+      return;
+    }
+    const ok = isEnviado
+      ? (typeof window !== 'undefined' ? window.confirm('¿Eliminar "' + (item.product?.name || '') + '"? Se registrará la eliminación.') : true)
+      : true;
+    if (!ok) return;
+    // Registrar eliminación de items enviados
+    if (isEnviado) {
+      await supabase.from('order_logs').insert({
+        order_id: order.id,
+        action: 'item_deleted',
+        details: {
+          item_id: item.id,
+          product_name: item.product?.name,
+          quantity: item.quantity,
+          total_price: item.total_price,
+          status: item.status,
+          deleted_by: user.name,
+          deleted_by_role: user.role,
+        },
+        user_id: user.id,
+      });
+    }
+    await supabase.from('order_items').delete().eq('id', item.id);
+    await loadOrder();
   };
 
   // Payment
@@ -393,7 +420,7 @@ export default function OrderScreen({ table, onBack }: Props) {
               <SecH color={COLORS.warning} title={`Pendientes (${pending.length})`} />
               <TouchableOpacity style={{ paddingHorizontal: 14, paddingVertical: 8, backgroundColor: COLORS.success, borderRadius: 8 }} onPress={sendOrder}><Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>📤 Enviar</Text></TouchableOpacity>
             </View>
-            {pending.map(i => <IR key={i.id} item={i} onRm={removeItem} fmt={fmt} canRm orderCreatedBy={order?.created_by} />)}
+            {pending.map(i => <IR key={i.id} item={i} onRm={removeItem} fmt={fmt} canRm={true} orderCreatedBy={order?.created_by} />)}
           </View>
         )}
 
@@ -401,7 +428,7 @@ export default function OrderScreen({ table, onBack }: Props) {
         {sent.length > 0 && (
           <View style={{ paddingHorizontal: 16, marginTop: 8 }}>
             <SecH color={COLORS.success} title={`Enviados (${sent.length})`} />
-            {sent.map(i => <IR key={i.id} item={i} onRm={removeItem} fmt={fmt} canRm={user?.role !== 'garzon'} orderCreatedBy={order?.created_by} />)}
+            {sent.map(i => <IR key={i.id} item={i} onRm={removeItem} fmt={fmt} canRm={user?.role === 'admin'} orderCreatedBy={order?.created_by} />)}
           </View>
         )}
       </ScrollView>
@@ -728,7 +755,7 @@ function IR({ item, onRm, fmt, canRm, orderCreatedBy }: { item: OrderItem; onRm:
   const sc = !item.printed ? COLORS.warning : item.status === 'listo' ? COLORS.success : COLORS.info;
   const sl = !item.printed ? 'NUEVO' : item.status === 'preparando' ? 'PREPARANDO' : item.status === 'listo' ? 'LISTO' : 'ENVIADO';
   const cr = getCreatorColor(item, orderCreatedBy);
-  return <View style={[s.ir, { borderLeftWidth: 3, borderLeftColor: cr.color }]}><View style={{ flex: 1 }}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><Text style={{ fontSize: 15, fontWeight: '800', color: COLORS.primary, minWidth: 28 }}>{item.quantity}x</Text><Text style={{ fontSize: 14, fontWeight: '600', color: COLORS.text, flex: 1 }}>{item.product?.name}</Text></View>{item.notes ? <Text style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 3 }}>📝 {item.notes}</Text> : null}<View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}><View style={{ alignSelf: 'flex-start', backgroundColor: sc + '25', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 }}><Text style={{ fontSize: 10, fontWeight: '700', color: sc }}>{sl}</Text></View><Text style={{ fontSize: 9, fontWeight: '600', color: cr.color }}>● {cr.label}</Text></View></View><View style={{ alignItems: 'flex-end', gap: 6 }}><Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.text }}>{fmt(item.total_price)}</Text>{canRm && <TouchableOpacity onPress={() => onRm(item)}><Text style={{ fontSize: 14 }}>🗑</Text></TouchableOpacity>}</View></View>;
+  return <View style={[s.ir, { borderLeftWidth: 3, borderLeftColor: cr.color }]}><View style={{ flex: 1 }}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><Text style={{ fontSize: 15, fontWeight: '800', color: COLORS.primary, minWidth: 28 }}>{item.quantity}x</Text><Text style={{ fontSize: 14, fontWeight: '600', color: COLORS.text, flex: 1 }}>{item.product?.name}</Text></View>{item.notes ? <Text style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 3 }}>📝 {item.notes}</Text> : null}<View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}><View style={{ alignSelf: 'flex-start', backgroundColor: sc + '25', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 }}><Text style={{ fontSize: 10, fontWeight: '700', color: sc }}>{sl}</Text></View><Text style={{ fontSize: 9, fontWeight: '600', color: cr.color }}>● {cr.label}</Text></View></View><View style={{ alignItems: 'flex-end', gap: 6 }}><Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.text }}>{fmt(item.total_price)}</Text>{canRm && <TouchableOpacity onPress={() => onRm(item)} style={{ backgroundColor: COLORS.error, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 }}><Text style={{ fontSize: 12, color: '#fff', fontWeight: '700' }}>✕</Text></TouchableOpacity>}</View></View>;
 }
 
 const s = StyleSheet.create({
