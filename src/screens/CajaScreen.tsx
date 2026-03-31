@@ -528,6 +528,10 @@ function ArqueosTab() {
   const [openHora, setOpenHora] = useState(new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false }));
   const [closeModal, setCloseModal] = useState(false);
   const [movModal, setMovModal] = useState(false);
+  const [detailArqueo, setDetailArqueo] = useState<any>(null);
+  const [detailOrders, setDetailOrders] = useState<any[]>([]);
+  const [detailMovs, setDetailMovs] = useState<any[]>([]);
+  const [detailPayments, setDetailPayments] = useState<any[]>([]);
   const [movType, setMovType] = useState<'gasto' | 'ingreso'>('gasto');
   const [movAmount, setMovAmount] = useState('');
   const [movDesc, setMovDesc] = useState('');
@@ -651,6 +655,27 @@ function ArqueosTab() {
     Alert.alert('✅ Arqueo cerrado'); await loadData();
   };
 
+  const openArqueoDetail = async (arqueo: any) => {
+    setDetailArqueo(arqueo);
+    // Buscar órdenes cerradas en el rango del arqueo
+    const { data: ords } = await supabase.from('orders')
+      .select('*, table:table_id(number), waiter:created_by(name), order_items(*, product:products(name))')
+      .eq('status', 'cerrada')
+      .gte('closed_at', arqueo.opened_at)
+      .lte('closed_at', arqueo.closed_at)
+      .order('closed_at', { ascending: true });
+    setDetailOrders(ords || []);
+    // Pagos de esas órdenes
+    const orderIds = (ords || []).map((o: any) => o.id);
+    if (orderIds.length > 0) {
+      const { data: pays } = await supabase.from('payments').select('*').in('order_id', orderIds);
+      setDetailPayments(pays || []);
+    } else setDetailPayments([]);
+    // Movimientos del arqueo
+    const { data: movs } = await supabase.from('cash_movements').select('*, users:created_by(name)').eq('cash_register_id', arqueo.id).order('created_at');
+    setDetailMovs(movs || []);
+  };
+
   const handleMov = async () => {
     if (!cashRegister || !user) return;
     const amt = parseInt(movAmount);
@@ -736,7 +761,7 @@ function ArqueosTab() {
             const sysTotal = (h.opening_amount || 0) + (h.total_cash || 0) + (h.total_debit || 0) + (h.total_credit || 0) + (h.total_transfer || 0) + (h.total_cash_in || 0) - (h.total_expenses || 0);
             const diff = (h.closing_amount || 0) - sysTotal;
             return (
-              <View key={h.id} style={[s.tblRow, i % 2 === 0 && { backgroundColor: COLORS.card }]}>
+              <TouchableOpacity key={h.id} style={[s.tblRow, i % 2 === 0 && { backgroundColor: COLORS.card }]} onPress={() => openArqueoDetail(h)}>
                 <View style={{ width: 140 }}>
                   <Text style={{ fontSize: 12, fontWeight: '600', color: COLORS.primary }}>
                     {new Date(h.opened_at).toLocaleString('es-CL', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
@@ -756,8 +781,8 @@ function ArqueosTab() {
                     </View>
                   )}
                 </View>
-                <Text style={[s.tblC, { width: 70, fontSize: 11 }]}>Cerrado</Text>
-              </View>
+                <Text style={[s.tblC, { width: 70, fontSize: 11 }]}>Ver →</Text>
+              </TouchableOpacity>
             );
           })}
           {historial.length === 0 && <View style={{ padding: 20 }}><Text style={{ color: COLORS.textMuted }}>Sin arqueos cerrados</Text></View>}
@@ -952,6 +977,83 @@ function ArqueosTab() {
             </View>
           </View>
         </ScrollView></View>
+      </Modal>
+
+      {/* MODAL: Detalle Arqueo Cerrado */}
+      <Modal visible={!!detailArqueo} transparent animationType="fade">
+        <View style={s.ov}><ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 16 }}><View style={[s.md, { maxWidth: 700, width: '95%', maxHeight: '90%' }]}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <Text style={s.mdT}>Detalle Arqueo</Text>
+            <TouchableOpacity onPress={() => setDetailArqueo(null)}><Text style={{ fontSize: 20, color: COLORS.textMuted }}>✕</Text></TouchableOpacity>
+          </View>
+
+          {detailArqueo && (<>
+            <View style={{ flexDirection: 'row', gap: 16, flexWrap: 'wrap', marginBottom: 12 }}>
+              <View style={{ backgroundColor: COLORS.background, borderRadius: 8, padding: 10, flex: 1, minWidth: 140 }}>
+                <Text style={{ fontSize: 10, color: COLORS.textMuted }}>Apertura</Text>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.text }}>{new Date(detailArqueo.opened_at).toLocaleString('es-CL')}</Text>
+                <Text style={{ fontSize: 11, color: COLORS.textSecondary }}>{detailArqueo.opener?.name || '-'} • Fondo: {fmt(detailArqueo.opening_amount || 0)}</Text>
+              </View>
+              <View style={{ backgroundColor: COLORS.background, borderRadius: 8, padding: 10, flex: 1, minWidth: 140 }}>
+                <Text style={{ fontSize: 10, color: COLORS.textMuted }}>Cierre</Text>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.text }}>{new Date(detailArqueo.closed_at).toLocaleString('es-CL')}</Text>
+                <Text style={{ fontSize: 11, color: COLORS.textSecondary }}>{detailArqueo.closer?.name || '-'} • Conteo: {fmt(detailArqueo.closing_amount || 0)}</Text>
+              </View>
+              <View style={{ backgroundColor: COLORS.background, borderRadius: 8, padding: 10, flex: 1, minWidth: 140 }}>
+                <Text style={{ fontSize: 10, color: COLORS.textMuted }}>Resumen</Text>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: COLORS.primary }}>{fmt(detailArqueo.total_sales || 0)} ventas • {detailArqueo.total_orders || 0} ordenes</Text>
+                <Text style={{ fontSize: 11, color: COLORS.textSecondary }}>Propinas: {fmt(detailArqueo.total_tips || 0)}</Text>
+              </View>
+            </View>
+
+            <Text style={{ fontSize: 13, fontWeight: '700', color: COLORS.text, marginBottom: 6 }}>Ventas por Mesa ({detailOrders.length})</Text>
+            <View style={{ backgroundColor: COLORS.background, borderRadius: 8, maxHeight: 300 }}>
+              <ScrollView>
+                {detailOrders.map((o: any, i: number) => {
+                  const orderPays = detailPayments.filter((p: any) => p.order_id === o.id);
+                  const payMethod = orderPays.length > 0 ? orderPays.map((p: any) => p.method).join(', ') : o.payment_method || '-';
+                  const tipTotal = orderPays.reduce((a: number, p: any) => a + (p.tip_amount || 0), 0);
+                  return (
+                    <View key={o.id} style={{ flexDirection: 'row', alignItems: 'center', padding: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border, backgroundColor: i % 2 === 0 ? 'transparent' : COLORS.card }}>
+                      <View style={{ width: 50 }}><Text style={{ fontSize: 16, fontWeight: '800', color: COLORS.primary }}>#{o.table?.number || '?'}</Text></View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 12, color: COLORS.text }} numberOfLines={2}>{(o.order_items || []).map((it: any) => it.quantity + 'x ' + (it.product?.name || '?')).join(', ')}</Text>
+                        <Text style={{ fontSize: 10, color: COLORS.textMuted }}>{o.waiter?.name || '-'} • {new Date(o.closed_at).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })} • {payMethod}</Text>
+                      </View>
+                      <View style={{ alignItems: 'flex-end', minWidth: 80 }}>
+                        <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.text }}>{fmt(o.total || 0)}</Text>
+                        {tipTotal > 0 && <Text style={{ fontSize: 10, color: COLORS.success }}>+{fmt(tipTotal)} propina</Text>}
+                      </View>
+                    </View>
+                  );
+                })}
+                {detailOrders.length === 0 && <Text style={{ padding: 16, color: COLORS.textMuted }}>Sin ventas en este arqueo</Text>}
+              </ScrollView>
+            </View>
+
+            {detailMovs.length > 0 && (<>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: COLORS.text, marginTop: 12, marginBottom: 6 }}>Movimientos ({detailMovs.length})</Text>
+              <View style={{ backgroundColor: COLORS.background, borderRadius: 8 }}>
+                {detailMovs.map((m: any) => (
+                  <View key={m.id} style={{ flexDirection: 'row', alignItems: 'center', padding: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border }}>
+                    <Text style={{ fontSize: 14, marginRight: 8 }}>{m.type === 'gasto' ? '🔴' : '🟢'}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 12, color: COLORS.text }}>{m.description}</Text>
+                      <Text style={{ fontSize: 10, color: COLORS.textMuted }}>{m.users?.name || '-'} • {new Date(m.created_at).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}</Text>
+                    </View>
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: m.type === 'gasto' ? COLORS.error : COLORS.success }}>{m.type === 'gasto' ? '-' : '+'}{fmt(m.amount)}</Text>
+                  </View>
+                ))}
+              </View>
+            </>)}
+
+            {detailArqueo.notes && (
+              <View style={{ backgroundColor: COLORS.warning + '15', borderRadius: 8, padding: 10, marginTop: 12 }}>
+                <Text style={{ fontSize: 11, color: COLORS.textSecondary }}>Notas: {detailArqueo.notes}</Text>
+              </View>
+            )}
+          </>)}
+        </View></ScrollView></View>
       </Modal>
     </ScrollView>
   );
