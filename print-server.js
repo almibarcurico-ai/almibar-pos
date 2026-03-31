@@ -217,100 +217,101 @@ async function loadPrinterMappings() {
 }
 
 // =============================================
-// Realtime: escuchar cambios en order_items
-// Detecta items con status=preparando que no se han impreso
-// No depende de payload.old (REPLICA IDENTITY DEFAULT)
+// Polling: buscar items nuevos cada 3 segundos
+// Más confiable que Realtime (RLS bloquea eventos)
 // =============================================
 const recentlyPrinted = new Set();
-let pendingOrderIds = new Set();
-let printTimer = null;
+let lastCheckTime = new Date().toISOString();
 
-supabase.channel('items-changes')
-  .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'order_items' }, async (payload) => {
-    const item = payload.new;
+async function pollNewItems() {
+  try {
+    // Buscar items con status=preparando creados después del último check
+    const { data: items, error } = await supabase
+      .from('order_items')
+      .select('id, order_id, status, created_at')
+      .eq('status', 'preparando')
+      .gt('created_at', lastCheckTime)
+      .order('created_at', { ascending: true });
 
-    // Detectar cuando un item cambia a "preparando" (enviado por el garzón)
-    if (item.status === 'preparando') {
-      if (recentlyPrinted.has(item.id)) return;
-      recentlyPrinted.add(item.id);
-      setTimeout(() => recentlyPrinted.delete(item.id), 60000);
+    if (error) { console.log('  ❌ Poll error: ' + error.message); return; }
+    if (!items || items.length === 0) return;
+    console.log('  📡 Poll: encontrados ' + items.length + ' items nuevos');
 
-      pendingOrderIds.add(item.order_id);
+    // Filtrar los que ya imprimimos
+    const newItems = items.filter(i => !recentlyPrinted.has(i.id));
+    if (newItems.length === 0) return;
 
-      // Debounce: esperar 2s para agrupar items del mismo envío
-      if (printTimer) clearTimeout(printTimer);
-      printTimer = setTimeout(() => processNewItems(), 2000);
+    // Marcar como procesados
+    for (const i of newItems) {
+      recentlyPrinted.add(i.id);
+      setTimeout(() => recentlyPrinted.delete(i.id), 120000);
     }
-  })
-  .subscribe((status) => {
-    console.log('  🔔 Realtime order_items: ' + status);
-  });
 
-async function processNewItems() {
-  const orderIds = [...pendingOrderIds];
-  pendingOrderIds = new Set();
+    // Actualizar timestamp
+    lastCheckTime = newItems[newItems.length - 1].created_at;
 
-  for (const orderId of orderIds) {
-    try {
-      // Buscar la orden con items no impresos en status preparando
-      const { data: order } = await supabase
-        .from('orders')
-        .select('*, table:tables(number), order_items(*, product:products(name, category_id), modifiers:order_item_modifiers(option_name))')
-        .eq('id', orderId)
-        .single();
-
-      if (!order) continue;
-
-      // Filtrar items recién enviados (en nuestro set de recentlyPrinted)
-      const newItems = (order.order_items || []).filter(i =>
-        i.status === 'preparando' && recentlyPrinted.has(i.id)
-      );
-      if (newItems.length === 0) continue;
-
-      const { data: waiter } = await supabase.from('users').select('name').eq('id', order.created_by).single();
-
-      // Agrupar por estación de impresora
-      const byStation = {};
-      for (const oi of newItems) {
-        const catId = oi.product?.category_id;
-        const stations = categoryPrinterMap[catId] || [];
-        for (const station of stations) {
-          if (!byStation[station]) byStation[station] = [];
-          byStation[station].push(oi);
-        }
-      }
-
-      const tableNum = order.table?.number || '?';
-      console.log('\n🖨️  Comanda Realtime Mesa ' + tableNum + ' — ' + newItems.length + ' items');
-
-      for (const [station, items] of Object.entries(byStation)) {
-        const printer = PRINTER_IPS[station];
-        if (!printer) { console.log('  ⚠️ No hay impresora para: ' + station); continue; }
-
-        const ticket = generateComanda({
-          table: tableNum,
-          waiter: waiter?.name || '',
-          station: station,
-          items: items.map(i => ({
-            name: i.product?.name || 'Item',
-            qty: i.quantity,
-            notes: i.notes || undefined,
-            modifiers: (i.modifiers || []).map(m => m.option_name),
-          })),
-          orderNumber: order.order_number,
-        });
-
-        queuePrint(station.charAt(0).toUpperCase() + station.slice(1), printer.ip, printer.port, ticket);
-      }
-
-      // Marcar items como impresos
-      const itemIds = newItems.map(i => i.id);
-      await supabase.from('order_items').update({ printed: true }).in('id', itemIds);
-      console.log('  📝 ' + itemIds.length + ' items marcados como impresos');
-
-    } catch (e) {
-      console.log('  ❌ Error comanda realtime: ' + e.message);
+    // Agrupar por order_id
+    const orderIds = [...new Set(newItems.map(i => i.order_id))];
+    for (const orderId of orderIds) {
+      await printComandaForOrder(orderId, newItems.filter(i => i.order_id === orderId).map(i => i.id));
     }
+  } catch (e) {
+    // Silenciar errores de polling
+  }
+}
+
+// Polling se inicia después de cargar mappings (ver abajo)
+
+async function printComandaForOrder(orderId, itemIds) {
+  try {
+    const { data: order } = await supabase
+      .from('orders')
+      .select('*, table:tables(number), order_items(*, product:products(name, category_id), modifiers:order_item_modifiers(option_name))')
+      .eq('id', orderId)
+      .single();
+
+    if (!order) return;
+
+    const newItems = (order.order_items || []).filter(i => itemIds.includes(i.id));
+    if (newItems.length === 0) return;
+
+    const { data: waiter } = await supabase.from('users').select('name').eq('id', order.created_by).single();
+
+    // Agrupar por estación de impresora
+    const byStation = {};
+    for (const oi of newItems) {
+      const catId = oi.product?.category_id;
+      const stations = categoryPrinterMap[catId] || [];
+      for (const station of stations) {
+        if (!byStation[station]) byStation[station] = [];
+        byStation[station].push(oi);
+      }
+    }
+
+    const tableNum = order.table?.number || '?';
+    console.log('\n🖨️  Comanda Mesa ' + tableNum + ' — ' + newItems.length + ' items (polling)');
+
+    for (const [station, items] of Object.entries(byStation)) {
+      const printer = PRINTER_IPS[station];
+      if (!printer) { console.log('  ⚠️ No hay impresora para: ' + station); continue; }
+
+      const ticket = generateComanda({
+        table: tableNum,
+        waiter: waiter?.name || '',
+        station: station,
+        items: items.map(i => ({
+          name: i.product?.name || 'Item',
+          qty: i.quantity,
+          notes: i.notes || undefined,
+          modifiers: (i.modifiers || []).map(m => m.option_name),
+        })),
+        orderNumber: order.order_number,
+      });
+
+      queuePrint(station.charAt(0).toUpperCase() + station.slice(1), printer.ip, printer.port, ticket);
+    }
+  } catch (e) {
+    console.log('  ❌ Error comanda: ' + e.message);
   }
 }
 
@@ -466,8 +467,18 @@ if (fs.existsSync(certPath) && fs.existsSync(keyPath)) {
   });
 }
 
-// Cargar mapeos al iniciar
+// Cargar mapeos e iniciar polling
 loadPrinterMappings();
+
+// Polling loop — busca items nuevos cada 3 segundos
+(function startPolling() {
+  console.log('  🔄 Polling order_items: iniciado');
+  async function loop() {
+    await pollNewItems();
+    setTimeout(loop, 3000);
+  }
+  loop();
+})();
 
 console.log('');
 console.log('╔═══════════════════════════════════════════════╗');
