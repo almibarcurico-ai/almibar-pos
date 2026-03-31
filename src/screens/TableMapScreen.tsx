@@ -1,7 +1,7 @@
 // src/screens/TableMapScreen.tsx
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Alert, TextInput, Modal, Dimensions } from 'react-native';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Alert, TextInput, Modal, Dimensions, Animated } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Sector, TableWithOrder } from '../types';
@@ -44,6 +44,62 @@ export default function TableMapScreen({ onOpenOrder, onOpenEditor }: Props) {
     const iv = setInterval(check, 15000);
     return () => clearInterval(iv);
   }, []);
+
+  // Alerta de pedido nuevo
+  const [newOrderAlert, setNewOrderAlert] = useState<{ table: number; items: number; waiter: string } | null>(null);
+  const alertAnim = useRef(new Animated.Value(0)).current;
+  const alertScale = useRef(new Animated.Value(0.5)).current;
+  const lastItemCount = useRef(0);
+
+  // Detectar items nuevos enviados (preparando)
+  useEffect(() => {
+    const checkNewOrders = async () => {
+      try {
+        const fiveSecsAgo = new Date(Date.now() - 5000).toISOString();
+        const { data } = await supabase.from('order_items')
+          .select('id, order_id, orders!inner(table_id, tables!inner(number), waiter:created_by(name))')
+          .eq('status', 'preparando')
+          .gt('created_at', fiveSecsAgo);
+        if (data && data.length > 0 && data.length !== lastItemCount.current) {
+          lastItemCount.current = data.length;
+          const first = data[0] as any;
+          const tableNum = first.orders?.tables?.number || '?';
+          const waiterName = first.orders?.waiter?.name || '';
+          showAlert({ table: tableNum, items: data.length, waiter: waiterName });
+        }
+      } catch {}
+    };
+    const iv = setInterval(checkNewOrders, 4000);
+    return () => clearInterval(iv);
+  }, []);
+
+  const showAlert = (info: { table: number; items: number; waiter: string }) => {
+    setNewOrderAlert(info);
+    alertAnim.setValue(1);
+    alertScale.setValue(0.5);
+    Animated.parallel([
+      Animated.spring(alertScale, { toValue: 1, friction: 4, tension: 100, useNativeDriver: true }),
+      Animated.sequence([
+        Animated.timing(alertAnim, { toValue: 1, duration: 0, useNativeDriver: true }),
+        Animated.delay(3000),
+        Animated.timing(alertAnim, { toValue: 0, duration: 500, useNativeDriver: true }),
+      ]),
+    ]).start(() => setNewOrderAlert(null));
+    // Sonido
+    try {
+      if (typeof window !== 'undefined') {
+        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        [0, 0.2, 0.4].forEach(d => {
+          const o = ctx.createOscillator(); const g = ctx.createGain();
+          o.connect(g); g.connect(ctx.destination);
+          o.frequency.value = 880; o.type = 'sine';
+          g.gain.setValueAtTime(0.15, ctx.currentTime + d);
+          g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + d + 0.15);
+          o.start(ctx.currentTime + d); o.stop(ctx.currentTime + d + 0.15);
+        });
+      }
+    } catch {}
+  };
 
   const searchClients = async (text: string) => {
     setCustomerName(text);
@@ -209,6 +265,23 @@ export default function TableMapScreen({ onOpenOrder, onOpenEditor }: Props) {
 
       {/* Notificaciones pedidos app */}
       <AppOrdersPanel />
+
+      {/* Alerta de pedido nuevo */}
+      {newOrderAlert && (
+        <Animated.View style={{
+          position: 'absolute', top: '30%', left: '50%', marginLeft: -160,
+          width: 320, backgroundColor: '#FF6B00', borderRadius: 20, padding: 24,
+          alignItems: 'center', zIndex: 999, elevation: 20,
+          shadowColor: '#FF6B00', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.5, shadowRadius: 16,
+          opacity: alertAnim, transform: [{ scale: alertScale }],
+        }}>
+          <Text style={{ fontSize: 50 }}>🔔</Text>
+          <Text style={{ fontSize: 24, fontWeight: '900', color: '#fff', marginTop: 8 }}>PEDIDO NUEVO</Text>
+          <Text style={{ fontSize: 36, fontWeight: '900', color: '#fff', marginTop: 4 }}>Mesa {newOrderAlert.table}</Text>
+          <Text style={{ fontSize: 16, color: '#ffffffcc', marginTop: 4 }}>{newOrderAlert.items} producto{newOrderAlert.items > 1 ? 's' : ''} enviado{newOrderAlert.items > 1 ? 's' : ''}</Text>
+          {newOrderAlert.waiter ? <Text style={{ fontSize: 14, color: '#ffffffaa', marginTop: 2 }}>por {newOrderAlert.waiter}</Text> : null}
+        </Animated.View>
+      )}
 
       {/* Modal */}
       <Modal visible={openModal} transparent animationType="fade">
