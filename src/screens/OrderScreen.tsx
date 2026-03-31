@@ -380,11 +380,7 @@ export default function OrderScreen({ table, onBack }: Props) {
                   <TouchableOpacity onPress={() => removeFromCart(ci.id)} style={{ padding: 4 }}><Text style={{ fontSize: 14 }}>✕</Text></TouchableOpacity>
                 </View>
               ))}
-              <View style={s.cTotR}><Text style={s.cTotL}>Total a confirmar:</Text><Text style={s.cTotV}>{fmt(cartTotal)}</Text></View>
-              <View style={s.cBtns}>
-                <TouchableOpacity style={s.canBtn} onPress={cancelCart}><Text style={s.canBtnT}>Cancelar</Text></TouchableOpacity>
-                <TouchableOpacity style={s.conBtn} onPress={sendCartToKitchen}><Text style={s.conBtnT}>Confirmar</Text></TouchableOpacity>
-              </View>
+              <View style={s.cTotR}><Text style={s.cTotL}>Enviando...</Text></View>
             </View>
           )}
         </View>
@@ -394,7 +390,6 @@ export default function OrderScreen({ table, onBack }: Props) {
           <View style={{ paddingHorizontal: 16, marginTop: 8 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <SecH color={COLORS.warning} title={`Pendientes (${pending.length})`} />
-              <TouchableOpacity style={{ paddingHorizontal: 14, paddingVertical: 8, backgroundColor: COLORS.success, borderRadius: 8 }} onPress={sendOrder}><Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>📤 Enviar</Text></TouchableOpacity>
             </View>
             {pending.map(i => <IR key={i.id} item={i} onRm={removeItem} fmt={fmt} canRm orderCreatedBy={order?.created_by} />)}
           </View>
