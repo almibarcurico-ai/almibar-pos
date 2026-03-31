@@ -45,91 +45,18 @@ export default function TableMapScreen({ onOpenOrder, onOpenEditor }: Props) {
     return () => clearInterval(iv);
   }, []);
 
-  // Alerta de pedidos nuevos desde app de clientes — Realtime en app_orders
-  const [pendingAlerts, setPendingAlerts] = useState<{ id: string; table: number; customer: string; total: number; time: string }[]>([]);
-  const alertPulse = useRef(new Animated.Value(1)).current;
+  // Mesas con pedidos pendientes de app de clientes
+  const [appOrderTables, setAppOrderTables] = useState<number[]>([]);
 
   useEffect(() => {
-    // Cargar pendientes existentes al iniciar
-    const loadExisting = async () => {
-      const { data } = await supabase.from('app_orders').select('*').eq('status', 'pendiente').order('created_at', { ascending: false });
-      if (data && data.length > 0) {
-        setPendingAlerts(data.map((o: any) => ({
-          id: o.id,
-          table: o.table_number,
-          customer: o.customer_name || 'Cliente',
-          total: o.total || 0,
-          time: new Date(o.created_at).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }),
-        })));
-      }
+    const loadAppOrders = async () => {
+      const { data } = await supabase.from('app_orders').select('table_number').eq('status', 'pendiente');
+      setAppOrderTables((data || []).map((o: any) => o.table_number));
     };
-    loadExisting();
-
-    // Realtime: escuchar nuevos pedidos de clientes
-    const ch = supabase.channel('alert-app-orders')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'app_orders' }, (payload: any) => {
-        const o = payload.new;
-        if (o.status === 'pendiente') {
-          setPendingAlerts(prev => [{
-            id: o.id,
-            table: o.table_number,
-            customer: o.customer_name || 'Cliente',
-            total: o.total || 0,
-            time: new Date(o.created_at || Date.now()).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }),
-          }, ...prev]);
-          // Sonido fuerte
-          playAlertSound();
-        }
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_orders' }, (payload: any) => {
-        const o = payload.new;
-        if (o.status !== 'pendiente') {
-          setPendingAlerts(prev => prev.filter(a => a.id !== o.id));
-        }
-      })
-      .subscribe();
-
-    // Polling de respaldo cada 5s por si Realtime falla
-    const iv = setInterval(loadExisting, 5000);
-
-    return () => { supabase.removeChannel(ch); clearInterval(iv); };
+    loadAppOrders();
+    const iv = setInterval(loadAppOrders, 3000);
+    return () => clearInterval(iv);
   }, []);
-
-  const playAlertSound = () => {
-    try {
-      if (typeof window === 'undefined') return;
-      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      // Alarma fuerte: 5 beeps ascendentes repetidos 2 veces
-      [0, 0.12, 0.24, 0.36, 0.48, 0.7, 0.82, 0.94, 1.06, 1.18].forEach((d, i) => {
-        const o = ctx.createOscillator(); const g = ctx.createGain();
-        o.connect(g); g.connect(ctx.destination);
-        o.frequency.value = 660 + (i % 5) * 110; o.type = 'square';
-        g.gain.setValueAtTime(0.25, ctx.currentTime + d);
-        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + d + 0.1);
-        o.start(ctx.currentTime + d); o.stop(ctx.currentTime + d + 0.1);
-      });
-    } catch {}
-  };
-
-  useEffect(() => {
-    if (pendingAlerts.length === 0) return;
-    playAlertSound();
-    const soundIv = setInterval(playAlertSound, 5000); // repetir sonido cada 5s
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(alertPulse, { toValue: 1.08, duration: 400, useNativeDriver: true }),
-        Animated.timing(alertPulse, { toValue: 0.92, duration: 400, useNativeDriver: true }),
-      ])
-    );
-    loop.start();
-    return () => { loop.stop(); clearInterval(soundIv); };
-  }, [pendingAlerts.length > 0]);
-
-  const dismissAlert = async (id: string) => {
-    setPendingAlerts(prev => prev.filter(a => a.id !== id));
-  };
-
-  const fmt = (p: number) => '$' + Math.round(p).toLocaleString('es-CL');
 
   const searchClients = async (text: string) => {
     setCustomerName(text);
@@ -288,7 +215,7 @@ export default function TableMapScreen({ onOpenOrder, onOpenEditor }: Props) {
       <ScrollView style={s.canvasScroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}>
         <View style={[s.canvas, { flexDirection: 'row', flexWrap: 'wrap', padding: 8, gap: 8 }]}>
-          {sectorTables.map(t => <TableCard key={t.id} table={t} onPress={handleTablePress} onLongPress={handleTableLongPress} />)}
+          {sectorTables.map(t => <TableCard key={t.id} table={t} onPress={handleTablePress} onLongPress={handleTableLongPress} hasAppOrder={appOrderTables.includes(t.number)} />)}
           {sectorTables.length === 0 && <View style={s.emptyWrap}><Text style={s.emptyT}>No hay mesas en este sector</Text></View>}
         </View>
       </ScrollView>
@@ -296,32 +223,11 @@ export default function TableMapScreen({ onOpenOrder, onOpenEditor }: Props) {
       {/* Notificaciones pedidos app */}
       <AppOrdersPanel />
 
-      {/* Alertas de pedidos de clientes — bloquea pantalla */}
-      {pendingAlerts.length > 0 && (
-        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.75)', zIndex: 998, justifyContent: 'center', alignItems: 'center' }}>
-          <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-            {pendingAlerts.map((alert, idx) => (
-              <Animated.View key={alert.id} style={{
-                transform: [{ scale: idx === 0 ? alertPulse : 1 }],
-                width: 400, backgroundColor: '#FF6B00', borderRadius: 24, padding: 28,
-                alignItems: 'center', marginBottom: 16,
-                shadowColor: '#FF6B00', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.6, shadowRadius: 20,
-                borderWidth: 4, borderColor: '#FFD700',
-              }}>
-                <Text style={{ fontSize: 60 }}>📱</Text>
-                <Text style={{ fontSize: 14, fontWeight: '700', color: '#FFD700', letterSpacing: 3, marginTop: 8 }}>PEDIDO DESDE APP</Text>
-                <Text style={{ fontSize: 48, fontWeight: '900', color: '#fff', marginTop: 4 }}>Mesa {alert.table}</Text>
-                <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 12, padding: 14, marginTop: 12, width: '100%' }}>
-                  <Text style={{ fontSize: 18, color: '#fff', fontWeight: '700', textAlign: 'center' }}>👤 {alert.customer}</Text>
-                  <Text style={{ fontSize: 24, color: '#FFD700', fontWeight: '900', textAlign: 'center', marginTop: 4 }}>{fmt(alert.total)}</Text>
-                </View>
-                <Text style={{ fontSize: 13, color: '#ffffffaa', marginTop: 8 }}>{alert.time}</Text>
-                <TouchableOpacity onPress={() => dismissAlert(alert.id)} style={{ backgroundColor: '#fff', borderRadius: 14, paddingHorizontal: 40, paddingVertical: 16, marginTop: 16, width: '100%', alignItems: 'center' }}>
-                  <Text style={{ fontSize: 18, fontWeight: '900', color: '#FF6B00' }}>VER PEDIDO</Text>
-                </TouchableOpacity>
-              </Animated.View>
-            ))}
-          </ScrollView>
+      {/* Indicador de pedidos de app pendientes */}
+      {appOrderTables.length > 0 && (
+        <View style={{ position: 'absolute', top: 100, right: 16, backgroundColor: '#FF6B00', borderRadius: 12, padding: 10, zIndex: 100, borderWidth: 2, borderColor: '#FFD700' }}>
+          <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }}>📱 {appOrderTables.length} pedido{appOrderTables.length > 1 ? 's' : ''} App</Text>
+          <Text style={{ color: '#FFD700', fontWeight: '600', fontSize: 11 }}>Mesa{appOrderTables.length > 1 ? 's' : ''}: {appOrderTables.join(', ')}</Text>
         </View>
       )}
 
