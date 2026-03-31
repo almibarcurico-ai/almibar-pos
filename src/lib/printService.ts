@@ -1,7 +1,9 @@
 // ESC/POS Print Service
 // Sends print jobs via HTTP to local print server
 
-const PRINT_SERVER = 'http://localhost:3333/print';
+// Si estamos en HTTPS (Vercel), usar el print server HTTPS local
+const isHTTPS = typeof window !== 'undefined' && window.location?.protocol === 'https:';
+const PRINT_SERVER = isHTTPS ? 'https://localhost:3334/print' : 'http://localhost:3333/print';
 
 // Configuración real de impresoras por estación
 // (override sobre lo que venga de BD para evitar problemas de RLS)
