@@ -45,16 +45,41 @@ export default function TableMapScreen({ onOpenOrder, onOpenEditor }: Props) {
     return () => clearInterval(iv);
   }, []);
 
-  // Mesas con pedidos pendientes de app de clientes
+  // Mesas con pedidos pendientes (app cliente o items sin enviar a cocina)
   const [appOrderTables, setAppOrderTables] = useState<number[]>([]);
 
   useEffect(() => {
-    const loadAppOrders = async () => {
-      const { data } = await supabase.from('app_orders').select('table_number').eq('status', 'pendiente');
-      setAppOrderTables((data || []).map((o: any) => o.table_number));
+    const loadPending = async () => {
+      const tableNums = new Set<number>();
+
+      // 1. Pedidos de app_orders pendientes
+      const { data: appOrders } = await supabase.from('app_orders').select('table_number').eq('status', 'pendiente');
+      for (const o of (appOrders || [])) tableNums.add(o.table_number);
+
+      // 2. Items pendientes en orders con nota "pedido desde app"
+      const { data: pendingItems } = await supabase.from('order_items')
+        .select('order_id')
+        .eq('status', 'pendiente')
+        .limit(50);
+
+      if (pendingItems && pendingItems.length > 0) {
+        const orderIds = [...new Set(pendingItems.map((i: any) => i.order_id))];
+        const { data: orders } = await supabase.from('orders')
+          .select('id, table_id, notes')
+          .in('id', orderIds)
+          .like('notes', '%pedido desde app%');
+
+        if (orders && orders.length > 0) {
+          const tableIds = orders.map((o: any) => o.table_id).filter(Boolean);
+          const { data: tbs } = await supabase.from('tables').select('id, number').in('id', tableIds);
+          for (const t of (tbs || [])) tableNums.add(t.number);
+        }
+      }
+
+      setAppOrderTables([...tableNums]);
     };
-    loadAppOrders();
-    const iv = setInterval(loadAppOrders, 3000);
+    loadPending();
+    const iv = setInterval(loadPending, 3000);
     return () => clearInterval(iv);
   }, []);
 
@@ -223,11 +248,12 @@ export default function TableMapScreen({ onOpenOrder, onOpenEditor }: Props) {
       {/* Notificaciones pedidos app */}
       <AppOrdersPanel />
 
-      {/* Indicador de pedidos de app pendientes */}
+      {/* Indicador de pedidos app pendientes */}
       {appOrderTables.length > 0 && (
-        <View style={{ position: 'absolute', top: 100, right: 16, backgroundColor: '#FF6B00', borderRadius: 12, padding: 10, zIndex: 100, borderWidth: 2, borderColor: '#FFD700' }}>
-          <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }}>📱 {appOrderTables.length} pedido{appOrderTables.length > 1 ? 's' : ''} App</Text>
-          <Text style={{ color: '#FFD700', fontWeight: '600', fontSize: 11 }}>Mesa{appOrderTables.length > 1 ? 's' : ''}: {appOrderTables.join(', ')}</Text>
+        <View style={{ position: 'absolute', top: 100, right: 16, backgroundColor: '#FF6B00', borderRadius: 12, padding: 12, zIndex: 100, borderWidth: 2, borderColor: '#FFD700' }}>
+          <Text style={{ color: '#fff', fontWeight: '800', fontSize: 14 }}>📱 {appOrderTables.length} pedido{appOrderTables.length > 1 ? 's' : ''} pendiente{appOrderTables.length > 1 ? 's' : ''}</Text>
+          <Text style={{ color: '#FFD700', fontWeight: '700', fontSize: 12 }}>Mesa{appOrderTables.length > 1 ? 's' : ''}: {appOrderTables.join(', ')}</Text>
+          <Text style={{ color: '#ffffffaa', fontSize: 10, marginTop: 2 }}>Toca la mesa para confirmar</Text>
         </View>
       )}
 
