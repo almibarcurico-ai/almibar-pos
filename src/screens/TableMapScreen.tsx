@@ -48,36 +48,32 @@ export default function TableMapScreen({ onOpenOrder, onOpenEditor }: Props) {
   // Alerta de pedidos nuevos — se queda hasta hacer clic
   const [pendingAlerts, setPendingAlerts] = useState<{ id: string; table: number; items: string[]; waiter: string; time: string }[]>([]);
   const alertPulse = useRef(new Animated.Value(1)).current;
-  const seenOrderIds = useRef(new Set<string>());
+  const lastAlertCheck = useRef(new Date().toISOString());
 
   // Polling cada 3s para detectar items recién enviados a cocina
   useEffect(() => {
     const poll = async () => {
       try {
-        const tenSecsAgo = new Date(Date.now() - 10000).toISOString();
         const { data } = await supabase.from('order_items')
           .select('id, order_id, quantity, product:product_id(name), created_at')
           .eq('status', 'preparando')
-          .gt('created_at', tenSecsAgo)
-          .order('created_at', { ascending: false });
+          .gt('created_at', lastAlertCheck.current)
+          .order('created_at', { ascending: true });
 
         if (!data || data.length === 0) return;
+
+        // Avanzar timestamp
+        lastAlertCheck.current = data[data.length - 1].created_at;
 
         // Agrupar por order_id
         const byOrder: Record<string, any[]> = {};
         for (const item of data) {
-          if (seenOrderIds.current.has(item.id)) continue;
           if (!byOrder[item.order_id]) byOrder[item.order_id] = [];
           byOrder[item.order_id].push(item);
         }
 
         const newAlerts: typeof pendingAlerts = [];
         for (const [orderId, items] of Object.entries(byOrder)) {
-          if (items.length === 0) continue;
-          // Marcar como vistos
-          items.forEach(i => seenOrderIds.current.add(i.id));
-
-          // Obtener mesa y garzon
           const { data: orderData } = await supabase.from('orders').select('waiter_id, table_id').eq('id', orderId).single();
           let tableNum = '?';
           let waiterName = '';
@@ -101,7 +97,6 @@ export default function TableMapScreen({ onOpenOrder, onOpenEditor }: Props) {
 
         if (newAlerts.length > 0) {
           setPendingAlerts(prev => [...newAlerts, ...prev]);
-          // Sonido
           try {
             if (typeof window !== 'undefined') {
               const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -118,12 +113,10 @@ export default function TableMapScreen({ onOpenOrder, onOpenEditor }: Props) {
         }
       } catch {}
     };
-    poll();
     const iv = setInterval(poll, 3000);
     return () => clearInterval(iv);
   }, []);
 
-  // Animación de pulso continuo
   useEffect(() => {
     if (pendingAlerts.length === 0) return;
     const loop = Animated.loop(
