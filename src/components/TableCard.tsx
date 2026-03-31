@@ -18,7 +18,7 @@ export default function TableCard({ table, onPress, onLongPress }: Props) {
 
   return (
     <TouchableOpacity
-      style={[styles.box, { position: 'absolute', left: table.pos_x, top: table.pos_y, backgroundColor: sc + '20', borderColor: sc }]}
+      style={[styles.box, { backgroundColor: sc + '20', borderColor: sc }]}
       onPress={() => onPress(table)}
       onLongPress={() => onLongPress && onLongPress(table)}
       activeOpacity={0.7}

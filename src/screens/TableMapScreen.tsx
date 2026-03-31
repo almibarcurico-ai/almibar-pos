@@ -197,18 +197,13 @@ export default function TableMapScreen({ onOpenOrder, onOpenEditor }: Props) {
         ))}
       </ScrollView>
 
-      {/* Canvas */}
+      {/* Canvas — grid automático */}
       <ScrollView style={s.canvasScroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <View style={[s.canvas, {
-            minHeight: sectorTables.length > 0 ? Math.max(CANVAS_H, Math.max(...sectorTables.map(t => (t.pos_y || 0))) + 140) : CANVAS_H,
-            minWidth: sectorTables.length > 0 ? Math.max(SW - 60, Math.max(...sectorTables.map(t => (t.pos_x || 0))) + 140) : SW - 60,
-          }]}>
-            {sectorTables.map(t => <TableCard key={t.id} table={t} onPress={handleTablePress} onLongPress={handleTableLongPress} />)}
-            {sectorTables.length === 0 && <View style={s.emptyWrap}><Text style={s.emptyT}>No hay mesas en este sector</Text></View>}
-          </View>
-        </ScrollView>
+        <View style={[s.canvas, { flexDirection: 'row', flexWrap: 'wrap', padding: 8, gap: 8 }]}>
+          {sectorTables.map(t => <TableCard key={t.id} table={t} onPress={handleTablePress} onLongPress={handleTableLongPress} />)}
+          {sectorTables.length === 0 && <View style={s.emptyWrap}><Text style={s.emptyT}>No hay mesas en este sector</Text></View>}
+        </View>
       </ScrollView>
 
       {/* Notificaciones pedidos app */}
