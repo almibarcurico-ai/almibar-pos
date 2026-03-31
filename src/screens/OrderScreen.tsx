@@ -27,6 +27,24 @@ function playClickPOS() {
   } catch (e) {}
 }
 
+// Sonido de alerta al enviar comanda
+function playSendAlert() {
+  try {
+    if (typeof window === 'undefined') return;
+    if (!_audioCtx) _audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    // Doble beep agudo
+    [0, 0.15].forEach(delay => {
+      const osc = _audioCtx.createOscillator();
+      const gain = _audioCtx.createGain();
+      osc.connect(gain); gain.connect(_audioCtx.destination);
+      osc.frequency.value = 880; osc.type = 'sine';
+      gain.gain.setValueAtTime(0.08, _audioCtx.currentTime + delay);
+      gain.gain.exponentialRampToValueAtTime(0.001, _audioCtx.currentTime + delay + 0.1);
+      osc.start(_audioCtx.currentTime + delay); osc.stop(_audioCtx.currentTime + delay + 0.1);
+    });
+  } catch (e) {}
+}
+
 interface ModOption { id: string; name: string; price_adjust: number; }
 interface ModGroup { id: string; name: string; type: string; required: boolean; max_select: number; options: ModOption[]; }
 interface CartItem { id: string; product: Product; quantity: number; notes: string; modifiers: ModOption[]; }
@@ -129,35 +147,6 @@ export default function OrderScreen({ table, onBack }: Props) {
   const [modPickerProduct, setModPickerProduct] = useState<Product | null>(null);
   const [modPickerSelections, setModPickerSelections] = useState<Record<string, ModOption[]>>({});
 
-  // Enviar producto directo a cocina (sin carrito)
-  const sendItemDirect = async (product: Product, modifiers: ModOption[] = [], notes: string = '') => {
-    if (!order || !user) return;
-    try {
-      const modAdjust = modifiers.reduce((s, m) => s + m.price_adjust, 0);
-      const modNames = modifiers.length > 0 ? modifiers.map(m => m.name).join(', ') : '';
-      const itemData = { order_id: order.id, product_id: product.id, quantity: 1, unit_price: product.price + modAdjust, total_price: (product.price + modAdjust) * 1, notes: [notes, modNames].filter(Boolean).join(' | ') || null, status: 'pendiente', printed: false, created_by: user.id };
-
-      // Insertar item
-      const { error } = await supabase.from('order_items').insert(itemData);
-      if (error) throw error;
-
-      // Buscar el item recién insertado para obtener el ID
-      const { data: found } = await supabase.from('order_items').select('id').eq('order_id', order.id).eq('product_id', product.id).eq('status', 'pendiente').order('created_at', { ascending: false }).limit(1);
-      const itemId = found?.[0]?.id;
-
-      if (itemId) {
-        // Guardar modificadores
-        if (modifiers.length > 0) {
-          await supabase.from('order_item_modifiers').insert(modifiers.map(m => ({ order_item_id: itemId, option_id: m.id, option_name: m.name, price_adjust: m.price_adjust })));
-        }
-        // Enviar a cocina
-        await supabase.rpc('send_order_and_deduct_stock', { p_item_ids: [itemId] });
-      }
-
-      playClickPOS(); await loadOrder();
-    } catch (e: any) { Alert.alert('Error', e.message); }
-  };
-
   const addToCart = (product: Product) => {
     playClickPOS();
     const groups = productModGroups[product.id];
@@ -167,8 +156,9 @@ export default function OrderScreen({ table, onBack }: Props) {
       setSearchQuery(''); setShowDropdown(false);
       return;
     }
-    // Enviar directo sin carrito
-    sendItemDirect(product);
+    const existing = cart.find(c => c.product.id === product.id && c.notes === '' && c.modifiers.length === 0);
+    if (existing) setCart(prev => prev.map(c => c.id === existing.id ? { ...c, quantity: c.quantity + 1 } : c));
+    else setCart(prev => [...prev, { id: `c-${Date.now()}-${Math.random()}`, product, quantity: 1, notes: '', modifiers: [] }]);
     setSearchQuery(''); setShowDropdown(false);
   };
 
@@ -182,7 +172,10 @@ export default function OrderScreen({ table, onBack }: Props) {
       }
     }
     const allMods = Object.values(modPickerSelections).flat();
-    sendItemDirect(modPickerProduct, allMods);
+    const modKey = allMods.map(m => m.id).sort().join(',');
+    const existing = cart.find(c => c.product.id === modPickerProduct.id && c.modifiers.map(m => m.id).sort().join(',') === modKey);
+    if (existing) setCart(prev => prev.map(c => c.id === existing.id ? { ...c, quantity: c.quantity + 1 } : c));
+    else setCart(prev => [...prev, { id: `c-${Date.now()}-${Math.random()}`, product: modPickerProduct, quantity: 1, notes: '', modifiers: allMods }]);
     setModPickerProduct(null);
   };
 
@@ -226,7 +219,7 @@ export default function OrderScreen({ table, onBack }: Props) {
           printers, categoryPrinters,
         });
       } catch (e) { console.log('Print error:', e); }
-      setCart([]); playClickPOS(); await loadOrder();
+      setCart([]); playSendAlert(); await loadOrder();
     } catch (e: any) { Alert.alert('Error', e.message); }
   };
   const cancelCart = () => { if (cart.length === 0) return; Alert.alert('Cancelar', '¿Descartar?', [{ text: 'No' }, { text: 'Sí', style: 'destructive', onPress: () => setCart([]) }]); };
@@ -301,15 +294,6 @@ export default function OrderScreen({ table, onBack }: Props) {
     await supabase.from('order_items').update({ paid: true }).eq('order_id', order.id).eq('paid', false);
     await supabase.from('orders').update({ status: 'cerrada', closed_at: new Date().toISOString(), payment_method: mainMethod, tip_amount: tipTotalFinal, discount_type: discountType, discount_value: discountAmount, total: unpaidTotal }).eq('id', order.id);
     await supabase.from('tables').update({ status: 'libre', current_order_id: null }).eq('id', table.id);
-
-    // Imprimir boleta en Caja al cerrar mesa
-    try {
-      const allPayments = finalPayEntries.filter(e => (parseInt(e.amount) || 0) > 0).map(e => ({ method: e.method, amount: parseInt(e.amount) || 0 }));
-      await fetch('http://localhost:3333/precuenta', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ table: table.number, waiter: user?.name || '', items: unpaidItems.map(i => ({ name: i.product?.name || '', qty: i.quantity, price: i.unit_price, total: i.total_price })), subtotal: unpaidTotal, tip: tipTotalFinal, total: unpaidTotal + tipTotalFinal, payments: allPayments, orderNumber: order?.order_number }),
-      });
-    } catch (e) { console.error('Error imprimiendo boleta:', e); }
 
     setCloseModal(false); resetPayState();
     // Update client stats if assigned
@@ -391,7 +375,11 @@ export default function OrderScreen({ table, onBack }: Props) {
                   <TouchableOpacity onPress={() => removeFromCart(ci.id)} style={{ padding: 4 }}><Text style={{ fontSize: 14 }}>✕</Text></TouchableOpacity>
                 </View>
               ))}
-              <View style={s.cTotR}><Text style={s.cTotL}>Enviando...</Text></View>
+              <View style={s.cTotR}><Text style={s.cTotL}>Total a confirmar:</Text><Text style={s.cTotV}>{fmt(cartTotal)}</Text></View>
+              <View style={s.cBtns}>
+                <TouchableOpacity style={s.canBtn} onPress={cancelCart}><Text style={s.canBtnT}>Cancelar</Text></TouchableOpacity>
+                <TouchableOpacity style={s.conBtn} onPress={sendCartToKitchen}><Text style={s.conBtnT}>Confirmar y Enviar</Text></TouchableOpacity>
+              </View>
             </View>
           )}
         </View>
@@ -401,6 +389,7 @@ export default function OrderScreen({ table, onBack }: Props) {
           <View style={{ paddingHorizontal: 16, marginTop: 8 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <SecH color={COLORS.warning} title={`Pendientes (${pending.length})`} />
+              <TouchableOpacity style={{ paddingHorizontal: 14, paddingVertical: 8, backgroundColor: COLORS.success, borderRadius: 8 }} onPress={sendOrder}><Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>📤 Enviar</Text></TouchableOpacity>
             </View>
             {pending.map(i => <IR key={i.id} item={i} onRm={removeItem} fmt={fmt} canRm orderCreatedBy={order?.created_by} />)}
           </View>
