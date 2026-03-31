@@ -128,6 +128,7 @@ export default function TableMapScreen({ onOpenOrder, onOpenEditor }: Props) {
 
   const handleOpenTable = async () => {
     if (!selectedTable || !user) return;
+    if (!customerName.trim()) { Alert.alert('', 'Ingresa el nombre del cliente'); return; }
     try {
       const { data: od, error: oe } = await supabase.from('orders').insert({ table_id: selectedTable.id, type: 'mesa', status: 'abierta', waiter_id: user.id, notes: customerName ? `Cliente: ${customerName}` : null, client_id: selectedClient ? selectedClient.id : null }).select().single();
       if (oe) throw oe;
