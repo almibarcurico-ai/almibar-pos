@@ -135,17 +135,25 @@ export default function OrderScreen({ table, onBack }: Props) {
     try {
       const modAdjust = modifiers.reduce((s, m) => s + m.price_adjust, 0);
       const modNames = modifiers.length > 0 ? modifiers.map(m => m.name).join(', ') : '';
-      const items = [{ order_id: order.id, product_id: product.id, quantity: 1, unit_price: product.price + modAdjust, total_price: (product.price + modAdjust) * 1, notes: [notes, modNames].filter(Boolean).join(' | ') || null, status: 'pendiente', printed: false, created_by: user.id }];
-      const { data: inserted, error } = await supabase.from('order_items').insert(items).select('id');
+      const itemData = { order_id: order.id, product_id: product.id, quantity: 1, unit_price: product.price + modAdjust, total_price: (product.price + modAdjust) * 1, notes: [notes, modNames].filter(Boolean).join(' | ') || null, status: 'pendiente', printed: false, created_by: user.id };
+
+      // Insertar item
+      const { error } = await supabase.from('order_items').insert(itemData);
       if (error) throw error;
-      const ids = (inserted || []).map((i: any) => i.id);
-      if (modifiers.length > 0 && ids.length > 0) {
-        await supabase.from('order_item_modifiers').insert(modifiers.map(m => ({ order_item_id: ids[0], option_id: m.id, option_name: m.name, price_adjust: m.price_adjust })));
+
+      // Buscar el item recién insertado para obtener el ID
+      const { data: found } = await supabase.from('order_items').select('id').eq('order_id', order.id).eq('product_id', product.id).eq('status', 'pendiente').order('created_at', { ascending: false }).limit(1);
+      const itemId = found?.[0]?.id;
+
+      if (itemId) {
+        // Guardar modificadores
+        if (modifiers.length > 0) {
+          await supabase.from('order_item_modifiers').insert(modifiers.map(m => ({ order_item_id: itemId, option_id: m.id, option_name: m.name, price_adjust: m.price_adjust })));
+        }
+        // Enviar a cocina
+        await supabase.rpc('send_order_and_deduct_stock', { p_item_ids: [itemId] });
       }
-      if (ids.length > 0) {
-        const { error: re } = await supabase.rpc('send_order_and_deduct_stock', { p_item_ids: ids });
-        if (re) throw re;
-      }
+
       playClickPOS(); await loadOrder();
     } catch (e: any) { Alert.alert('Error', e.message); }
   };
