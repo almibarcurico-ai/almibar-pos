@@ -201,13 +201,15 @@ export default function OrderScreen({ table, onBack }: Props) {
         const modNames = c.modifiers.length > 0 ? c.modifiers.map(m => m.name).join(', ') : '';
         return { order_id: order.id, product_id: c.product.id, quantity: c.quantity, unit_price: c.product.price + modAdjust, total_price: (c.product.price + modAdjust) * c.quantity, notes: [c.notes, modNames].filter(Boolean).join(' | ') || null, status: 'pendiente', printed: false, created_by: user.id };
       });
-      const { data: inserted, error } = await supabase.from('order_items').insert(items).select('id');
+      const { error } = await supabase.from('order_items').insert(items);
       if (error) throw error;
-      const ids = (inserted || []).map((i: any) => i.id);
+      // Buscar los items recién insertados (pendientes de esta orden)
+      const { data: found } = await supabase.from('order_items').select('id').eq('order_id', order.id).eq('status', 'pendiente').order('created_at', { ascending: false }).limit(items.length);
+      const ids = (found || []).map((i: any) => i.id);
       // Save modifier details
       for (let i = 0; i < cart.length; i++) {
-        if (cart[i].modifiers.length > 0 && inserted && inserted[i]) {
-          await supabase.from('order_item_modifiers').insert(cart[i].modifiers.map(m => ({ order_item_id: inserted[i].id, option_id: m.id, option_name: m.name, price_adjust: m.price_adjust })));
+        if (cart[i].modifiers.length > 0 && ids[i]) {
+          await supabase.from('order_item_modifiers').insert(cart[i].modifiers.map(m => ({ order_item_id: ids[i], option_id: m.id, option_name: m.name, price_adjust: m.price_adjust })));
         }
       }
       if (ids.length > 0) { const { error: re } = await supabase.rpc('send_order_and_deduct_stock', { p_item_ids: ids }); if (re) throw re; }
