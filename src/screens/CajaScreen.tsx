@@ -42,8 +42,10 @@ export default function CajaScreen() {
 // =====================================================
 function VentasTab() {
   const [orders, setOrders] = useState<any[]>([]);
-  const [period, setPeriod] = useState<'diario' | 'semanal' | 'mensual'>('diario');
+  const [period, setPeriod] = useState<'diario' | 'semanal' | 'mensual' | 'anual' | 'rango'>('diario');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [rangoDesde, setRangoDesde] = useState(new Date().toISOString().split('T')[0]);
+  const [rangoHasta, setRangoHasta] = useState(new Date().toISOString().split('T')[0]);
   const [filterPago, setFilterPago] = useState('todos');
   const [filterGarzon, setFilterGarzon] = useState('todos');
   const [users, setUsers] = useState<any[]>([]);
@@ -56,7 +58,7 @@ function VentasTab() {
   const [payments, setPayments] = useState<any[]>([]);
 
   useEffect(() => { loadUsers(); }, []);
-  useEffect(() => { load(); }, [period, date]);
+  useEffect(() => { load(); }, [period, date, rangoDesde, rangoHasta]);
 
   const loadUsers = async () => {
     const { data } = await supabase.from('users').select('id, name').order('name');
@@ -77,11 +79,21 @@ function VentasTab() {
       const end = new Date(start); end.setDate(end.getDate() + 7);
       since = start.toISOString().split('T')[0];
       until = end.toISOString().split('T')[0];
-    } else {
+    } else if (period === 'mensual') {
       const start = new Date(d.getFullYear(), d.getMonth(), 1);
       const end = new Date(d.getFullYear(), d.getMonth() + 1, 1);
       since = start.toISOString().split('T')[0];
       until = end.toISOString().split('T')[0];
+    } else if (period === 'anual') {
+      const start = new Date(d.getFullYear(), 0, 1);
+      const end = new Date(d.getFullYear() + 1, 0, 1);
+      since = start.toISOString().split('T')[0];
+      until = end.toISOString().split('T')[0];
+    } else if (period === 'rango') {
+      since = rangoDesde;
+      const h = new Date(rangoHasta + 'T00:00:00');
+      h.setDate(h.getDate() + 1);
+      until = h.toISOString().split('T')[0];
     }
 
     // Mesa orders
@@ -139,10 +151,12 @@ function VentasTab() {
   };
 
   const changeDate = (dir: number) => {
+    if (period === 'rango') return;
     const d = new Date(date + 'T12:00:00');
     if (period === 'diario') d.setDate(d.getDate() + dir);
     else if (period === 'semanal') d.setDate(d.getDate() + (dir * 7));
-    else d.setMonth(d.getMonth() + dir);
+    else if (period === 'mensual') d.setMonth(d.getMonth() + dir);
+    else if (period === 'anual') d.setFullYear(d.getFullYear() + dir);
     setDate(d.toISOString().split('T')[0]);
   };
 
@@ -150,6 +164,8 @@ function VentasTab() {
     const d = new Date(date + 'T12:00:00');
     if (period === 'diario') return d.toLocaleDateString('es-CL', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
     if (period === 'semanal') return `Semana del ${d.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}`;
+    if (period === 'anual') return String(d.getFullYear());
+    if (period === 'rango') return `${rangoDesde} → ${rangoHasta}`;
     return d.toLocaleDateString('es-CL', { month: 'long', year: 'numeric' });
   };
 
@@ -159,18 +175,27 @@ function VentasTab() {
       <View style={s.filterBar}>
         {/* Period selector */}
         <View style={s.filterRow}>
-          {(['diario', 'semanal', 'mensual'] as const).map(p => (
+          {(['diario', 'semanal', 'mensual', 'anual', 'rango'] as const).map(p => (
             <TouchableOpacity key={p} style={[s.fChip, period === p && s.fChipA]} onPress={() => setPeriod(p)}>
               <Text style={[s.fChipT, period === p && s.fChipTA]}>{p.charAt(0).toUpperCase() + p.slice(1)}</Text>
             </TouchableOpacity>
           ))}
         </View>
         {/* Date nav */}
-        <View style={s.dateNav}>
-          <TouchableOpacity onPress={() => changeDate(-1)} style={s.dateBtn}><Text style={s.dateBtnT}>◀</Text></TouchableOpacity>
-          <Text style={s.dateLabel}>{dateLabel()}</Text>
-          <TouchableOpacity onPress={() => changeDate(1)} style={s.dateBtn}><Text style={s.dateBtnT}>▶</Text></TouchableOpacity>
-        </View>
+        {period === 'rango' ? (
+          <View style={[s.dateNav, { gap: 8 }]}>
+            <Text style={{ fontSize: 12, color: COLORS.textSecondary }}>Desde:</Text>
+            <TextInput style={[s.fChip, { paddingHorizontal: 10, fontSize: 13, color: COLORS.text, minWidth: 120, textAlign: 'center' }]} value={rangoDesde} onChangeText={setRangoDesde} placeholder="YYYY-MM-DD" placeholderTextColor={COLORS.textMuted} />
+            <Text style={{ fontSize: 12, color: COLORS.textSecondary }}>Hasta:</Text>
+            <TextInput style={[s.fChip, { paddingHorizontal: 10, fontSize: 13, color: COLORS.text, minWidth: 120, textAlign: 'center' }]} value={rangoHasta} onChangeText={setRangoHasta} placeholder="YYYY-MM-DD" placeholderTextColor={COLORS.textMuted} />
+          </View>
+        ) : (
+          <View style={s.dateNav}>
+            <TouchableOpacity onPress={() => changeDate(-1)} style={s.dateBtn}><Text style={s.dateBtnT}>◀</Text></TouchableOpacity>
+            <Text style={s.dateLabel}>{dateLabel()}</Text>
+            <TouchableOpacity onPress={() => changeDate(1)} style={s.dateBtn}><Text style={s.dateBtnT}>▶</Text></TouchableOpacity>
+          </View>
+        )}
         {/* Filters */}
         <View style={s.filterRow}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
