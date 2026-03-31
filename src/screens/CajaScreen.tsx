@@ -133,14 +133,22 @@ function VentasTab() {
     // En modo turno, incluir órdenes abiertas
     let openOrders: any[] = [];
     if (period === 'turno') {
-      const { data: openData } = await supabase.from('orders').select('*, table:table_id(number), order_items(total_price)').eq('status', 'abierta').gte('created_at', since!).order('created_at', { ascending: false });
+      const { data: openData } = await supabase.from('orders').select('*, order_items(total_price)').eq('status', 'abierta').gte('opened_at', since!).order('opened_at', { ascending: false });
+      // Obtener números de mesa para órdenes abiertas
+      const openTableIds = (openData || []).map((o: any) => o.table_id).filter(Boolean);
+      let tableMap: Record<string, number> = {};
+      if (openTableIds.length > 0) {
+        const { data: tbs } = await supabase.from('tables').select('id, number').in('id', openTableIds);
+        for (const t of (tbs || [])) tableMap[t.id] = t.number;
+      }
       openOrders = (openData || []).map((o: any) => ({
-        ...o, _type: 'mesa', _open: true, table_number: o.table?.number || null,
+        ...o, _type: 'mesa', _open: true, table_number: tableMap[o.table_id] || null,
         total: (o.order_items || []).reduce((a: number, i: any) => a + (i.total_price || 0), 0),
+        waiter_id: o.waiter_id,
       }));
     }
 
-    const allOrders = [...openOrders, ...mesaOrders, ...delivOrders].sort((a, b) => new Date(b.closed_at || b.created_at).getTime() - new Date(a.closed_at || a.created_at).getTime());
+    const allOrders = [...openOrders, ...mesaOrders, ...delivOrders].sort((a, b) => new Date(b.closed_at || b.opened_at || 0).getTime() - new Date(a.closed_at || a.opened_at || 0).getTime());
     setOrders(allOrders);
 
     // Load payments for mesa orders

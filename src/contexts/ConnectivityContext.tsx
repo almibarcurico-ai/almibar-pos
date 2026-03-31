@@ -3,6 +3,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { syncFromServer, syncPendingOps, getPendingOps } from '../lib/offlineStore';
+import { supabase } from '../lib/supabase';
 
 interface ConnectivityContextType {
   isOnline: boolean;
@@ -35,18 +36,8 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
   // Verificar conectividad cada 10 segundos
   const checkConnectivity = useCallback(async () => {
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 5000);
-      const res = await fetch('https://czdnllosfvakyibdijmb.supabase.co/rest/v1/', {
-        method: 'HEAD',
-        signal: controller.signal,
-        headers: {
-          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN6ZG5sbG9zZnZha3lpYmRpam1iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyODE2OTYsImV4cCI6MjA4OTg1NzY5Nn0.Xjkpx2exJXmJb3yIv81uiwvlnNMvhd2gMRdPY4S4UJA',
-        },
-      });
-      clearTimeout(timeout);
-
-      if (res.ok) {
+      const { error } = await supabase.from('sectors').select('id').limit(1);
+      if (!error) {
         const wasOffline = !isOnline;
         setIsOnline(true);
         setIsOfflineMode(false);
