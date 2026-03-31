@@ -151,8 +151,15 @@ export default function AppOrdersPanel() {
         created_by: user.id,
       }));
 
-      const { error: insertErr } = await supabase.from('order_items').insert(realItems);
+      const { data: insertedItems, error: insertErr } = await supabase.from('order_items').insert(realItems).select('id');
       if (insertErr) throw insertErr;
+
+      // Enviar a cocina/barra (cambiar a preparando)
+      const itemIds = (insertedItems || []).map((i: any) => i.id);
+      if (itemIds.length > 0) {
+        const { error: rpcErr } = await supabase.rpc('send_order_and_deduct_stock', { p_item_ids: itemIds });
+        if (rpcErr) throw rpcErr;
+      }
 
       // Marcar app_order como confirmado
       await supabase.from('app_orders').update({

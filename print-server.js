@@ -26,7 +26,7 @@ const CMD = {
   DOUBLE_BOTH: GS+'!\x11', SIZE_UP: GS+'!\x01', NORMAL: GS+'!\x00',
   FONT_A: ESC+'M\x00',
   CUT: GS+'V\x00',
-  LINE: '\u2500'.repeat(32)+'\n', DLINE: '\u2550'.repeat(32)+'\n',
+  LINE: '-'.repeat(32)+'\n', DLINE: '='.repeat(32)+'\n',
   LINE_SPACING_TIGHT: ESC+'3\x10',
   LINE_SPACING_WIDE: ESC+'3\x3C',
   LINE_SPACING_DEFAULT: ESC+'2',
