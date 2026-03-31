@@ -453,11 +453,97 @@ if (fs.existsSync(certPath) && fs.existsSync(keyPath)) {
 // Cargar mapeos e iniciar polling
 loadPrinterMappings();
 
+// =============================================
+// Polling: auto-procesar items de app cliente
+// Items pendientes → enviar a cocina (el poll normal los imprime)
+// =============================================
+const APP_USER_ID = 'a0000000-0000-0000-0000-000000000099';
+
+async function pollAppItems() {
+  try {
+    const { data: items } = await supabase
+      .from('order_items')
+      .select('id')
+      .eq('status', 'pendiente')
+      .eq('created_by', APP_USER_ID);
+
+    if (!items || items.length === 0) return;
+
+    const ids = items.map(i => i.id);
+    console.log('\n📱 App: ' + ids.length + ' items pendientes → enviando a cocina');
+    const { error } = await supabase.rpc('send_order_and_deduct_stock', { p_item_ids: ids });
+    if (error) console.log('  ❌ RPC error: ' + error.message);
+    else {
+      // Forzar que el poll normal los encuentre ahora
+      // Retroceder lastCheckTime 10 segundos para capturar items recién cambiados
+      const tenSecsAgo = new Date(Date.now() - 10000).toISOString();
+      if (lastCheckTime > tenSecsAgo) lastCheckTime = tenSecsAgo;
+      saveLastCheckTime(lastCheckTime);
+      console.log('  ✅ Enviados a cocina, poll los imprimirá');
+    }
+  } catch (e) {
+    // silenciar
+  }
+}
+
+// =============================================
+// Polling: notificaciones app (llamar garzón, pedir cuenta)
+// =============================================
+async function pollAppNotifications() {
+  try {
+    const { data: notifs } = await supabase
+      .from('app_orders')
+      .select('id, table_number, customer_name, created_at')
+      .eq('status', 'pendiente');
+
+    if (!notifs || notifs.length === 0) return;
+
+    for (const notif of notifs) {
+      const isLlamada = notif.customer_name && notif.customer_name.includes('LLAMADA GARZON');
+      const isCuenta = notif.customer_name && notif.customer_name.includes('PEDIR CUENTA');
+
+      if (isLlamada || isCuenta) {
+        const tipo = isLlamada ? 'LLAMADA GARZON' : 'PEDIR CUENTA';
+        const time = new Date(notif.created_at).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+
+        const ticket = CMD.INIT + CMD.FONT_A + CMD.MARGIN_LEFT + CMD.PRINT_WIDTH
+          + CMD.CENTER + CMD.BOLD_ON + CMD.DOUBLE_BOTH
+          + tipo + '\n'
+          + CMD.SIZE_UP + CMD.BOLD_OFF + CMD.LEFT
+          + CMD.LINE
+          + '  Mesa: ' + notif.table_number + '\n'
+          + '  Hora: ' + time + '\n'
+          + CMD.LINE
+          + CMD.CENTER + CMD.BOLD_ON + CMD.SIZE_UP
+          + (isLlamada ? 'Acercarse a la mesa\n' : 'Llevar cuenta a mesa\n')
+          + CMD.BOLD_OFF + CMD.NORMAL
+          + '\n\n\n\n\n\n'
+          + CMD.CUT;
+
+        const printer = PRINTER_IPS.barra;
+        console.log('\n📱 ' + tipo + ': Mesa ' + notif.table_number);
+        queuePrint('Barra (notif)', printer.ip, printer.port, ticket);
+      }
+    }
+
+    // Marcar todas como confirmadas
+    await supabase.from('app_orders').update({
+      status: 'confirmado',
+      confirmed_at: new Date().toISOString(),
+    }).eq('status', 'pendiente');
+  } catch (e) {
+    // silenciar
+  }
+}
+
 // Polling loop — busca items nuevos cada 3 segundos
 (function startPolling() {
   console.log('  🔄 Polling order_items: iniciado');
+  console.log('  🔄 Polling app items + notificaciones: iniciado');
   async function loop() {
+    await pollAppItems();
     await pollNewItems();
+    await pollAppNotifications();
     setTimeout(loop, 3000);
   }
   loop();
