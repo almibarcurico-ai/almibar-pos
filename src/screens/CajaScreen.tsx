@@ -546,7 +546,7 @@ function ArqueosTab() {
   const loadData = async () => {
     try {
       const today = new Date().toISOString().split('T')[0];
-      const { data: cajas } = await supabase.from('cash_registers').select('*').gte('opened_at', today).is('closed_at', null).order('opened_at', { ascending: false }).limit(1);
+      const { data: cajas } = await supabase.from('cash_registers').select('*').is('closed_at', null).order('opened_at', { ascending: false }).limit(1);
       const caja = cajas?.[0] || null;
       setCashRegister(caja);
 
@@ -611,7 +611,21 @@ function ArqueosTab() {
 
   const handleOpen = async () => {
     if (!user) return;
-    const { data, error } = await supabase.from('cash_registers').insert({ opened_by: user.id, opening_amount: parseInt(openingAmount) || 0, opened_at: new Date(openFecha + 'T' + openHora + ':00').toISOString() }).select().single();
+
+    // Validar que no haya un arqueo abierto
+    if (cashRegister) { Alert.alert('Error', 'Ya hay un arqueo abierto. Ciérralo antes de abrir uno nuevo.'); return; }
+
+    // Validar que la fecha/hora no sea anterior al último cierre
+    const openDateTime = new Date(openFecha + 'T' + openHora + ':00');
+    if (historial.length > 0) {
+      const lastClose = new Date(historial[0].closed_at);
+      if (openDateTime <= lastClose) {
+        Alert.alert('Error', 'La fecha/hora de apertura debe ser posterior al último cierre (' + lastClose.toLocaleString('es-CL') + ')');
+        return;
+      }
+    }
+
+    const { data, error } = await supabase.from('cash_registers').insert({ opened_by: user.id, opening_amount: parseInt(openingAmount) || 0, opened_at: openDateTime.toISOString() }).select().single();
     if (error) { Alert.alert('Error', error.message); return; }
     setCashRegister(data); setOpenModal(false); setOpeningAmount(''); setOpenFecha(new Date().toISOString().split('T')[0]); setOpenHora(new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false }));
     Alert.alert('✅ Arqueo iniciado'); await loadData();
