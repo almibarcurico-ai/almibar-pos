@@ -218,81 +218,114 @@ async function loadPrinterMappings() {
 
 // =============================================
 // Realtime: escuchar cambios en order_items
-// Cuando items cambian a "preparando", imprimir comanda
+// Detecta items con status=preparando que no se han impreso
+// No depende de payload.old (REPLICA IDENTITY DEFAULT)
 // =============================================
-const recentlyPrinted = new Set(); // evitar duplicados
+const recentlyPrinted = new Set();
+let pendingOrderIds = new Set();
+let printTimer = null;
 
 supabase.channel('items-changes')
   .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'order_items' }, async (payload) => {
     const item = payload.new;
-    const oldItem = payload.old;
 
-    // Solo cuando cambia a "preparando" (recién enviado)
-    if (item.status === 'preparando' && oldItem.status === 'pendiente') {
+    // Solo items que están en "preparando" y no impresos
+    if (item.status === 'preparando' && !item.printed) {
       if (recentlyPrinted.has(item.id)) return;
       recentlyPrinted.add(item.id);
-      setTimeout(() => recentlyPrinted.delete(item.id), 10000);
+      setTimeout(() => recentlyPrinted.delete(item.id), 30000);
 
-      // Esperar un poco para agrupar items que se envían juntos
-      setTimeout(async () => {
-        try {
-          // Buscar la orden y todos los items recién enviados
-          const { data: order } = await supabase
-            .from('orders')
-            .select('*, table:tables(number), order_items(*, product:products(name, category_id), modifiers:order_item_modifiers(option_name))')
-            .eq('id', item.order_id)
-            .single();
+      // Acumular order_id para agrupar
+      pendingOrderIds.add(item.order_id);
 
-          if (!order) return;
-
-          const { data: waiter } = await supabase.from('users').select('name').eq('id', order.created_by).single();
-
-          // Filtrar items recién enviados (los que están en recentlyPrinted)
-          const newItems = (order.order_items || []).filter(i => recentlyPrinted.has(i.id));
-          if (newItems.length === 0) return;
-
-          // Agrupar por estación de impresora
-          const byStation = {};
-          for (const oi of newItems) {
-            const catId = oi.product?.category_id;
-            const stations = categoryPrinterMap[catId] || [];
-            for (const station of stations) {
-              if (!byStation[station]) byStation[station] = [];
-              byStation[station].push(oi);
-            }
-          }
-
-          const tableNum = order.table?.number || '?';
-          console.log('\n🖨️  Comanda Mesa ' + tableNum + ' — ' + newItems.length + ' items');
-
-          for (const [station, items] of Object.entries(byStation)) {
-            const printer = PRINTER_IPS[station];
-            if (!printer) { console.log('  ⚠️ No hay impresora para estación: ' + station); continue; }
-
-            const ticket = generateComanda({
-              table: tableNum,
-              waiter: waiter?.name || '',
-              station: station,
-              items: items.map(i => ({
-                name: i.product?.name || 'Item',
-                qty: i.quantity,
-                notes: i.notes || undefined,
-                modifiers: (i.modifiers || []).map(m => m.option_name),
-              })),
-              orderNumber: order.order_number,
-            });
-
-            queuePrint(station.charAt(0).toUpperCase() + station.slice(1), printer.ip, printer.port, ticket);
-          }
-        } catch (e) {
-          console.log('  ❌ Error comanda: ' + e.message);
-        }
-      }, 1500); // esperar 1.5s para agrupar
+      // Debounce: esperar 2s para agrupar items del mismo envío
+      if (printTimer) clearTimeout(printTimer);
+      printTimer = setTimeout(() => processNewItems(), 2000);
+    }
+  })
+  .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'order_items' }, async (payload) => {
+    const item = payload.new;
+    // Items nuevos insertados directamente con status preparando
+    if (item.status === 'preparando' && !item.printed) {
+      if (recentlyPrinted.has(item.id)) return;
+      recentlyPrinted.add(item.id);
+      setTimeout(() => recentlyPrinted.delete(item.id), 30000);
+      pendingOrderIds.add(item.order_id);
+      if (printTimer) clearTimeout(printTimer);
+      printTimer = setTimeout(() => processNewItems(), 2000);
     }
   })
   .subscribe((status) => {
     console.log('  🔔 Realtime order_items: ' + status);
   });
+
+async function processNewItems() {
+  const orderIds = [...pendingOrderIds];
+  pendingOrderIds = new Set();
+
+  for (const orderId of orderIds) {
+    try {
+      // Buscar la orden con items no impresos en status preparando
+      const { data: order } = await supabase
+        .from('orders')
+        .select('*, table:tables(number), order_items(*, product:products(name, category_id), modifiers:order_item_modifiers(option_name))')
+        .eq('id', orderId)
+        .single();
+
+      if (!order) continue;
+
+      // Filtrar solo items recién enviados (preparando + no impresos + en nuestro set)
+      const newItems = (order.order_items || []).filter(i =>
+        i.status === 'preparando' && !i.printed && recentlyPrinted.has(i.id)
+      );
+      if (newItems.length === 0) continue;
+
+      const { data: waiter } = await supabase.from('users').select('name').eq('id', order.created_by).single();
+
+      // Agrupar por estación de impresora
+      const byStation = {};
+      for (const oi of newItems) {
+        const catId = oi.product?.category_id;
+        const stations = categoryPrinterMap[catId] || [];
+        for (const station of stations) {
+          if (!byStation[station]) byStation[station] = [];
+          byStation[station].push(oi);
+        }
+      }
+
+      const tableNum = order.table?.number || '?';
+      console.log('\n🖨️  Comanda Realtime Mesa ' + tableNum + ' — ' + newItems.length + ' items');
+
+      for (const [station, items] of Object.entries(byStation)) {
+        const printer = PRINTER_IPS[station];
+        if (!printer) { console.log('  ⚠️ No hay impresora para: ' + station); continue; }
+
+        const ticket = generateComanda({
+          table: tableNum,
+          waiter: waiter?.name || '',
+          station: station,
+          items: items.map(i => ({
+            name: i.product?.name || 'Item',
+            qty: i.quantity,
+            notes: i.notes || undefined,
+            modifiers: (i.modifiers || []).map(m => m.option_name),
+          })),
+          orderNumber: order.order_number,
+        });
+
+        queuePrint(station.charAt(0).toUpperCase() + station.slice(1), printer.ip, printer.port, ticket);
+      }
+
+      // Marcar items como impresos
+      const itemIds = newItems.map(i => i.id);
+      await supabase.from('order_items').update({ printed: true }).in('id', itemIds);
+      console.log('  📝 ' + itemIds.length + ' items marcados como impresos');
+
+    } catch (e) {
+      console.log('  ❌ Error comanda realtime: ' + e.message);
+    }
+  }
+}
 
 // =============================================
 // Realtime: escuchar cambios en tablas
