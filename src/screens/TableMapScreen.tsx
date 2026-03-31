@@ -31,6 +31,19 @@ export default function TableMapScreen({ onOpenOrder, onOpenEditor }: Props) {
   const [customerCount, setCustomerCount] = useState('2');
   const [clientSuggestions, setClientSuggestions] = useState<any[]>([]);
   const [selectedClient, setSelectedClient] = useState<any>(null);
+  const [printServerOk, setPrintServerOk] = useState(true);
+
+  // Health check del print server cada 15 segundos
+  useEffect(() => {
+    const check = () => {
+      fetch('http://localhost:3333/status', { signal: AbortSignal.timeout(3000) })
+        .then(r => r.json()).then(() => setPrintServerOk(true))
+        .catch(() => setPrintServerOk(false));
+    };
+    check();
+    const iv = setInterval(check, 15000);
+    return () => clearInterval(iv);
+  }, []);
 
   const searchClients = async (text: string) => {
     setCustomerName(text);
@@ -153,7 +166,11 @@ export default function TableMapScreen({ onOpenOrder, onOpenEditor }: Props) {
       <View style={s.header}>
         <View>
           <Text style={s.hTitle}>ALMÍBAR POS</Text>
-          <Text style={s.hUser}>{user?.name} • {user?.role.toUpperCase()}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Text style={s.hUser}>{user?.name} • {user?.role.toUpperCase()}</Text>
+            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: printServerOk ? '#4CAF50' : '#F44336' }} />
+            {!printServerOk && <Text style={{ fontSize: 10, color: '#F44336', fontWeight: '700' }}>SIN IMPRESORA</Text>}
+          </View>
         </View>
         <View style={{ flexDirection: 'row', gap: 8 }}>
           {user?.role === 'admin' && (
