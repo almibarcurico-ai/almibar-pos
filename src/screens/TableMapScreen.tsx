@@ -45,60 +45,99 @@ export default function TableMapScreen({ onOpenOrder, onOpenEditor }: Props) {
     return () => clearInterval(iv);
   }, []);
 
-  // Alerta de pedido nuevo
-  const [newOrderAlert, setNewOrderAlert] = useState<{ table: number; items: number; waiter: string } | null>(null);
-  const alertAnim = useRef(new Animated.Value(0)).current;
-  const alertScale = useRef(new Animated.Value(0.5)).current;
-  const lastItemCount = useRef(0);
+  // Alerta de pedidos nuevos — se queda hasta hacer clic
+  const [pendingAlerts, setPendingAlerts] = useState<{ id: string; table: number; items: string[]; waiter: string; time: string }[]>([]);
+  const alertPulse = useRef(new Animated.Value(1)).current;
+  const seenOrderIds = useRef(new Set<string>());
 
-  // Detectar items nuevos enviados (preparando)
+  // Polling cada 3s para detectar items recién enviados a cocina
   useEffect(() => {
-    const checkNewOrders = async () => {
+    const poll = async () => {
       try {
-        const fiveSecsAgo = new Date(Date.now() - 5000).toISOString();
+        const tenSecsAgo = new Date(Date.now() - 10000).toISOString();
         const { data } = await supabase.from('order_items')
-          .select('id, order_id, orders!inner(table_id, tables!inner(number), waiter:created_by(name))')
+          .select('id, order_id, quantity, product:product_id(name), created_at')
           .eq('status', 'preparando')
-          .gt('created_at', fiveSecsAgo);
-        if (data && data.length > 0 && data.length !== lastItemCount.current) {
-          lastItemCount.current = data.length;
-          const first = data[0] as any;
-          const tableNum = first.orders?.tables?.number || '?';
-          const waiterName = first.orders?.waiter?.name || '';
-          showAlert({ table: tableNum, items: data.length, waiter: waiterName });
+          .gt('created_at', tenSecsAgo)
+          .order('created_at', { ascending: false });
+
+        if (!data || data.length === 0) return;
+
+        // Agrupar por order_id
+        const byOrder: Record<string, any[]> = {};
+        for (const item of data) {
+          if (seenOrderIds.current.has(item.id)) continue;
+          if (!byOrder[item.order_id]) byOrder[item.order_id] = [];
+          byOrder[item.order_id].push(item);
+        }
+
+        const newAlerts: typeof pendingAlerts = [];
+        for (const [orderId, items] of Object.entries(byOrder)) {
+          if (items.length === 0) continue;
+          // Marcar como vistos
+          items.forEach(i => seenOrderIds.current.add(i.id));
+
+          // Obtener mesa y garzon
+          const { data: orderData } = await supabase.from('orders').select('waiter_id, table_id').eq('id', orderId).single();
+          let tableNum = '?';
+          let waiterName = '';
+          if (orderData?.table_id) {
+            const { data: t } = await supabase.from('tables').select('number').eq('id', orderData.table_id).single();
+            if (t) tableNum = String(t.number);
+          }
+          if (orderData?.waiter_id) {
+            const { data: w } = await supabase.from('users').select('name').eq('id', orderData.waiter_id).single();
+            if (w) waiterName = w.name;
+          }
+
+          newAlerts.push({
+            id: orderId + '-' + Date.now(),
+            table: Number(tableNum),
+            items: items.map((i: any) => i.quantity + 'x ' + ((i.product as any)?.name || '?')),
+            waiter: waiterName,
+            time: new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }),
+          });
+        }
+
+        if (newAlerts.length > 0) {
+          setPendingAlerts(prev => [...newAlerts, ...prev]);
+          // Sonido
+          try {
+            if (typeof window !== 'undefined') {
+              const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+              [0, 0.15, 0.3, 0.45, 0.6].forEach(d => {
+                const o = ctx.createOscillator(); const g = ctx.createGain();
+                o.connect(g); g.connect(ctx.destination);
+                o.frequency.value = d < 0.3 ? 880 : 1100; o.type = 'sine';
+                g.gain.setValueAtTime(0.2, ctx.currentTime + d);
+                g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + d + 0.12);
+                o.start(ctx.currentTime + d); o.stop(ctx.currentTime + d + 0.12);
+              });
+            }
+          } catch {}
         }
       } catch {}
     };
-    const iv = setInterval(checkNewOrders, 4000);
+    poll();
+    const iv = setInterval(poll, 3000);
     return () => clearInterval(iv);
   }, []);
 
-  const showAlert = (info: { table: number; items: number; waiter: string }) => {
-    setNewOrderAlert(info);
-    alertAnim.setValue(1);
-    alertScale.setValue(0.5);
-    Animated.parallel([
-      Animated.spring(alertScale, { toValue: 1, friction: 4, tension: 100, useNativeDriver: true }),
+  // Animación de pulso continuo
+  useEffect(() => {
+    if (pendingAlerts.length === 0) return;
+    const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(alertAnim, { toValue: 1, duration: 0, useNativeDriver: true }),
-        Animated.delay(3000),
-        Animated.timing(alertAnim, { toValue: 0, duration: 500, useNativeDriver: true }),
-      ]),
-    ]).start(() => setNewOrderAlert(null));
-    // Sonido
-    try {
-      if (typeof window !== 'undefined') {
-        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-        [0, 0.2, 0.4].forEach(d => {
-          const o = ctx.createOscillator(); const g = ctx.createGain();
-          o.connect(g); g.connect(ctx.destination);
-          o.frequency.value = 880; o.type = 'sine';
-          g.gain.setValueAtTime(0.15, ctx.currentTime + d);
-          g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + d + 0.15);
-          o.start(ctx.currentTime + d); o.stop(ctx.currentTime + d + 0.15);
-        });
-      }
-    } catch {}
+        Animated.timing(alertPulse, { toValue: 1.05, duration: 500, useNativeDriver: true }),
+        Animated.timing(alertPulse, { toValue: 0.95, duration: 500, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pendingAlerts.length > 0]);
+
+  const dismissAlert = (id: string) => {
+    setPendingAlerts(prev => prev.filter(a => a.id !== id));
   };
 
   const searchClients = async (text: string) => {
@@ -266,21 +305,32 @@ export default function TableMapScreen({ onOpenOrder, onOpenEditor }: Props) {
       {/* Notificaciones pedidos app */}
       <AppOrdersPanel />
 
-      {/* Alerta de pedido nuevo */}
-      {newOrderAlert && (
-        <Animated.View style={{
-          position: 'absolute', top: '30%', left: '50%', marginLeft: -160,
-          width: 320, backgroundColor: '#FF6B00', borderRadius: 20, padding: 24,
-          alignItems: 'center', zIndex: 999, elevation: 20,
-          shadowColor: '#FF6B00', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.5, shadowRadius: 16,
-          opacity: alertAnim, transform: [{ scale: alertScale }],
-        }}>
-          <Text style={{ fontSize: 50 }}>🔔</Text>
-          <Text style={{ fontSize: 24, fontWeight: '900', color: '#fff', marginTop: 8 }}>PEDIDO NUEVO</Text>
-          <Text style={{ fontSize: 36, fontWeight: '900', color: '#fff', marginTop: 4 }}>Mesa {newOrderAlert.table}</Text>
-          <Text style={{ fontSize: 16, color: '#ffffffcc', marginTop: 4 }}>{newOrderAlert.items} producto{newOrderAlert.items > 1 ? 's' : ''} enviado{newOrderAlert.items > 1 ? 's' : ''}</Text>
-          {newOrderAlert.waiter ? <Text style={{ fontSize: 14, color: '#ffffffaa', marginTop: 2 }}>por {newOrderAlert.waiter}</Text> : null}
-        </Animated.View>
+      {/* Alertas de pedidos nuevos — se quedan hasta hacer clic */}
+      {pendingAlerts.length > 0 && (
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 998, justifyContent: 'center', alignItems: 'center' }}>
+          {pendingAlerts.map((alert, idx) => (
+            <Animated.View key={alert.id} style={{
+              transform: [{ scale: idx === 0 ? alertPulse : 1 }],
+              width: 380, backgroundColor: '#FF6B00', borderRadius: 20, padding: 24,
+              alignItems: 'center', marginBottom: 12,
+              shadowColor: '#FF6B00', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.5, shadowRadius: 16,
+              borderWidth: 3, borderColor: '#fff',
+            }}>
+              <Text style={{ fontSize: 50 }}>🔔</Text>
+              <Text style={{ fontSize: 28, fontWeight: '900', color: '#fff', marginTop: 8 }}>PEDIDO NUEVO</Text>
+              <Text style={{ fontSize: 42, fontWeight: '900', color: '#fff', marginTop: 4 }}>Mesa {alert.table}</Text>
+              <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 10, padding: 12, marginTop: 10, width: '100%' }}>
+                {alert.items.map((item, i) => (
+                  <Text key={i} style={{ fontSize: 16, color: '#fff', fontWeight: '600', textAlign: 'center' }}>{item}</Text>
+                ))}
+              </View>
+              <Text style={{ fontSize: 14, color: '#ffffffbb', marginTop: 8 }}>{alert.waiter} — {alert.time}</Text>
+              <TouchableOpacity onPress={() => dismissAlert(alert.id)} style={{ backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 32, paddingVertical: 14, marginTop: 16 }}>
+                <Text style={{ fontSize: 16, fontWeight: '800', color: '#FF6B00' }}>OK — Recibido</Text>
+              </TouchableOpacity>
+            </Animated.View>
+          ))}
+        </View>
       )}
 
       {/* Modal */}
