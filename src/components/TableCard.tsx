@@ -40,8 +40,8 @@ export default function TableCard({ table, onPress, onLongPress }: Props) {
 }
 
 const styles = StyleSheet.create({
-  box: { width: 100, height: 90, borderRadius: 12, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
-  num: { fontSize: 26, fontWeight: '800' },
+  box: { width: 80, height: 70, borderRadius: 10, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  num: { fontSize: 22, fontWeight: '800' },
   status: { fontSize: 10, color: COLORS.textSecondary, textTransform: 'uppercase' },
   total: { fontSize: 12, fontWeight: '700', color: COLORS.primary, textAlign: 'center' },
   waiter: { fontSize: 9, color: COLORS.textSecondary, textAlign: 'center' },
