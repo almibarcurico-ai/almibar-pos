@@ -1,9 +1,10 @@
 // App.tsx — Role-based tab navigation
 
 import React, { useState } from 'react';
-import { View, StyleSheet, ActivityIndicator, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, Dimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
+import { ConnectivityProvider, useConnectivity } from './src/contexts/ConnectivityContext';
 import LoginScreen from './src/screens/LoginScreen';
 import TableMapScreen from './src/screens/TableMapScreen';
 import OrderScreen from './src/screens/OrderScreen';
@@ -22,6 +23,18 @@ type DetailScreen =
   | { type: 'editor' }
   | { type: 'inventory'; sub: string }
   | null;
+
+function OfflineBanner() {
+  const { isOnline, isOfflineMode, pendingOpsCount, isSyncing } = useConnectivity();
+  if (isOnline && !isSyncing && pendingOpsCount === 0) return null;
+  return (
+    <View style={{ backgroundColor: !isOnline ? '#F44336' : isSyncing ? '#FF9800' : '#4CAF50', paddingVertical: 4, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+      <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>
+        {!isOnline ? '📴 SIN CONEXIÓN — Modo offline activo' : isSyncing ? '🔄 Sincronizando...' : `✅ ${pendingOpsCount} operaciones pendientes`}
+      </Text>
+    </View>
+  );
+}
 
 function AppContent() {
   const { user, loading } = useAuth();
@@ -74,6 +87,7 @@ function AppContent() {
 
   return (
     <View style={s.container}>
+      <OfflineBanner />
       <View style={s.content}>
         {activeTab === 'mesas' && (
           <TableMapScreen
@@ -93,8 +107,10 @@ function AppContent() {
 export default function App() {
   return (
     <AuthProvider>
-      <StatusBar style="light" />
-      <AppContent />
+      <ConnectivityProvider>
+        <StatusBar style="light" />
+        <AppContent />
+      </ConnectivityProvider>
     </AuthProvider>
   );
 }
