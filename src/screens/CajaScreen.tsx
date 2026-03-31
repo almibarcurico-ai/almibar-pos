@@ -115,10 +115,10 @@ function VentasTab() {
       until = h.toISOString().split('T')[0];
     }
 
-    // Mesa orders
-    const { data: mesaData } = await supabase.from('orders').select('*, table:table_id(number)').eq('status', 'cerrada').gte('closed_at', since).lt('closed_at', until).order('closed_at', { ascending: false });
+    // Mesa orders cerradas
+    const { data: mesaData } = await supabase.from('orders').select('*, table:table_id(number)').eq('status', 'cerrada').gte('closed_at', since!).lt('closed_at', until!).order('closed_at', { ascending: false });
     // Delivery orders
-    const { data: delivData } = await supabase.from('delivery_orders').select('*').eq('status', 'entregado').gte('closed_at', since).lt('closed_at', until).order('closed_at', { ascending: false });
+    const { data: delivData } = await supabase.from('delivery_orders').select('*').eq('status', 'entregado').gte('closed_at', since!).lt('closed_at', until!).order('closed_at', { ascending: false });
 
     const mesaOrders = (mesaData || []).map((o: any) => ({ ...o, _type: 'mesa', table_number: o.table?.number || null }));
     const delivOrders = (delivData || []).map((o: any) => ({
@@ -129,7 +129,18 @@ function VentasTab() {
       tip_amount: o.tip_total || 0,
       payment_method: 'efectivo',
     }));
-    const allOrders = [...mesaOrders, ...delivOrders].sort((a, b) => new Date(b.closed_at).getTime() - new Date(a.closed_at).getTime());
+
+    // En modo turno, incluir órdenes abiertas
+    let openOrders: any[] = [];
+    if (period === 'turno') {
+      const { data: openData } = await supabase.from('orders').select('*, table:table_id(number), order_items(total_price)').eq('status', 'abierta').gte('created_at', since!).order('created_at', { ascending: false });
+      openOrders = (openData || []).map((o: any) => ({
+        ...o, _type: 'mesa', _open: true, table_number: o.table?.number || null,
+        total: (o.order_items || []).reduce((a: number, i: any) => a + (i.total_price || 0), 0),
+      }));
+    }
+
+    const allOrders = [...openOrders, ...mesaOrders, ...delivOrders].sort((a, b) => new Date(b.closed_at || b.created_at).getTime() - new Date(a.closed_at || a.created_at).getTime());
     setOrders(allOrders);
 
     // Load payments for mesa orders
@@ -296,7 +307,7 @@ function VentasTab() {
             <TouchableOpacity key={o.id} style={[s.tblRow, i % 2 === 0 && { backgroundColor: COLORS.card }]} onPress={() => viewDetail(o)}>
               <Text style={[s.tblC, { width: 130 }]}>{o.created_at ? new Date(o.created_at).toLocaleString('es-CL', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-'}</Text>
               <Text style={[s.tblC, { width: 130 }]}>{o.closed_at ? new Date(o.closed_at).toLocaleString('es-CL', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-'}</Text>
-              <Text style={[s.tblC, { width: 70, color: COLORS.success, fontWeight: '600' }]}>Cerrada</Text>
+              <Text style={[s.tblC, { width: 70, color: o._open ? COLORS.warning : COLORS.success, fontWeight: '600' }]}>{o._open ? 'Abierta' : 'Cerrada'}</Text>
               <Text style={[s.tblC, { width: 50 }]}>{o.table_number || o.order_number || '-'}</Text>
               <Text style={[s.tblC, { width: 80 }]}>{waiterName(o.waiter_id)}</Text>
               <Text style={[s.tblC, { width: 60, fontSize: 10 }]}>{o.payment_method || '-'}</Text>
