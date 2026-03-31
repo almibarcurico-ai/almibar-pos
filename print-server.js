@@ -235,20 +235,20 @@ async function pollNewItems() {
 
     if (error) { console.log('  ❌ Poll error: ' + error.message); return; }
     if (!items || items.length === 0) return;
-    console.log('  📡 Poll: encontrados ' + items.length + ' items nuevos');
+
+    // Avanzar timestamp siempre (evitar reprocesar)
+    lastCheckTime = items[items.length - 1].created_at;
 
     // Filtrar los que ya imprimimos
     const newItems = items.filter(i => !recentlyPrinted.has(i.id));
     if (newItems.length === 0) return;
+    console.log('  📡 Poll: ' + newItems.length + ' items nuevos para imprimir');
 
     // Marcar como procesados
     for (const i of newItems) {
       recentlyPrinted.add(i.id);
       setTimeout(() => recentlyPrinted.delete(i.id), 120000);
     }
-
-    // Actualizar timestamp
-    lastCheckTime = newItems[newItems.length - 1].created_at;
 
     // Agrupar por order_id
     const orderIds = [...new Set(newItems.map(i => i.order_id))];
@@ -266,7 +266,7 @@ async function printComandaForOrder(orderId, itemIds) {
   try {
     const { data: order } = await supabase
       .from('orders')
-      .select('*, table:tables(number), order_items(*, product:products(name, category_id), modifiers:order_item_modifiers(option_name))')
+      .select('*, order_items(*, product:products(name, category_id), modifiers:order_item_modifiers(option_name))')
       .eq('id', orderId)
       .single();
 
@@ -275,6 +275,8 @@ async function printComandaForOrder(orderId, itemIds) {
     const newItems = (order.order_items || []).filter(i => itemIds.includes(i.id));
     if (newItems.length === 0) return;
 
+    // Obtener mesa y garzón
+    const { data: tableData } = order.table_id ? await supabase.from('tables').select('number').eq('id', order.table_id).single() : { data: null };
     const { data: waiter } = await supabase.from('users').select('name').eq('id', order.created_by).single();
 
     // Agrupar por estación de impresora
@@ -288,7 +290,7 @@ async function printComandaForOrder(orderId, itemIds) {
       }
     }
 
-    const tableNum = order.table?.number || '?';
+    const tableNum = tableData?.number || '?';
     console.log('\n🖨️  Comanda Mesa ' + tableNum + ' — ' + newItems.length + ' items (polling)');
 
     for (const [station, items] of Object.entries(byStation)) {
