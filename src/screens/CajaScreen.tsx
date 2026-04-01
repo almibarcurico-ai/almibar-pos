@@ -209,8 +209,8 @@ function VentasTab() {
   };
 
   return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 20 }}>
-      {/* Filter bar */}
+    <View style={{ flex: 1 }}>
+      {/* Filter bar - fixed at top */}
       <View style={s.filterBar}>
         {/* Period selector */}
         <View style={s.filterRow}>
@@ -296,7 +296,8 @@ function VentasTab() {
         {totals.propinas > 0 && <SumCard label="Propinas" value={fmt(totals.propinas)} />}
       </View>
 
-      {/* Table header */}
+      {/* Table - scrollable */}
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 20 }}>
       <View style={s.tblHdr}>
         <Text style={[s.tblH, { width: 130 }]}>Hora Inicio</Text>
         <Text style={[s.tblH, { width: 130 }]}>Hora cierre</Text>
@@ -389,6 +390,8 @@ function VentasTab() {
         );
       })()}
 
+      </ScrollView>
+
       {/* Detail Modal */}
       <Modal visible={detailModal} transparent animationType="fade">
         <View style={s.ov}><ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 16 }}>
@@ -472,7 +475,7 @@ function VentasTab() {
           </View>
         </ScrollView></View>
       </Modal>
-    </ScrollView>
+    </View>
   );
 }
 
@@ -1377,7 +1380,7 @@ function PropinasTab() {
 // =====================================================
 function SumCard({ label, value, sub, highlight }: { label: string; value: string; sub?: string; highlight?: boolean }) {
   return (
-    <View style={{ flex: 1, minWidth: 100, padding: 12 }}>
+    <View style={{ minWidth: 100, padding: 8 }}>
       <Text style={{ fontSize: 11, color: COLORS.textSecondary }}>{label}</Text>
       <Text style={{ fontSize: highlight ? 20 : 16, fontWeight: '800', color: highlight ? COLORS.primary : COLORS.text, marginTop: 2 }}>{value}</Text>
       {sub && <Text style={{ fontSize: 10, color: COLORS.textMuted, marginTop: 2 }}>{sub}</Text>}
@@ -1406,7 +1409,7 @@ const s = StyleSheet.create({
   tabItemT: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary },
   tabItemTA: { color: COLORS.text, fontWeight: '700' },
 
-  filterBar: { backgroundColor: COLORS.card, padding: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border, gap: 6 },
+  filterBar: { backgroundColor: COLORS.card, padding: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border, gap: 6, flexShrink: 0 },
   filterRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   fChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border },
   fChipA: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
@@ -1418,7 +1421,7 @@ const s = StyleSheet.create({
   dateBtnT: { fontSize: 14, color: COLORS.textSecondary },
   dateLabel: { fontSize: 14, fontWeight: '600', color: COLORS.text, textTransform: 'capitalize' },
 
-  summaryRow: { flexDirection: 'row', flexWrap: 'wrap', backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  summaryRow: { flexDirection: 'row', flexWrap: 'wrap', backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.border, flexShrink: 0 },
 
   tblHdr: { flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 10, backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.border },
   tblH: { fontSize: 11, fontWeight: '700', color: COLORS.textSecondary, textTransform: 'uppercase' },
