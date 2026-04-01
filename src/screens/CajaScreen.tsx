@@ -21,9 +21,6 @@ export default function CajaScreen() {
 
   return (
     <View style={s.c}>
-      <View style={s.hdr}>
-        <Text style={s.hdrT}>💰 Caja</Text>
-      </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.tabBar} contentContainerStyle={{ gap: 0 }}>
         {TABS.map(t => (
           <TouchableOpacity key={t.key} style={[s.tabItem, tab === t.key && s.tabItemA]} onPress={() => setTab(t.key as any)}>
@@ -1354,16 +1351,16 @@ function ARQ({ label, val, bold }: { label: string; val: string; bold?: boolean 
 // =====================================================
 const s = StyleSheet.create({
   c: { flex: 1, backgroundColor: COLORS.background },
-  hdr: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8, backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  hdr: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 4, backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.border },
   hdrT: { fontSize: 22, fontWeight: '800', color: COLORS.text },
 
   tabBar: { flexDirection: 'row', backgroundColor: COLORS.card, borderBottomWidth: 2, borderBottomColor: COLORS.border, paddingHorizontal: 16 },
-  tabItem: { paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: 3, borderBottomColor: 'transparent', marginBottom: -2 },
+  tabItem: { paddingVertical: 8, paddingHorizontal: 14, borderBottomWidth: 3, borderBottomColor: 'transparent', marginBottom: -2 },
   tabItemA: { borderBottomColor: COLORS.primary },
   tabItemT: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary },
   tabItemTA: { color: COLORS.text, fontWeight: '700' },
 
-  filterBar: { backgroundColor: COLORS.card, padding: 12, borderBottomWidth: 1, borderBottomColor: COLORS.border, gap: 8 },
+  filterBar: { backgroundColor: COLORS.card, padding: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border, gap: 6 },
   filterRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   fChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border },
   fChipA: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
