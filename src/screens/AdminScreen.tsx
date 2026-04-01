@@ -349,10 +349,6 @@ const cl = StyleSheet.create({
 
 function Menu({ onSelect, onOpenEditor }: { onSelect: (s: Sub) => void; onOpenEditor: () => void }) {
   const items: { key: Sub; icon: string; title: string; desc: string }[] = [
-    { key: 'products', icon: '🍕', title: 'Productos', desc: 'Menú, recetas y food cost' },
-    { key: 'ingredients', icon: '🥩', title: 'Ingredientes', desc: 'Stock, costos e historial' },
-    { key: 'modifiers', icon: '🎛️', title: 'Modificadores', desc: 'Sabores y opciones' },
-    { key: 'inventory', icon: '📦', title: 'Inventario', desc: 'Conteo y merma' },
     { key: 'suppliers', icon: '🚚', title: 'Proveedores', desc: 'Contactos y datos' },
     { key: 'purchases', icon: '🧾', title: 'Compras', desc: 'Facturas y stock' },
     { key: 'printers', icon: '🖨️', title: 'Impresoras', desc: 'Cocina, Barra, Caja' },

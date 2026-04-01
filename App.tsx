@@ -15,6 +15,10 @@ import DeliveryScreen from './src/screens/DeliveryScreen';
 import AdminScreen from './src/screens/AdminScreen';
 import InventoryScreen from './src/screens/InventoryScreen';
 import ReportsScreen from './src/screens/admin/ReportsScreen';
+import ProductsScreen from './src/screens/admin/ProductsScreen';
+import IngredientsScreen from './src/screens/admin/IngredientsScreen';
+import ModifiersScreen from './src/screens/admin/ModifiersScreen';
+import InventoryCountScreen from './src/screens/admin/InventoryCountScreen';
 import TabNavigator from './src/components/TabNavigator';
 import MobileTableScreen from './src/screens/MobileTableScreen';
 import { COLORS } from './src/theme';
@@ -25,6 +29,37 @@ type DetailScreen =
   | { type: 'editor' }
   | { type: 'inventory'; sub: string }
   | null;
+
+type ProdSub = 'menu' | 'productos' | 'ingredientes' | 'modificadores' | 'inventario';
+
+function ProductosHub() {
+  const [sub, setSub] = useState<ProdSub>('menu');
+  const tabs: { key: ProdSub; label: string; icon: string }[] = [
+    { key: 'productos', label: 'Productos', icon: '🍕' },
+    { key: 'ingredientes', label: 'Ingredientes', icon: '🥩' },
+    { key: 'modificadores', label: 'Modificadores', icon: '🎛️' },
+    { key: 'inventario', label: 'Inventario', icon: '📦' },
+  ];
+
+  return (
+    <View style={{ flex: 1, backgroundColor: COLORS.background }}>
+      <View style={{ flexDirection: 'row', backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingHorizontal: 8 }}>
+        {tabs.map(t => (
+          <TouchableOpacity key={t.key} onPress={() => setSub(t.key)}
+            style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 14, gap: 6, borderBottomWidth: 3, borderBottomColor: sub === t.key ? COLORS.primary : 'transparent', marginBottom: -1 }}>
+            <Text style={{ fontSize: 14 }}>{t.icon}</Text>
+            <Text style={{ fontSize: 13, fontWeight: sub === t.key ? '700' : '500', color: sub === t.key ? COLORS.text : COLORS.textMuted }}>{t.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      {sub === 'productos' && <ProductsScreen />}
+      {sub === 'ingredientes' && <IngredientsScreen />}
+      {sub === 'modificadores' && <ModifiersScreen />}
+      {sub === 'inventario' && <InventoryCountScreen />}
+      {sub === 'menu' && <ProductsScreen />}
+    </View>
+  );
+}
 
 function OfflineBanner() {
   const { isOnline, isOfflineMode, pendingOpsCount, isSyncing } = useConnectivity();
@@ -132,6 +167,7 @@ function AppContent() {
         )}
         {activeTab === 'caja' && <CajaScreen />}
         {activeTab === 'delivery' && <DeliveryScreen user={user} />}
+        {activeTab === 'productos' && <ProductosHub />}
         {activeTab === 'reportes' && <ReportsScreen />}
         {activeTab === 'admin' && <AdminScreen onOpenEditor={navigateToEditor} onOpenInventory={navigateToInventory} />}
       </View>
