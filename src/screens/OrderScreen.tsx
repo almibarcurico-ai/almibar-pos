@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Dimensions } from 'react-native';
 import { supabase } from '../lib/supabase';
-import { printOrder } from '../lib/printService';
+import { printOrder, generateAnulacion, sendToPrinter } from '../lib/printService';
 import { useAuth } from '../contexts/AuthContext';
 import { TableWithOrder, Category, Product, OrderItem, Order } from '../types';
 import { COLORS } from '../theme';
@@ -94,7 +94,16 @@ export default function OrderScreen({ table, onBack }: Props) {
   const loadMenu = async () => {
     const { data: c } = await supabase.from('categories').select('*').eq('active', true).order('sort_order');
     const { data: p } = await supabase.from('products').select('*').eq('active', true).order('sort_order');
-    if (c) setCategories(c); if (p) setProducts(p);
+    if (c) setCategories(c);
+    if (p) {
+      // Filtrar Happy Hour fuera de horario (Lun-Sáb 17:00-21:00)
+      const HH_CAT = 'd0000000-0000-0000-0000-000000000041';
+      const now = new Date();
+      const hora = now.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Santiago' });
+      const dow = now.getDay(); // 0=Dom
+      const hhActivo = dow >= 1 && dow <= 6 && hora >= '17:00' && hora < '21:00';
+      setProducts(hhActivo ? p : p.filter((pr: any) => pr.category_id !== HH_CAT));
+    }
     // Load modifier groups per product
     const { data: pmg } = await supabase.from('product_modifier_groups').select('product_id, group_id');
     const { data: mg } = await supabase.from('modifier_groups').select('*').eq('active', true).order('sort_order');
@@ -214,7 +223,72 @@ export default function OrderScreen({ table, onBack }: Props) {
   const removeItem = async (item: OrderItem) => {
     if (!user || !order) return;
     if (user.role === 'garzon' && item.printed) { Alert.alert('No permitido'); return; }
+
+    // Si el item ya fue impreso, pedir motivo y registrar anulación
+    if (item.printed) {
+      Alert.prompt ? Alert.prompt(
+        'Anular producto',
+        `¿Por qué se anula "${(item.product as any)?.name || 'producto'}"?`,
+        async (motivo: string) => {
+          if (!motivo || !motivo.trim()) return;
+          await ejecutarAnulacion(item, motivo.trim());
+        },
+        'plain-text', '', 'Motivo de anulación'
+      ) : (() => {
+        const motivo = prompt(`Motivo de anulación de "${(item.product as any)?.name || 'producto'}":`);
+        if (!motivo || !motivo.trim()) return;
+        ejecutarAnulacion(item, motivo.trim());
+      })();
+      return;
+    }
+
+    // Item no impreso: borrar directo
     await supabase.from('order_items').delete().eq('id', item.id); await loadOrder();
+  };
+
+  const ejecutarAnulacion = async (item: OrderItem, motivo: string) => {
+    const productName = (item.product as any)?.name || 'Producto';
+    // 1. Registrar en order_logs
+    await supabase.from('order_logs').insert({
+      order_id: order!.id,
+      action: 'item_anulado',
+      details: {
+        product_name: productName,
+        product_id: item.product_id,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        total_price: item.total_price,
+        motivo,
+        anulado_por: user!.name,
+      },
+      user_id: user!.id,
+    });
+
+    // 2. Imprimir anulación en la impresora de la categoría del producto
+    try {
+      const catId = (item.product as any)?.category_id;
+      if (catId) {
+        const { data: cp } = await supabase.from('category_printer').select('printer_id').eq('category_id', catId).limit(1);
+        if (cp && cp[0]) {
+          const { data: printer } = await supabase.from('printers').select('*').eq('id', cp[0].printer_id).eq('active', true).single();
+          if (printer && printer.ip_address) {
+            const ticket = generateAnulacion({
+              table: table.number || table.name || '?',
+              waiter: user!.name,
+              item: { name: productName, qty: item.quantity, price: item.unit_price },
+              motivo,
+              station: printer.name,
+            });
+            await sendToPrinter(printer.ip_address, printer.port || 9100, ticket, printer.name);
+          }
+        }
+      }
+    } catch (e) { console.log('Error imprimiendo anulación:', e); }
+
+    // 3. Borrar el item
+    await supabase.from('order_items').delete().eq('id', item.id);
+    await loadOrder();
+    Alert.alert('Anulado', `${productName} anulado. Motivo: ${motivo}`);
   };
 
   // Payment

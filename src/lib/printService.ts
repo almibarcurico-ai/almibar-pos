@@ -80,6 +80,44 @@ export function generateComanda(data: {
   return ticket;
 }
 
+// Generate void/anulacion ticket
+export function generateAnulacion(data: {
+  table: number | string;
+  waiter: string;
+  item: { name: string; qty: number; price: number };
+  motivo: string;
+  station: string;
+}) {
+  const now = new Date();
+  const time = now.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+  const date = now.toLocaleDateString('es-CL');
+
+  let ticket = CMD.INIT;
+  ticket += CMD.CENTER + CMD.BOLD_ON + CMD.DOUBLE_BOTH;
+  ticket += `ANULACION\n`;
+  ticket += CMD.NORMAL + CMD.BOLD_ON;
+  ticket += `${data.station.toUpperCase()}\n`;
+  ticket += CMD.BOLD_OFF + CMD.LEFT;
+  ticket += CMD.DLINE;
+  ticket += pad('Mesa:', String(data.table)) + '\n';
+  ticket += pad('Garzon:', data.waiter) + '\n';
+  ticket += pad('Hora:', time) + '\n';
+  ticket += CMD.LINE;
+  ticket += CMD.BOLD_ON;
+  ticket += `${data.item.qty}x ${data.item.name}\n`;
+  ticket += CMD.BOLD_OFF;
+  ticket += pad('Valor:', fmt(data.item.price * data.item.qty)) + '\n';
+  ticket += CMD.LINE;
+  ticket += CMD.BOLD_ON + 'MOTIVO:\n' + CMD.BOLD_OFF;
+  ticket += data.motivo + '\n';
+  ticket += CMD.DLINE;
+  ticket += CMD.CENTER;
+  ticket += `${date} ${time}\n`;
+  ticket += '\n\n\n';
+  ticket += CMD.CUT;
+  return ticket;
+}
+
 // Generate bill/cuenta ticket
 export function generateBoleta(data: {
   table: number | string;

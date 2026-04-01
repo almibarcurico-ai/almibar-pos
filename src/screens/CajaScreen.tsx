@@ -10,11 +10,13 @@ import { COLORS } from '../theme';
 const SW = Dimensions.get('window').width;
 
 export default function CajaScreen() {
-  const [tab, setTab] = useState<'ventas' | 'movimientos' | 'arqueos'>('ventas');
+  const [tab, setTab] = useState<'ventas' | 'movimientos' | 'arqueos' | 'anulaciones' | 'propinas'>('ventas');
   const TABS = [
     { key: 'ventas', label: 'Ventas' },
     { key: 'movimientos', label: 'Ingresos / Egresos' },
     { key: 'arqueos', label: 'Arqueos' },
+    { key: 'anulaciones', label: 'Anulaciones' },
+    { key: 'propinas', label: 'Propinas' },
   ] as const;
 
   return (
@@ -22,17 +24,18 @@ export default function CajaScreen() {
       <View style={s.hdr}>
         <Text style={s.hdrT}>💰 Caja</Text>
       </View>
-      {/* Tabs bar like Fudo */}
-      <View style={s.tabBar}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.tabBar} contentContainerStyle={{ gap: 0 }}>
         {TABS.map(t => (
           <TouchableOpacity key={t.key} style={[s.tabItem, tab === t.key && s.tabItemA]} onPress={() => setTab(t.key as any)}>
             <Text style={[s.tabItemT, tab === t.key && s.tabItemTA]}>{t.label}</Text>
           </TouchableOpacity>
         ))}
-      </View>
+      </ScrollView>
       {tab === 'ventas' && <VentasTab />}
       {tab === 'movimientos' && <MovimientosTab />}
       {tab === 'arqueos' && <ArqueosTab />}
+      {tab === 'anulaciones' && <AnulacionesTab />}
+      {tab === 'propinas' && <PropinasTab />}
     </View>
   );
 }
@@ -914,6 +917,206 @@ function ArqueosTab() {
           </View>
         </ScrollView></View>
       </Modal>
+    </ScrollView>
+  );
+}
+
+// =====================================================
+// ANULACIONES TAB
+// =====================================================
+function AnulacionesTab() {
+  const [logs, setLogs] = useState<any[]>([]);
+  const [period, setPeriod] = useState<'diario' | 'semanal' | 'mensual'>('diario');
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [users, setUsers] = useState<any[]>([]);
+
+  useEffect(() => { loadUsers(); }, []);
+  useEffect(() => { load(); }, [period, date]);
+
+  const loadUsers = async () => { const { data } = await supabase.from('users').select('id,name').order('name'); if (data) setUsers(data); };
+  const waiterName = (id: string) => users.find((u: any) => u.id === id)?.name || '-';
+  const fmt = (p: number) => '$' + Math.round(p).toLocaleString('es-CL');
+
+  const load = async () => {
+    let since: string, until: string;
+    const d = new Date(date + 'T00:00:00');
+    if (period === 'diario') { since = date; const n = new Date(d); n.setDate(n.getDate() + 1); until = n.toISOString().split('T')[0]; }
+    else if (period === 'semanal') { const st = new Date(d); st.setDate(st.getDate() - st.getDay()); const en = new Date(st); en.setDate(en.getDate() + 7); since = st.toISOString().split('T')[0]; until = en.toISOString().split('T')[0]; }
+    else { const st = new Date(d.getFullYear(), d.getMonth(), 1); const en = new Date(d.getFullYear(), d.getMonth() + 1, 1); since = st.toISOString().split('T')[0]; until = en.toISOString().split('T')[0]; }
+
+    const { data } = await supabase.from('order_logs').select('*').eq('action', 'item_anulado').gte('created_at', since).lt('created_at', until).order('created_at', { ascending: false });
+    setLogs(data || []);
+  };
+
+  const changeDate = (dir: number) => {
+    const d = new Date(date + 'T12:00:00');
+    if (period === 'diario') d.setDate(d.getDate() + dir);
+    else if (period === 'semanal') d.setDate(d.getDate() + (dir * 7));
+    else d.setMonth(d.getMonth() + dir);
+    setDate(d.toISOString().split('T')[0]);
+  };
+
+  const totalAnulado = logs.reduce((a, l) => a + (l.details?.total_price || 0), 0);
+
+  return (
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 100 }}>
+      <View style={s.filterBar}>
+        <View style={s.filterRow}>
+          {(['diario', 'semanal', 'mensual'] as const).map(p => (
+            <TouchableOpacity key={p} style={[s.fChip, period === p && s.fChipA]} onPress={() => setPeriod(p)}>
+              <Text style={[s.fChipT, period === p && s.fChipTA]}>{p.charAt(0).toUpperCase() + p.slice(1)}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        <View style={s.dateNav}>
+          <TouchableOpacity onPress={() => changeDate(-1)} style={s.dateBtn}><Text style={s.dateBtnT}>◀</Text></TouchableOpacity>
+          <Text style={s.dateLabel}>{new Date(date + 'T12:00:00').toLocaleDateString('es-CL', { day: 'numeric', month: 'short', year: 'numeric' })}</Text>
+          <TouchableOpacity onPress={() => changeDate(1)} style={s.dateBtn}><Text style={s.dateBtnT}>▶</Text></TouchableOpacity>
+        </View>
+      </View>
+
+      <View style={s.summaryRow}>
+        <SumCard label="Anulaciones" value={String(logs.length)} />
+        <SumCard label="Total anulado" value={fmt(totalAnulado)} highlight />
+      </View>
+
+      {logs.map((l, i) => (
+        <View key={l.id || i} style={{ flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border, backgroundColor: i % 2 === 0 ? COLORS.card : 'transparent', alignItems: 'center', gap: 10 }}>
+          <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: COLORS.error + '15', alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ fontSize: 14 }}>🗑</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.text }}>{l.details?.quantity || 1}x {l.details?.product_name || '?'}</Text>
+            <Text style={{ fontSize: 11, color: COLORS.textMuted }}>
+              {l.created_at ? new Date(l.created_at).toLocaleString('es-CL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-'} · {waiterName(l.user_id)}
+            </Text>
+            {l.details?.motivo && <Text style={{ fontSize: 11, color: COLORS.error, marginTop: 2 }}>Motivo: {l.details.motivo}</Text>}
+          </View>
+          <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.error }}>{fmt(l.details?.total_price || 0)}</Text>
+        </View>
+      ))}
+      {logs.length === 0 && <View style={{ padding: 30 }}><Text style={{ color: COLORS.textMuted, textAlign: 'center' }}>Sin anulaciones en este período</Text></View>}
+    </ScrollView>
+  );
+}
+
+// =====================================================
+// PROPINAS TAB
+// =====================================================
+function PropinasTab() {
+  const [orders, setOrders] = useState<any[]>([]);
+  const [payments, setPayments] = useState<any[]>([]);
+  const [period, setPeriod] = useState<'diario' | 'semanal' | 'mensual'>('diario');
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [users, setUsers] = useState<any[]>([]);
+
+  useEffect(() => { loadUsers(); }, []);
+  useEffect(() => { load(); }, [period, date]);
+
+  const loadUsers = async () => { const { data } = await supabase.from('users').select('id,name').order('name'); if (data) setUsers(data); };
+  const waiterName = (id: string) => users.find((u: any) => u.id === id)?.name || '-';
+  const fmt = (p: number) => '$' + Math.round(p).toLocaleString('es-CL');
+
+  const load = async () => {
+    let since: string, until: string;
+    const d = new Date(date + 'T00:00:00');
+    if (period === 'diario') { since = date; const n = new Date(d); n.setDate(n.getDate() + 1); until = n.toISOString().split('T')[0]; }
+    else if (period === 'semanal') { const st = new Date(d); st.setDate(st.getDate() - st.getDay()); const en = new Date(st); en.setDate(en.getDate() + 7); since = st.toISOString().split('T')[0]; until = en.toISOString().split('T')[0]; }
+    else { const st = new Date(d.getFullYear(), d.getMonth(), 1); const en = new Date(d.getFullYear(), d.getMonth() + 1, 1); since = st.toISOString().split('T')[0]; until = en.toISOString().split('T')[0]; }
+
+    const { data: mesaData } = await supabase.from('orders').select('id,table_id,waiter_id,tip_amount,closed_at,table:table_id(number)').eq('status', 'cerrada').gte('closed_at', since).lt('closed_at', until).gt('tip_amount', 0).order('closed_at', { ascending: false });
+    setOrders(mesaData || []);
+
+    const ids = (mesaData || []).map((o: any) => o.id);
+    if (ids.length > 0) {
+      const { data: pays } = await supabase.from('payments').select('*').in('order_id', ids).gt('tip_amount', 0);
+      setPayments(pays || []);
+    } else setPayments([]);
+  };
+
+  const changeDate = (dir: number) => {
+    const d = new Date(date + 'T12:00:00');
+    if (period === 'diario') d.setDate(d.getDate() + dir);
+    else if (period === 'semanal') d.setDate(d.getDate() + (dir * 7));
+    else d.setMonth(d.getMonth() + dir);
+    setDate(d.toISOString().split('T')[0]);
+  };
+
+  const totalPropinas = orders.reduce((a: number, o: any) => a + (o.tip_amount || 0), 0);
+
+  // By waiter
+  const byWaiter: Record<string, number> = {};
+  orders.forEach((o: any) => { byWaiter[o.waiter_id] = (byWaiter[o.waiter_id] || 0) + (o.tip_amount || 0); });
+
+  // By method
+  const byMethod: Record<string, number> = {};
+  payments.forEach((p: any) => { byMethod[p.method] = (byMethod[p.method] || 0) + (p.tip_amount || 0); });
+
+  return (
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 100 }}>
+      <View style={s.filterBar}>
+        <View style={s.filterRow}>
+          {(['diario', 'semanal', 'mensual'] as const).map(p => (
+            <TouchableOpacity key={p} style={[s.fChip, period === p && s.fChipA]} onPress={() => setPeriod(p)}>
+              <Text style={[s.fChipT, period === p && s.fChipTA]}>{p.charAt(0).toUpperCase() + p.slice(1)}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        <View style={s.dateNav}>
+          <TouchableOpacity onPress={() => changeDate(-1)} style={s.dateBtn}><Text style={s.dateBtnT}>◀</Text></TouchableOpacity>
+          <Text style={s.dateLabel}>{new Date(date + 'T12:00:00').toLocaleDateString('es-CL', { day: 'numeric', month: 'short', year: 'numeric' })}</Text>
+          <TouchableOpacity onPress={() => changeDate(1)} style={s.dateBtn}><Text style={s.dateBtnT}>▶</Text></TouchableOpacity>
+        </View>
+      </View>
+
+      <View style={s.summaryRow}>
+        <SumCard label="Propinas" value={String(orders.length)} />
+        <SumCard label="Total propinas" value={fmt(totalPropinas)} highlight />
+      </View>
+
+      {/* By waiter */}
+      {Object.keys(byWaiter).length > 0 && (
+        <View style={{ margin: 16, backgroundColor: COLORS.card, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: COLORS.border }}>
+          <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 8 }}>POR GARZÓN</Text>
+          {Object.entries(byWaiter).sort((a, b) => b[1] - a[1]).map(([wid, amount]) => (
+            <View key={wid} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: COLORS.border }}>
+              <Text style={{ fontSize: 13, color: COLORS.text }}>👤 {waiterName(wid)}</Text>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.warning }}>{fmt(amount)}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {/* By method */}
+      {Object.keys(byMethod).length > 0 && (
+        <View style={{ marginHorizontal: 16, backgroundColor: COLORS.card, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: COLORS.border }}>
+          <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 8 }}>POR MEDIO DE PAGO</Text>
+          {Object.entries(byMethod).map(([method, amount]) => (
+            <View key={method} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: COLORS.border }}>
+              <Text style={{ fontSize: 13, color: COLORS.text, textTransform: 'capitalize' }}>{method === 'efectivo' ? '💵' : method === 'transferencia' ? '📱' : '💳'} {method}</Text>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.warning }}>{fmt(amount)}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {/* Detail list */}
+      <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.textSecondary, margin: 16, marginBottom: 8 }}>DETALLE</Text>
+      {orders.map((o: any, i: number) => (
+        <View key={o.id} style={{ flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border, backgroundColor: i % 2 === 0 ? COLORS.card : 'transparent', alignItems: 'center', gap: 10 }}>
+          <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: COLORS.warning + '15', alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ fontSize: 14 }}>🤝</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.text }}>Mesa {o.table?.number || '-'}</Text>
+            <Text style={{ fontSize: 11, color: COLORS.textMuted }}>
+              {o.closed_at ? new Date(o.closed_at).toLocaleString('es-CL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-'} · {waiterName(o.waiter_id)}
+            </Text>
+          </View>
+          <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.warning }}>{fmt(o.tip_amount)}</Text>
+        </View>
+      ))}
+      {orders.length === 0 && <View style={{ padding: 30 }}><Text style={{ color: COLORS.textMuted, textAlign: 'center' }}>Sin propinas en este período</Text></View>}
     </ScrollView>
   );
 }
