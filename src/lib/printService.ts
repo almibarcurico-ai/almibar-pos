@@ -3,6 +3,14 @@
 
 const PRINT_SERVER = 'http://localhost:3333/print';
 
+// Configuración real de impresoras por estación
+// (override sobre lo que venga de BD para evitar problemas de RLS)
+export const PRINTER_CONFIG: Record<string, { ip: string; port: number }> = {
+  cocina: { ip: '192.168.1.115', port: 9100 },
+  barra:  { ip: '192.168.1.114', port: 9100 },
+  caja:   { ip: '192.168.1.114', port: 9100 },
+};
+
 // ESC/POS commands
 const ESC = '\x1B';
 const GS = '\x1D';
@@ -17,10 +25,29 @@ const CMD = {
   DOUBLE_HEIGHT: GS + '!\x01',
   DOUBLE_BOTH: GS + '!\x11',
   NORMAL: GS + '!\x00',
+  // Tamaño base: doble alto (~30% más grande que normal)
+  SIZE_UP: GS + '!\x01',
   CUT: GS + 'V\x00',
   FEED: '\n',
   LINE: '─'.repeat(32) + '\n',
   DLINE: '═'.repeat(32) + '\n',
+  // Interlineado: ESC 3 n (n = espaciado en puntos, default ~30)
+  LINE_SPACING_TIGHT: ESC + '3\x10',   // 16 puntos - compacto para boleta
+  LINE_SPACING_WIDE: ESC + '3\x3C',    // 60 puntos - espaciado para comandas
+  LINE_SPACING_DEFAULT: ESC + '2',      // reset al default
+  // Espaciado entre caracteres: ESC SP n
+  CHAR_SPACING_WIDE: ESC + ' \x03',    // 3 puntos extra entre letras
+  CHAR_SPACING_WIDER: ESC + ' \x05',   // 5 puntos extra - más legible
+  CHAR_SPACING_DEFAULT: ESC + ' \x00', // sin espacio extra
+  // Font: A = más grande/legible (12x24), B = más pequeña (9x17)
+  FONT_A: ESC + 'M\x00',
+  FONT_B: ESC + 'M\x01',
+  // Doble ancho+alto para items comanda (más grande que solo doble alto)
+  SIZE_COMANDA: GS + '!\x11',
+  // Márgenes: GS L nL nH (margen izquierdo en puntos)
+  MARGIN_LEFT: GS + 'L\x10\x00',   // 16 puntos margen izquierdo
+  // Área de impresión: GS W nL nH (ancho en puntos, 576 = 80mm full)
+  PRINT_WIDTH: GS + 'W\x20\x02',   // 544 puntos (deja margen a ambos lados)
 };
 
 function pad(left: string, right: string, width = 32) {
@@ -45,36 +72,41 @@ export function generateComanda(data: {
   const date = now.toLocaleDateString('es-CL');
 
   let ticket = CMD.INIT;
+  // Font A + márgenes para centrar en la hoja
+  ticket += CMD.FONT_A + CMD.MARGIN_LEFT + CMD.PRINT_WIDTH;
+  // Título grande centrado
   ticket += CMD.CENTER + CMD.BOLD_ON + CMD.DOUBLE_BOTH;
   ticket += `COMANDA\n`;
-  ticket += CMD.NORMAL + CMD.BOLD_ON;
   ticket += `${data.station.toUpperCase()}\n`;
-  ticket += CMD.BOLD_OFF + CMD.LEFT;
+  // Info mesa - doble alto
+  ticket += CMD.SIZE_UP + CMD.BOLD_OFF + CMD.LEFT;
   ticket += CMD.LINE;
   ticket += pad('Mesa:', String(data.table)) + '\n';
   ticket += pad('Garzon:', data.waiter) + '\n';
-  ticket += pad('Hora:', time) + '\n';
+  ticket += pad('Fecha:', `${date} ${time}`) + '\n';
   if (data.orderNumber) ticket += pad('Orden:', '#' + data.orderNumber) + '\n';
   ticket += CMD.LINE;
-  
-  // Items
-  ticket += CMD.BOLD_ON;
+
+  // Items - doble alto + bold + espaciado moderado
+  ticket += CMD.BOLD_ON + CMD.SIZE_UP + CMD.CHAR_SPACING_WIDE + CMD.LINE_SPACING_WIDE;
   for (const item of data.items) {
     ticket += `${item.qty}x ${item.name}\n`;
     if (item.modifiers && item.modifiers.length > 0) {
       for (const mod of item.modifiers) {
-        ticket += `   → ${mod}\n`;
+        ticket += `  → ${mod}\n`;
       }
     }
     if (item.notes) {
-      ticket += `   * ${item.notes}\n`;
+      ticket += `  * ${item.notes}\n`;
     }
   }
-  ticket += CMD.BOLD_OFF;
+  ticket += CMD.CHAR_SPACING_DEFAULT + CMD.LINE_SPACING_DEFAULT;
+  ticket += CMD.BOLD_OFF + CMD.SIZE_UP;
   ticket += CMD.LINE;
-  ticket += CMD.CENTER;
-  ticket += `${date} ${time}\n`;
-  ticket += '\n\n\n';
+  ticket += CMD.CENTER + CMD.BOLD_ON + CMD.DOUBLE_BOTH;
+  ticket += `OJO: Leer comentarios!\n`;
+  ticket += CMD.BOLD_OFF + CMD.NORMAL;
+  ticket += '\n\n\n\n\n\n';
   ticket += CMD.CUT;
 
   return ticket;
@@ -134,9 +166,12 @@ export function generateBoleta(data: {
   const date = now.toLocaleDateString('es-CL');
 
   let ticket = CMD.INIT;
+  // Interlineado compacto para toda la boleta
+  ticket += CMD.LINE_SPACING_TIGHT;
+  // Header grande
   ticket += CMD.CENTER + CMD.BOLD_ON + CMD.DOUBLE_BOTH;
   ticket += `ALMIBAR\n`;
-  ticket += CMD.NORMAL;
+  ticket += CMD.SIZE_UP + CMD.BOLD_OFF;
   ticket += `Cocina y Bar\n`;
   ticket += `Francisco Moreno 418, Curico\n`;
   ticket += CMD.LEFT;
@@ -147,34 +182,38 @@ export function generateBoleta(data: {
   if (data.orderNumber) ticket += pad('Orden:', '#' + data.orderNumber) + '\n';
   ticket += CMD.LINE;
 
-  // Items
+  // Items - tamaño normal (más pequeño que el resto)
+  ticket += CMD.NORMAL;
   for (const item of data.items) {
     ticket += `${item.qty}x ${item.name}\n`;
     ticket += CMD.RIGHT + fmt(item.total) + '\n' + CMD.LEFT;
   }
 
   ticket += CMD.LINE;
-  ticket += CMD.BOLD_ON;
+  ticket += CMD.BOLD_ON + CMD.SIZE_UP + CMD.CHAR_SPACING_WIDE;
   ticket += pad('Subtotal:', fmt(data.subtotal)) + '\n';
   if (data.tip > 0) {
     ticket += pad('Propina:', fmt(data.tip)) + '\n';
   }
   ticket += CMD.DOUBLE_BOTH;
   ticket += pad('TOTAL:', fmt(data.total)) + '\n';
-  ticket += CMD.NORMAL + CMD.BOLD_OFF;
+  ticket += CMD.CHAR_SPACING_DEFAULT + CMD.SIZE_UP + CMD.BOLD_OFF;
   ticket += CMD.LINE;
 
   // Payments
+  ticket += CMD.SIZE_UP;
   for (const p of data.payments) {
     const label = p.method === 'efectivo' ? 'Efectivo' : p.method === 'debito' ? 'Debito' : p.method === 'credito' ? 'Credito' : 'Transf.';
     ticket += pad(label + ':', fmt(p.amount)) + '\n';
   }
 
   ticket += '\n';
-  ticket += CMD.CENTER;
-  ticket += `Gracias por su visita!\n`;
+  ticket += CMD.CENTER + CMD.SIZE_UP;
+  ticket += `Nos encanto tenerte, vuelve pronto!\n`;
+  ticket += CMD.NORMAL;
   ticket += `@almibar.bar\n`;
-  ticket += '\n\n\n';
+  ticket += CMD.LINE_SPACING_DEFAULT;
+  ticket += '\n\n\n\n\n\n';
   ticket += CMD.CUT;
 
   return ticket;
@@ -183,6 +222,7 @@ export function generateBoleta(data: {
 // Send to printer via print server
 export async function sendToPrinter(printerIp: string, printerPort: number, data: string, printerName?: string) {
   try {
+    console.log(`🖨️ sendToPrinter: ${printerName} -> ${printerIp}:${printerPort} (${data.length} bytes) via ${PRINT_SERVER}`);
     const res = await fetch(PRINT_SERVER, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -241,10 +281,16 @@ export async function printOrder(params: {
       orderNumber,
     });
 
-    const success = await sendToPrinter(printer.ip_address, printer.port, ticket, printer.name);
+    // Usar IP del config local si existe (override BD por station o nombre)
+    const override = PRINTER_CONFIG[printer.station] || PRINTER_CONFIG[printer.name?.toLowerCase()];
+    const ip = override?.ip || printer.ip_address;
+    const port = override?.port || printer.port;
+    console.log(`🖨️ printOrder: ${printer.name} station=${printer.station} -> ${ip}:${port} (override=${!!override})`);
+    const success = await sendToPrinter(ip, port, ticket, printer.name);
     results.push({ printer: printer.name, success });
     console.log(`🖨️ ${printer.name}: ${success ? '✅' : '❌'}`);
   }
 
   return results;
 }
+// build 1774973279

@@ -139,9 +139,9 @@ export default function AppOrdersPanel() {
       const nameToId: Record<string, string> = {};
       if (products) products.forEach(p => { nameToId[p.name] = p.id; });
 
-      const realItems = order.items.map(item => ({
+      const realItems = order.items.filter(item => nameToId[item.product_name]).map(item => ({
         order_id: orderId,
-        product_id: nameToId[item.product_name] || item.id,
+        product_id: nameToId[item.product_name],
         quantity: item.quantity,
         unit_price: item.unit_price,
         total_price: item.total_price,
@@ -151,8 +151,20 @@ export default function AppOrdersPanel() {
         created_by: user.id,
       }));
 
-      const { error: insertErr } = await supabase.from('order_items').insert(realItems);
+      if (realItems.length === 0) {
+        Alert.alert('Error', 'No se encontraron productos válidos');
+        return;
+      }
+
+      const { data: insertedItems, error: insertErr } = await supabase.from('order_items').insert(realItems).select('id');
       if (insertErr) throw insertErr;
+
+      // Enviar a cocina/barra (cambiar a preparando)
+      const itemIds = (insertedItems || []).map((i: any) => i.id);
+      if (itemIds.length > 0) {
+        const { error: rpcErr } = await supabase.rpc('send_order_and_deduct_stock', { p_item_ids: itemIds });
+        if (rpcErr) throw rpcErr;
+      }
 
       // Marcar app_order como confirmado
       await supabase.from('app_orders').update({

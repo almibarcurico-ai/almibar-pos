@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, TextInput, Alert, StyleSheet } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { COLORS } from '../../theme';
+import { sendToPrinter, generateComanda, PRINTER_CONFIG } from '../../lib/printService';
 
 export default function PrintersScreen() {
   const [printers, setPrinters] = useState<any[]>([]);
@@ -73,8 +74,27 @@ export default function PrintersScreen() {
   const printerCats = selected?.id ? catPrinter.filter(cp => cp.printer_id === selected.id).map(cp => cp.category_id) : [];
 
   const testPrint = async () => {
-    if (!editIp) { Alert.alert('', 'Ingresa la IP de la impresora'); return; }
-    Alert.alert('🖨️ Test', `Enviando prueba a ${editIp}:${editPort}\n\nNota: La impresión ESC/POS requiere conexión de red local. Configura la IP en la impresora.`);
+    const override = PRINTER_CONFIG[editStation];
+    const ip = override?.ip || editIp;
+    const port = override?.port || parseInt(editPort) || 9100;
+    if (!ip) { Alert.alert('', 'Ingresa la IP de la impresora'); return; }
+
+    const ticket = generateComanda({
+      table: 'TEST',
+      waiter: 'Sistema',
+      station: editStation,
+      items: [
+        { name: 'Prueba de impresion', qty: 1 },
+        { name: 'Segundo item', qty: 2, notes: 'Con nota' },
+      ],
+      orderNumber: 0,
+    });
+
+    const success = await sendToPrinter(ip, port, ticket, editName);
+    Alert.alert(
+      success ? '✅ Impreso' : '❌ Error',
+      success ? `Ticket enviado a ${editName} (${ip}:${port})` : `No se pudo imprimir en ${ip}:${port}. Verifica que el print-server esté corriendo.`
+    );
   };
 
   const STATIONS = [

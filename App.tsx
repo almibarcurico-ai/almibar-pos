@@ -1,9 +1,11 @@
 // App.tsx — Role-based tab navigation
 
-import React, { useState } from 'react';
-import { View, StyleSheet, ActivityIndicator, Dimensions } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ActivityIndicator, Dimensions, TouchableOpacity } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
+import { ConnectivityProvider, useConnectivity } from './src/contexts/ConnectivityContext';
+import { supabase } from './src/lib/supabase';
 import LoginScreen from './src/screens/LoginScreen';
 import TableMapScreen from './src/screens/TableMapScreen';
 import OrderScreen from './src/screens/OrderScreen';
@@ -23,15 +25,59 @@ type DetailScreen =
   | { type: 'inventory'; sub: string }
   | null;
 
+function OfflineBanner() {
+  const { isOnline, isOfflineMode, pendingOpsCount, isSyncing } = useConnectivity();
+  if (isOnline && !isSyncing && pendingOpsCount === 0) return null;
+  return (
+    <View style={{ backgroundColor: !isOnline ? '#F44336' : isSyncing ? '#FF9800' : '#4CAF50', paddingVertical: 4, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+      <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>
+        {!isOnline ? '📴 SIN CONEXIÓN — Modo offline activo' : isSyncing ? '🔄 Sincronizando...' : `✅ ${pendingOpsCount} operaciones pendientes`}
+      </Text>
+    </View>
+  );
+}
+
 function AppContent() {
   const { user, loading } = useAuth();
   const [activeTab, setActiveTab] = useState('mesas');
   const [detail, setDetail] = useState<DetailScreen>(null);
+  const [hasOpenArqueo, setHasOpenArqueo] = useState<boolean | null>(null);
+
+  // Verificar si hay arqueo abierto
+  useEffect(() => {
+    if (!user) return;
+    checkArqueo();
+    const iv = setInterval(checkArqueo, 30000); // re-check cada 30s
+    return () => clearInterval(iv);
+  }, [user]);
+
+  const checkArqueo = async () => {
+    try {
+      const { data } = await supabase.from('cash_registers').select('id').is('closed_at', null).limit(1);
+      setHasOpenArqueo(data && data.length > 0);
+    } catch { setHasOpenArqueo(true); } // si falla, dejar pasar
+  };
 
   if (loading) {
     return <View style={s.loading}><ActivityIndicator size="large" color={COLORS.primary} /></View>;
   }
   if (!user) return <LoginScreen />;
+
+  // Bloquear si no hay arqueo abierto (solo para cajero/admin en PC)
+  if (hasOpenArqueo === false && (user.role === 'cajero' || user.role === 'admin') && Dimensions.get('window').width >= 600) {
+    return (
+      <View style={[s.loading, { gap: 16 }]}>
+        <Text style={{ fontSize: 40 }}>🔒</Text>
+        <Text style={{ fontSize: 22, fontWeight: '800', color: COLORS.text }}>Arqueo de Caja Requerido</Text>
+        <Text style={{ fontSize: 14, color: COLORS.textSecondary, textAlign: 'center', maxWidth: 400 }}>
+          Debes abrir un arqueo de caja antes de iniciar el turno. Ve a Caja → Arqueos para abrir uno.
+        </Text>
+        <TouchableOpacity onPress={() => { setActiveTab('caja'); setHasOpenArqueo(true); }} style={{ backgroundColor: COLORS.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8, marginTop: 8 }}>
+          <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Ir a Caja</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   // Mobile view for phones (< 600px)
   const isMobile = Dimensions.get('window').width < 600;
@@ -74,6 +120,7 @@ function AppContent() {
 
   return (
     <View style={s.container}>
+      <OfflineBanner />
       <View style={s.content}>
         {activeTab === 'mesas' && (
           <TableMapScreen
@@ -93,8 +140,10 @@ function AppContent() {
 export default function App() {
   return (
     <AuthProvider>
-      <StatusBar style="light" />
-      <AppContent />
+      <ConnectivityProvider>
+        <StatusBar style="light" />
+        <AppContent />
+      </ConnectivityProvider>
     </AuthProvider>
   );
 }

@@ -1,7 +1,7 @@
 // src/screens/TableMapScreen.tsx
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Alert, TextInput, Modal, Dimensions } from 'react-native';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Alert, TextInput, Modal, Dimensions, Animated } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Sector, TableWithOrder } from '../types';
@@ -31,6 +31,37 @@ export default function TableMapScreen({ onOpenOrder, onOpenEditor }: Props) {
   const [customerCount, setCustomerCount] = useState('2');
   const [clientSuggestions, setClientSuggestions] = useState<any[]>([]);
   const [selectedClient, setSelectedClient] = useState<any>(null);
+  const [printServerOk, setPrintServerOk] = useState(true);
+
+  // Health check del print server cada 15 segundos
+  useEffect(() => {
+    const check = () => {
+      fetch('http://localhost:3333/status', { signal: AbortSignal.timeout(3000) })
+        .then(r => r.json()).then(() => setPrintServerOk(true))
+        .catch(() => setPrintServerOk(false));
+    };
+    check();
+    const iv = setInterval(check, 15000);
+    return () => clearInterval(iv);
+  }, []);
+
+  // Mesas con pedidos pendientes (app cliente o items sin enviar a cocina)
+  const [appOrderTables, setAppOrderTables] = useState<number[]>([]);
+
+  useEffect(() => {
+    const loadPending = async () => {
+      // Solo revisar app_orders con status pendiente
+      const { data: appOrders } = await supabase.from('app_orders').select('table_number').eq('status', 'pendiente');
+      const tableNums = (appOrders || []).map((o: any) => o.table_number);
+      setAppOrderTables([...new Set(tableNums)]);
+    };
+    loadPending();
+    const iv = setInterval(loadPending, 3000);
+    return () => clearInterval(iv);
+  }, []);
+
+  // El print server se encarga de auto-procesar items de la app y notificaciones.
+  // Este efecto solo mantiene la UI actualizada cuando hay cambios.
 
   const searchClients = async (text: string) => {
     setCustomerName(text);
@@ -115,6 +146,7 @@ export default function TableMapScreen({ onOpenOrder, onOpenEditor }: Props) {
 
   const handleOpenTable = async () => {
     if (!selectedTable || !user) return;
+    if (!customerName.trim()) { Alert.alert('', 'Ingresa el nombre del cliente'); return; }
     try {
       const { data: od, error: oe } = await supabase.from('orders').insert({ table_id: selectedTable.id, type: 'mesa', status: 'abierta', waiter_id: user.id, notes: customerName ? `Cliente: ${customerName}` : null, client_id: selectedClient ? selectedClient.id : null }).select().single();
       if (oe) throw oe;
@@ -153,7 +185,11 @@ export default function TableMapScreen({ onOpenOrder, onOpenEditor }: Props) {
       <View style={s.header}>
         <View>
           <Text style={s.hTitle}>ALMÍBAR POS</Text>
-          <Text style={s.hUser}>{user?.name} • {user?.role.toUpperCase()}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Text style={s.hUser}>{user?.name} • {user?.role.toUpperCase()}</Text>
+            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: printServerOk ? '#4CAF50' : '#F44336' }} />
+            {!printServerOk && <Text style={{ fontSize: 10, color: '#F44336', fontWeight: '700' }}>SIN IMPRESORA</Text>}
+          </View>
         </View>
         <View style={{ flexDirection: 'row', gap: 8 }}>
           {user?.role === 'admin' && (
@@ -180,15 +216,26 @@ export default function TableMapScreen({ onOpenOrder, onOpenEditor }: Props) {
         ))}
       </ScrollView>
 
-      {/* Canvas */}
-      <ScrollView style={s.canvasScroll} contentContainerStyle={[s.canvas, { minHeight: CANVAS_H }]}
+      {/* Canvas — grid automático */}
+      <ScrollView style={s.canvasScroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}>
-        {sectorTables.map(t => <TableCard key={t.id} table={t} onPress={handleTablePress} onLongPress={handleTableLongPress} />)}
-        {sectorTables.length === 0 && <View style={s.emptyWrap}><Text style={s.emptyT}>No hay mesas en este sector</Text></View>}
+        <View style={[s.canvas, { flexDirection: 'row', flexWrap: 'wrap', padding: 8, gap: 8 }]}>
+          {sectorTables.map(t => <TableCard key={t.id} table={t} onPress={handleTablePress} onLongPress={handleTableLongPress} hasAppOrder={appOrderTables.includes(t.number)} />)}
+          {sectorTables.length === 0 && <View style={s.emptyWrap}><Text style={s.emptyT}>No hay mesas en este sector</Text></View>}
+        </View>
       </ScrollView>
 
       {/* Notificaciones pedidos app */}
       <AppOrdersPanel />
+
+      {/* Indicador de pedidos app pendientes */}
+      {appOrderTables.length > 0 && (
+        <View style={{ position: 'absolute', top: 100, right: 16, backgroundColor: '#FF6B00', borderRadius: 12, padding: 12, zIndex: 100, borderWidth: 2, borderColor: '#FFD700' }}>
+          <Text style={{ color: '#fff', fontWeight: '800', fontSize: 14 }}>📱 {appOrderTables.length} pedido{appOrderTables.length > 1 ? 's' : ''} pendiente{appOrderTables.length > 1 ? 's' : ''}</Text>
+          <Text style={{ color: '#FFD700', fontWeight: '700', fontSize: 12 }}>Mesa{appOrderTables.length > 1 ? 's' : ''}: {appOrderTables.join(', ')}</Text>
+          <Text style={{ color: '#ffffffaa', fontSize: 10, marginTop: 2 }}>Toca la mesa para confirmar</Text>
+        </View>
+      )}
 
       {/* Modal */}
       <Modal visible={openModal} transparent animationType="fade">
