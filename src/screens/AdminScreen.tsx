@@ -142,6 +142,84 @@ const sp = StyleSheet.create({
   notes: { fontSize: 10, color: COLORS.textMuted, marginTop: 2 },
 });
 
+function CumpleanosProximos() {
+  const [cumples, setCumples] = useState<any[]>([]);
+
+  useEffect(() => {
+    loadCumples();
+    const i = setInterval(loadCumples, 60000);
+    return () => clearInterval(i);
+  }, []);
+
+  const loadCumples = async () => {
+    const { data } = await supabase
+      .from('clients')
+      .select('name, birthday, phone, member_number, total_visits')
+      .eq('active', true)
+      .not('birthday', 'is', null);
+    if (!data) return;
+
+    const hoy = new Date();
+    const hoyMD = (hoy.getMonth() + 1) * 100 + hoy.getDate();
+
+    const conProx = data.map((c: any) => {
+      const [y, m, d] = c.birthday.split('-').map(Number);
+      const cumpleMD = m * 100 + d;
+      let diasFaltan = cumpleMD - hoyMD;
+      if (diasFaltan < -7) diasFaltan += 365;
+      return { ...c, diasFaltan, mes: m, dia: d };
+    }).filter((c: any) => c.diasFaltan >= -1 && c.diasFaltan <= 30)
+      .sort((a: any, b: any) => a.diasFaltan - b.diasFaltan);
+
+    setCumples(conProx.slice(0, 15));
+  };
+
+  if (cumples.length === 0) return null;
+
+  return (
+    <View style={sc.wrap}>
+      <View style={sc.header}>
+        <Text style={sc.title}>🎂 Cumpleaños próximos</Text>
+        <View style={sc.badge}><Text style={sc.badgeT}>{cumples.length}</Text></View>
+      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 8 }}>
+        {cumples.map((c, i) => {
+          const esHoy = c.diasFaltan === 0;
+          const esMañana = c.diasFaltan === 1;
+          const esAyer = c.diasFaltan === -1;
+          return (
+            <View key={i} style={[sc.card, esHoy && sc.cardHoy]}>
+              <Text style={{ fontSize: esHoy ? 28 : 20 }}>{esHoy ? '🎉' : '🎂'}</Text>
+              <Text style={sc.nombre} numberOfLines={1}>{c.name}</Text>
+              <Text style={sc.fecha}>{c.dia}/{c.mes}</Text>
+              <Text style={[sc.dias, esHoy && { color: '#16a34a' }]}>
+                {esHoy ? '¡HOY!' : esAyer ? 'Fue ayer' : esMañana ? 'Mañana' : `En ${c.diasFaltan} días`}
+              </Text>
+              {c.phone && <Text style={sc.tel}>{c.phone}</Text>}
+              {c.total_visits > 0 && <Text style={sc.visitas}>{c.total_visits} visitas</Text>}
+            </View>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+}
+
+const sc = StyleSheet.create({
+  wrap: { marginHorizontal: 16, marginTop: 12, marginBottom: 4, backgroundColor: COLORS.card, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: COLORS.border },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  title: { fontSize: 15, fontWeight: '700', color: COLORS.text },
+  badge: { backgroundColor: '#f59e0b', width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  badgeT: { color: '#fff', fontSize: 12, fontWeight: '800' },
+  card: { backgroundColor: COLORS.background, borderRadius: 10, padding: 10, minWidth: 120, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
+  cardHoy: { borderColor: '#16a34a', backgroundColor: '#f0fdf4', borderWidth: 2 },
+  nombre: { fontSize: 12, fontWeight: '700', color: COLORS.text, marginTop: 4, textAlign: 'center', maxWidth: 110 },
+  fecha: { fontSize: 11, color: COLORS.textSecondary, marginTop: 2 },
+  dias: { fontSize: 11, fontWeight: '700', color: '#f59e0b', marginTop: 2 },
+  tel: { fontSize: 9, color: COLORS.textMuted, marginTop: 2 },
+  visitas: { fontSize: 9, color: COLORS.primary, fontWeight: '600', marginTop: 1 },
+});
+
 function Menu({ onSelect, onOpenEditor }: { onSelect: (s: Sub) => void; onOpenEditor: () => void }) {
   const items: { key: Sub; icon: string; title: string; desc: string }[] = [
     { key: 'products', icon: '🍕', title: 'Productos', desc: 'Menú, recetas y food cost' },
@@ -156,6 +234,7 @@ function Menu({ onSelect, onOpenEditor }: { onSelect: (s: Sub) => void; onOpenEd
   ];
   return (
     <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+      <CumpleanosProximos />
       <View style={s.grid}>
         {items.map(i => (
           <TouchableOpacity key={i.key} style={s.card} onPress={() => onSelect(i.key)}>
