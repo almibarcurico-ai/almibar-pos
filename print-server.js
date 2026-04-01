@@ -110,7 +110,10 @@ function generateBoleta(data) {
   }
   t += CMD.LINE + CMD.BOLD_ON + CMD.SIZE_UP + CMD.CHAR_SPACING_WIDE;
   t += pad('Subtotal:', fmt(data.subtotal || 0)) + '\n';
-  if (data.discount && data.discount > 0) t += pad(data.discountLabel || 'Descuento:', '-' + fmt(data.discount)) + '\n';
+  if (data.discount && data.discount > 0) {
+    t += pad(data.discountLabel || 'Descuento:', '-' + fmt(data.discount)) + '\n';
+    t += pad('Neto:', fmt((data.subtotal || 0) - data.discount)) + '\n';
+  }
   if (data.tip > 0) t += pad('Propina:', fmt(data.tip)) + '\n';
   t += CMD.DOUBLE_BOTH + pad('TOTAL:', fmt(data.total || 0)) + '\n';
   t += CMD.CHAR_SPACING_DEFAULT + CMD.SIZE_UP + CMD.BOLD_OFF + CMD.LINE;

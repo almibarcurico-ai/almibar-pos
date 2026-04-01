@@ -196,6 +196,7 @@ export function generateBoleta(data: {
   ticket += pad('Subtotal:', fmt(data.subtotal)) + '\n';
   if (data.discount && data.discount > 0) {
     ticket += pad(data.discountLabel || 'Descuento:', '-' + fmt(data.discount)) + '\n';
+    ticket += pad('Neto:', fmt(data.subtotal - data.discount)) + '\n';
   }
   if (data.tip > 0) {
     ticket += pad('Propina:', fmt(data.tip)) + '\n';

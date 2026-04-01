@@ -209,7 +209,7 @@ function VentasTab() {
   };
 
   return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 100 }}>
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 20 }}>
       {/* Filter bar */}
       <View style={s.filterBar}>
         {/* Period selector */}
@@ -395,7 +395,7 @@ function VentasTab() {
           <View style={[s.md, { maxWidth: 500 }]}>
             <Text style={s.mdT}>Orden #{detailOrder?.order_number}</Text>
             <Text style={{ fontSize: 12, color: COLORS.textSecondary, textAlign: 'center' }}>
-              {detailOrder?.closed_at ? new Date(detailOrder.closed_at).toLocaleString('es-CL') : ''}
+              Mesa {detailOrder?.table_number || '—'} • {detailOrder?.closed_at ? new Date(detailOrder.closed_at).toLocaleString('es-CL') : ''}
               {detailOrder?.waiter_name ? ` • ${detailOrder.waiter_name}` : ''}
             </Text>
             <View style={s.div} />
@@ -404,7 +404,6 @@ function VentasTab() {
               <View key={it.id} style={{ flexDirection: 'row', paddingVertical: 3 }}>
                 <Text style={{ width: 28, fontSize: 13, fontWeight: '700', color: COLORS.textSecondary }}>{it.quantity}x</Text>
                 <Text style={{ flex: 1, fontSize: 13, color: COLORS.text }}>{it.product?.name}</Text>
-                {it.notes ? <Text style={{ fontSize: 10, color: COLORS.textMuted }}>📝 {it.notes}</Text> : null}
                 <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.text, marginLeft: 8 }}>{fmt(it.total_price)}</Text>
               </View>
             ))}
@@ -413,6 +412,10 @@ function VentasTab() {
               <Text style={{ color: COLORS.textSecondary }}>Subtotal</Text>
               <Text style={{ fontWeight: '600', color: COLORS.text }}>{fmt(detailOrder?.subtotal || 0)}</Text>
             </View>
+            {(detailOrder?.discount_value || 0) > 0 && <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+              <Text style={{ color: COLORS.success }}>Descuento</Text>
+              <Text style={{ fontWeight: '600', color: COLORS.success }}>-{fmt(detailOrder.discount_value)}</Text>
+            </View>}
             {(detailOrder?.tip_amount || 0) > 0 && <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
               <Text style={{ color: COLORS.textSecondary }}>Propina</Text>
               <Text style={{ fontWeight: '600', color: COLORS.warning }}>{fmt(detailOrder.tip_amount)}</Text>
@@ -421,8 +424,51 @@ function VentasTab() {
               <Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.text }}>TOTAL</Text>
               <Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.primary }}>{fmt(detailOrder?.total || 0)}</Text>
             </View>
-            <Text style={{ fontSize: 12, color: COLORS.textSecondary, marginTop: 6 }}>Pago: {detailOrder?.payment_method}</Text>
-            <TouchableOpacity style={[s.bOk, { marginTop: 16 }]} onPress={() => setDetailModal(false)}><Text style={s.bOkT}>Cerrar</Text></TouchableOpacity>
+
+            {/* EDITAR */}
+            <View style={{ marginTop: 16, backgroundColor: COLORS.background, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: COLORS.border }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 8 }}>EDITAR VENTA</Text>
+              <Text style={s.lb}>Método de pago</Text>
+              <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+                {['efectivo', 'debito', 'credito', 'transferencia', 'mixto'].map(m => (
+                  <TouchableOpacity key={m} onPress={() => setDetailOrder((p: any) => ({ ...p, payment_method: m }))}
+                    style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, backgroundColor: detailOrder?.payment_method === m ? COLORS.primary : COLORS.card, borderWidth: 1, borderColor: detailOrder?.payment_method === m ? COLORS.primary : COLORS.border }}>
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: detailOrder?.payment_method === m ? '#fff' : COLORS.text }}>{m.charAt(0).toUpperCase() + m.slice(1)}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.lb}>Propina</Text>
+                  <TextInput style={s.inp} value={String(detailOrder?.tip_amount || 0)} onChangeText={t => setDetailOrder((p: any) => ({ ...p, tip_amount: parseInt(t) || 0 }))} keyboardType="number-pad" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.lb}>Descuento</Text>
+                  <TextInput style={s.inp} value={String(detailOrder?.discount_value || 0)} onChangeText={t => {
+                    const dv = parseInt(t) || 0;
+                    const sub = detailOrder?.subtotal || 0;
+                    setDetailOrder((p: any) => ({ ...p, discount_value: dv, total: Math.max(0, sub - dv) }));
+                  }} keyboardType="number-pad" />
+                </View>
+              </View>
+            </View>
+
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+              <TouchableOpacity style={s.bC} onPress={() => setDetailModal(false)}><Text style={s.bCT}>Cancelar</Text></TouchableOpacity>
+              <TouchableOpacity style={s.bOk} onPress={async () => {
+                if (!detailOrder) return;
+                const total = Math.max(0, (detailOrder.subtotal || 0) - (detailOrder.discount_value || 0));
+                await supabase.from('orders').update({
+                  payment_method: detailOrder.payment_method,
+                  tip_amount: detailOrder.tip_amount || 0,
+                  discount_value: detailOrder.discount_value || 0,
+                  total,
+                }).eq('id', detailOrder.id);
+                Alert.alert('Guardado', 'Venta actualizada');
+                setDetailModal(false);
+                load();
+              }}><Text style={s.bOkT}>Guardar cambios</Text></TouchableOpacity>
+            </View>
           </View>
         </ScrollView></View>
       </Modal>
@@ -487,7 +533,7 @@ function MovimientosTab() {
   if (loading) return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: COLORS.textMuted }}>Cargando...</Text></View>;
 
   return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 100 }}>
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 20 }}>
       {/* Header */}
       <View style={s.arqueoHdr}>
         <Text style={{ fontSize: 16, fontWeight: '700', color: COLORS.text }}>Movimientos de Caja</Text>
@@ -757,7 +803,7 @@ function ArqueosTab() {
   if (loading) return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: COLORS.textMuted }}>Cargando...</Text></View>;
 
   return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 100 }}>
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 20 }}>
       {/* Header with button */}
       <View style={s.arqueoHdr}>
         <Text style={{ fontSize: 16, fontWeight: '700', color: COLORS.text }}>Cajas</Text>
@@ -1164,7 +1210,7 @@ function AnulacionesTab() {
   const totalAnulado = logs.reduce((a, l) => a + (l.details?.total_price || 0), 0);
 
   return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 100 }}>
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 20 }}>
       <View style={s.filterBar}>
         <View style={s.filterRow}>
           {(['diario', 'semanal', 'mensual'] as const).map(p => (
@@ -1258,7 +1304,7 @@ function PropinasTab() {
   payments.forEach((p: any) => { byMethod[p.method] = (byMethod[p.method] || 0) + (p.tip_amount || 0); });
 
   return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 100 }}>
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 20 }}>
       <View style={s.filterBar}>
         <View style={s.filterRow}>
           {(['diario', 'semanal', 'mensual'] as const).map(p => (
