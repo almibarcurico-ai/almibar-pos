@@ -110,6 +110,7 @@ function generateBoleta(data) {
   }
   t += CMD.LINE + CMD.BOLD_ON + CMD.SIZE_UP + CMD.CHAR_SPACING_WIDE;
   t += pad('Subtotal:', fmt(data.subtotal || 0)) + '\n';
+  if (data.discount && data.discount > 0) t += pad(data.discountLabel || 'Descuento:', '-' + fmt(data.discount)) + '\n';
   if (data.tip > 0) t += pad('Propina:', fmt(data.tip)) + '\n';
   t += CMD.DOUBLE_BOTH + pad('TOTAL:', fmt(data.total || 0)) + '\n';
   t += CMD.CHAR_SPACING_DEFAULT + CMD.SIZE_UP + CMD.BOLD_OFF + CMD.LINE;
@@ -350,12 +351,18 @@ supabase.channel('tables-changes')
         const { data: waiter } = await supabase.from('users').select('name').eq('id', order.created_by).single();
         const unpaidItems = (order.order_items || []).filter(i => !i.paid);
         const subtotal = unpaidItems.reduce((a, i) => a + (i.total_price || 0), 0);
-        const tip = Math.round(subtotal * 0.1);
+
+        // Miércoles: 40% descuento automático
+        const esMiercoles = new Date().getDay() === 3;
+        const discount = esMiercoles ? Math.round(subtotal * 0.4) : 0;
+        const discountLabel = esMiercoles ? 'Dcto 40% Mie:' : '';
+        const subtotalConDesc = subtotal - discount;
+        const tip = Math.round(subtotal * 0.1); // propina sobre subtotal sin descuento
 
         const ticket = generateBoleta({
           table: table.number, waiter: waiter?.name || '',
           items: unpaidItems.map(i => ({ name: i.product?.name || 'Item', qty: i.quantity, price: i.unit_price, total: i.total_price })),
-          subtotal, tip, total: subtotal + tip, payments: [], orderNumber: order.order_number,
+          subtotal, discount, discountLabel, tip, total: subtotalConDesc + tip, payments: [], orderNumber: order.order_number,
         });
 
         const printer = PRINTER_IPS.caja;

@@ -67,8 +67,9 @@ export default function OrderScreen({ table, onBack }: Props) {
   const [payMode, setPayMode] = useState<'full'|'partial'>('full');
   const [paySelectedModal, setPaySelectedModal] = useState(false);
   // Discount
-  const [discountType, setDiscountType] = useState<'none'|'percent'|'fixed'>('none');
-  const [discountValue, setDiscountValue] = useState('');
+  const esMiercoles = new Date().getDay() === 3;
+  const [discountType, setDiscountType] = useState<'none'|'percent'|'fixed'>(esMiercoles ? 'percent' : 'none');
+  const [discountValue, setDiscountValue] = useState(esMiercoles ? '40' : '');
   // Multi-method payment - Fudo style
   const [tipEntries, setTipEntries] = useState<{method:string;amount:string}[]>([]);
   const [payEntries, setPayEntries] = useState<{method:string;amount:string}[]>([]);
@@ -96,13 +97,17 @@ export default function OrderScreen({ table, onBack }: Props) {
     const { data: p } = await supabase.from('products').select('*').eq('active', true).order('sort_order');
     if (c) setCategories(c);
     if (p) {
-      // Filtrar Happy Hour fuera de horario (Lun-Sáb 17:00-21:00)
       const HH_CAT = 'd0000000-0000-0000-0000-000000000041';
+      const COMBO_CAT = 'd0000000-0000-0000-0000-000000000040';
       const now = new Date();
       const hora = now.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Santiago' });
-      const dow = now.getDay(); // 0=Dom
-      const hhActivo = dow >= 1 && dow <= 6 && hora >= '17:00' && hora < '21:00';
-      setProducts(hhActivo ? p : p.filter((pr: any) => pr.category_id !== HH_CAT));
+      const dow = now.getDay(); // 0=Dom, 3=Mié
+      const esMiercoles = dow === 3;
+      const hhActivo = !esMiercoles && dow >= 1 && dow <= 6 && hora >= '17:00' && hora < '21:00';
+      // Miércoles: bloquear HH y Combos (40% descuento no aplica a promos)
+      // Otros días: bloquear HH fuera de horario
+      const bloqueadas = esMiercoles ? [HH_CAT, COMBO_CAT] : (hhActivo ? [] : [HH_CAT]);
+      setProducts(p.filter((pr: any) => !bloqueadas.includes(pr.category_id)));
     }
     // Load modifier groups per product
     const { data: pmg } = await supabase.from('product_modifier_groups').select('product_id, group_id');
@@ -220,6 +225,37 @@ export default function OrderScreen({ table, onBack }: Props) {
     if (error) { Alert.alert('Error', error.message); return; }
     playClickPOS(); await loadOrder();
   };
+  const [editClientModal, setEditClientModal] = useState(false);
+  const [editClientName, setEditClientName] = useState('');
+  const [editClientSuggestions, setEditClientSuggestions] = useState<any[]>([]);
+  const [editSelectedClient, setEditSelectedClient] = useState<any>(null);
+
+  const editarCliente = () => {
+    const currentName = order?.notes?.match(/Cliente:\s*([^|]+)/)?.[1]?.trim() || '';
+    setEditClientName(currentName);
+    setEditClientSuggestions([]);
+    setEditSelectedClient(null);
+    setEditClientModal(true);
+  };
+
+  const searchEditClient = async (text: string) => {
+    setEditClientName(text);
+    setEditSelectedClient(null);
+    if (text.length < 2) { setEditClientSuggestions([]); return; }
+    const { data } = await supabase.from('clients').select('id, name, phone, total_visits, member_number').or('name.ilike.%' + text + '%,phone.ilike.%' + text + '%').eq('active', true).limit(5);
+    if (data) setEditClientSuggestions(data);
+  };
+
+  const guardarEditCliente = async () => {
+    if (!order || !editClientName.trim()) return;
+    const newNotes = 'Cliente: ' + editClientName.trim();
+    const updates: any = { notes: newNotes };
+    if (editSelectedClient) updates.client_id = editSelectedClient.id;
+    await supabase.from('orders').update(updates).eq('id', order.id);
+    setEditClientModal(false);
+    await loadOrder();
+  };
+
   const removeItem = async (item: OrderItem) => {
     if (!user || !order) return;
     if (user.role === 'garzon' && item.printed) { Alert.alert('No permitido'); return; }
@@ -380,7 +416,12 @@ export default function OrderScreen({ table, onBack }: Props) {
         <Text style={s.hT}>MESA {table.number}</Text>
         <TouchableOpacity onPress={() => setPreCuentaModal(true)}><Text style={{ fontSize: 18 }}>🧾</Text></TouchableOpacity>
       </View>
-      <View style={s.subH}><Text style={{ fontSize: 12, color: COLORS.textSecondary }}>👤 {waiterName || user?.name} • {order?.opened_at ? new Date(order.opened_at).toLocaleString('es-CL') : ''}</Text></View>
+      <View style={s.subH}>
+        <Text style={{ fontSize: 12, color: COLORS.textSecondary }}>👤 {waiterName || user?.name} • {order?.opened_at ? new Date(order.opened_at).toLocaleString('es-CL') : ''}</Text>
+        <TouchableOpacity onPress={editarCliente} style={{ marginLeft: 8, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: COLORS.primary + '15', borderWidth: 1, borderColor: COLORS.primary + '30' }}>
+          <Text style={{ fontSize: 11, fontWeight: '600', color: COLORS.primary }}>{order?.notes?.match(/Cliente:\s*([^|]+)/)?.[1]?.trim() || 'Asignar cliente'} ✏️</Text>
+        </TouchableOpacity>
+      </View>
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 120 }}>
         {/* ADICIONAR */}
@@ -584,8 +625,10 @@ export default function OrderScreen({ table, onBack }: Props) {
           {paidItems.length > 0 && (<><Text style={{ fontSize: 11, fontWeight: '700', color: COLORS.success, marginBottom: 6 }}>✅ PAGADOS</Text>{paidItems.map(i => <View key={i.id} style={{ flexDirection: 'row', paddingVertical: 3, opacity: 0.5 }}><Text style={{ width: 30, fontSize: 13, fontWeight: '700', color: COLORS.textMuted }}>{i.quantity}x</Text><Text style={{ flex: 1, fontSize: 13, color: COLORS.textMuted, textDecorationLine: 'line-through' }}>{i.product?.name}</Text><Text style={{ fontSize: 13, color: COLORS.textMuted }}>{fmt(i.total_price)}</Text></View>)}<View style={[s.div, { marginVertical: 8 }]} /></>)}
           {unpaidItems.map(i => <TouchableOpacity key={i.id} onPress={() => payMode === 'partial' ? toggleItem(i.id) : null} style={{ flexDirection: 'row', paddingVertical: 6, paddingHorizontal: 4, borderRadius: 6, backgroundColor: selectedItemIds.has(i.id) ? COLORS.primary + '15' : 'transparent' }}>{payMode === 'partial' && <View style={{ width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: selectedItemIds.has(i.id) ? COLORS.primary : COLORS.border, backgroundColor: selectedItemIds.has(i.id) ? COLORS.primary : 'transparent', alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>{selectedItemIds.has(i.id) && <Text style={{ color: '#fff', fontSize: 14, fontWeight: '800' }}>✓</Text>}</View>}<Text style={{ width: 28, fontSize: 13, fontWeight: '700', color: COLORS.textSecondary }}>{i.quantity}x</Text><Text style={{ flex: 1, fontSize: 13, color: COLORS.text }}>{i.product?.name}</Text><Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.text }}>{fmt(i.total_price)}</Text></TouchableOpacity>)}
           <View style={s.div} />
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 }}><Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.text }}>TOTAL</Text><Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.primary }}>{fmt(order?.total || 0)}</Text></View>
-          <Text style={{ fontSize: 12, color: COLORS.textMuted, textAlign: 'center', marginTop: 8 }}>Propina sugerida 10%: {fmt(Math.round(payableTotal * 0.1))}</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 }}><Text style={{ fontSize: 14, color: COLORS.textSecondary }}>Subtotal</Text><Text style={{ fontSize: 14, color: COLORS.textSecondary }}>{fmt(unpaidSubtotal)}</Text></View>
+          {discountAmount > 0 && <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4, backgroundColor: '#f0fdf4', borderRadius: 6, paddingHorizontal: 8, marginVertical: 4 }}><Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.success }}>Descuento {discountType === 'percent' ? `(${discountValue}%)` : ''} {esMiercoles ? '· Miércoles' : ''}</Text><Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.success }}>-{fmt(discountAmount)}</Text></View>}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 }}><Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.text }}>TOTAL</Text><Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.primary }}>{fmt(unpaidTotal)}</Text></View>
+          <Text style={{ fontSize: 12, color: COLORS.textMuted, textAlign: 'center', marginTop: 8 }}>Propina sugerida 10%: {fmt(Math.round(unpaidSubtotal * 0.1))}</Text>
           <View style={{ flexDirection: 'row', gap: 12, marginTop: 20 }}>
             <TouchableOpacity style={s.bC} onPress={() => { setPreCuentaModal(false); resetPayState(); }}><Text style={s.bCT}>✕ Cerrar</Text></TouchableOpacity>
             <TouchableOpacity style={[s.bOk, { backgroundColor: COLORS.warning }]} onPress={async () => { try { await supabase.from('tables').update({ status: 'cuenta' }).eq('id', table.id); playClickPOS(); setPreCuentaModal(false); onBack(); } catch (e: any) { Alert.alert('Error', e.message); } }}><Text style={s.bOkT}>🖨 Imprimir</Text></TouchableOpacity>
@@ -751,6 +794,47 @@ export default function OrderScreen({ table, onBack }: Props) {
             <TouchableOpacity style={[s.bOk, { backgroundColor: COLORS.success, opacity: payTotal < unpaidTotal ? 0.5 : 1 }]} onPress={closeTable} disabled={payTotal < unpaidTotal}><Text style={s.bOkT}>Cerrar mesa {table.number}</Text></TouchableOpacity>
           </View>
         </View></ScrollView></View>
+      </Modal>
+
+      {/* EDITAR CLIENTE */}
+      <Modal visible={editClientModal} transparent animationType="fade">
+        <View style={s.ov}><View style={s.md}>
+          <Text style={s.mdT}>Asignar Cliente</Text>
+          <Text style={{ fontSize: 12, color: COLORS.textSecondary, marginTop: 4, marginBottom: 12 }}>Busca por nombre o teléfono del socio</Text>
+          <TextInput
+            style={{ backgroundColor: COLORS.background, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: COLORS.text, marginBottom: 8 }}
+            placeholder="Buscar socio o escribir nombre..."
+            placeholderTextColor={COLORS.textMuted}
+            value={editClientName}
+            onChangeText={searchEditClient}
+            autoFocus
+          />
+          {editClientSuggestions.length > 0 && (
+            <View style={{ backgroundColor: COLORS.card, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, marginBottom: 10, maxHeight: 200, overflow: 'hidden' }}>
+              {editClientSuggestions.map((c: any) => (
+                <TouchableOpacity key={c.id} onPress={() => { setEditSelectedClient(c); setEditClientName(c.name); setEditClientSuggestions([]); }}
+                  style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: COLORS.border, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: COLORS.primary + '18', alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ fontSize: 12, fontWeight: '800', color: COLORS.primary }}>#{c.member_number}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 14, fontWeight: '600', color: COLORS.text }}>{c.name}</Text>
+                    <Text style={{ fontSize: 11, color: COLORS.textMuted }}>{c.phone || ''} {c.total_visits ? '· ' + c.total_visits + ' visitas' : ''}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+          {editSelectedClient && (
+            <View style={{ backgroundColor: COLORS.primary + '10', borderRadius: 8, padding: 10, marginBottom: 10, borderWidth: 1, borderColor: COLORS.primary + '30' }}>
+              <Text style={{ fontSize: 12, color: COLORS.primary, fontWeight: '600' }}>Socio #{editSelectedClient.member_number} · {editSelectedClient.name}</Text>
+            </View>
+          )}
+          <View style={{ flexDirection: 'row', gap: 12, marginTop: 8 }}>
+            <TouchableOpacity style={s.bC} onPress={() => setEditClientModal(false)}><Text style={s.bCT}>Cancelar</Text></TouchableOpacity>
+            <TouchableOpacity style={s.bOk} onPress={guardarEditCliente}><Text style={s.bOkT}>Guardar</Text></TouchableOpacity>
+          </View>
+        </View></View>
       </Modal>
     </View>
   );

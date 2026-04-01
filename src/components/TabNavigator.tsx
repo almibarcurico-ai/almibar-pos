@@ -1,7 +1,7 @@
 // src/components/TabNavigator.tsx
 
 import React from 'react';
-import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { View, TouchableOpacity, Text, StyleSheet, ScrollView } from 'react-native';
 import { UserRole } from '../types';
 import { COLORS } from '../theme';
 
@@ -31,7 +31,7 @@ export default function TabNavigator({ activeTab, onChangeTab, role }: Props) {
   const visibleTabs = ALL_TABS.filter((t) => t.roles.includes(role));
 
   return (
-    <View style={styles.container}>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.container} contentContainerStyle={{ paddingHorizontal: 8, gap: 2 }}>
       {visibleTabs.map((tab) => {
         const isActive = activeTab === tab.key;
         return (
@@ -47,18 +47,17 @@ export default function TabNavigator({ activeTab, onChangeTab, role }: Props) {
           </TouchableOpacity>
         );
       })}
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: 'row',
     backgroundColor: COLORS.card,
     borderBottomWidth: 2,
     borderBottomColor: COLORS.border,
-    paddingHorizontal: 12,
-    gap: 4,
+    flexGrow: 0,
+    flexShrink: 0,
   },
   tab: {
     flexDirection: 'row',

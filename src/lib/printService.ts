@@ -156,6 +156,8 @@ export function generateBoleta(data: {
   waiter: string;
   items: { name: string; qty: number; price: number; total: number }[];
   subtotal: number;
+  discount?: number;
+  discountLabel?: string;
   tip: number;
   total: number;
   payments: { method: string; amount: number }[];
@@ -192,6 +194,9 @@ export function generateBoleta(data: {
   ticket += CMD.LINE;
   ticket += CMD.BOLD_ON + CMD.SIZE_UP + CMD.CHAR_SPACING_WIDE;
   ticket += pad('Subtotal:', fmt(data.subtotal)) + '\n';
+  if (data.discount && data.discount > 0) {
+    ticket += pad(data.discountLabel || 'Descuento:', '-' + fmt(data.discount)) + '\n';
+  }
   if (data.tip > 0) {
     ticket += pad('Propina:', fmt(data.tip)) + '\n';
   }

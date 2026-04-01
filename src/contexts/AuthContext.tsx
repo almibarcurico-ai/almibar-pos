@@ -66,12 +66,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(true);
 
     try {
-      const { data, error: dbError } = await supabase
+      const { data: results, error: dbError } = await supabase
         .from('users')
         .select('*')
         .eq('pin', pin)
         .eq('active', true)
-        .single();
+        .limit(10);
+      const data = results && results.length > 0 ? results[0] : null;
 
       if (dbError || !data) {
         setError('PIN incorrecto');
