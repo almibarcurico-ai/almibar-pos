@@ -2,7 +2,7 @@
 // v2 - Router with Phase B modules
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Switch } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Switch, Linking } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { COLORS } from '../theme';
@@ -187,17 +187,28 @@ function CumpleanosProximos() {
           const esHoy = c.diasFaltan === 0;
           const esMañana = c.diasFaltan === 1;
           const esAyer = c.diasFaltan === -1;
+          const enviarWA = () => {
+            if (!c.phone) { Alert.alert('Sin teléfono', 'Este socio no tiene teléfono registrado.'); return; }
+            const tel = c.phone.replace(/[^0-9]/g, '');
+            const telWA = tel.startsWith('56') ? tel : '56' + tel;
+            const nombre = c.name.split(' ')[0];
+            const msg = c.diasFaltan <= 0
+              ? `¡Hola ${nombre}! 🎂🎉\n\n¡Feliz cumpleaños de parte de todo el equipo de *Almíbar Cocina y Bar*!\n\nQueremos invitarte a celebrar con nosotros. Tenemos beneficios especiales para ti:\n\n🍹 *2 a 5 personas:* 1 cóctel gratis\n🍹🍹 *6 a 10 personas:* 2 cócteles gratis\n🍹🥃 *11 a 15 personas:* 2 cócteles + ronda de tequila\n💰 *16+ personas:* 40% de descuento en toda la mesa\n\n📍 Francisco Moreno 418, Curicó\n\n👉 *Haz tu reserva aquí:*\nhttps://almibarcurico-ai.github.io/\n\n¡Te esperamos! 🥂`
+              : `¡Hola ${nombre}! 🎉\n\nEn *Almíbar Cocina y Bar* estamos expectantes porque se viene una fecha especial y queremos ser parte de tu celebración!\n\nTe recordamos que como socio del club tienes beneficios exclusivos:\n\n🍹 *2 a 5 personas:* 1 cóctel gratis para ti\n🍹🍹 *6 a 10 personas:* 2 cócteles gratis\n🍹🥃 *11 a 15 personas:* 2 cócteles + ronda de tequila\n💰 *16+ personas:* 40% de descuento en toda la mesa\n\nReserva con tiempo para asegurar tu mesa 🙌\n\n📍 Francisco Moreno 418, Curicó\n\n👉 *Reserva aquí:*\nhttps://almibarcurico-ai.github.io/\n\n¡Te esperamos! 🥂`;
+            const url = `https://wa.me/${telWA}?text=${encodeURIComponent(msg)}`;
+            Linking.openURL(url);
+          };
           return (
-            <View key={i} style={[sc.card, esHoy && sc.cardHoy]}>
+            <TouchableOpacity key={i} style={[sc.card, esHoy && sc.cardHoy]} onPress={enviarWA} activeOpacity={0.7}>
               <Text style={{ fontSize: esHoy ? 28 : 20 }}>{esHoy ? '🎉' : '🎂'}</Text>
               <Text style={sc.nombre} numberOfLines={1}>{c.name}</Text>
               <Text style={sc.fecha}>{c.dia}/{c.mes}</Text>
               <Text style={[sc.dias, esHoy && { color: '#16a34a' }]}>
                 {esHoy ? '¡HOY!' : esAyer ? 'Fue ayer' : esMañana ? 'Mañana' : `En ${c.diasFaltan} días`}
               </Text>
-              {c.phone && <Text style={sc.tel}>{c.phone}</Text>}
-              {c.total_visits > 0 && <Text style={sc.visitas}>{c.total_visits} visitas</Text>}
-            </View>
+              {c.phone && <Text style={sc.tel}>📱 {c.phone}</Text>}
+              <Text style={sc.waBtn}>💬 WhatsApp</Text>
+            </TouchableOpacity>
           );
         })}
       </ScrollView>
@@ -218,6 +229,122 @@ const sc = StyleSheet.create({
   dias: { fontSize: 11, fontWeight: '700', color: '#f59e0b', marginTop: 2 },
   tel: { fontSize: 9, color: COLORS.textMuted, marginTop: 2 },
   visitas: { fontSize: 9, color: COLORS.primary, fontWeight: '600', marginTop: 1 },
+  waBtn: { fontSize: 10, fontWeight: '700', color: '#25D366', marginTop: 4, backgroundColor: '#25D36615', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, overflow: 'hidden' },
+});
+
+function ClientesEnLocal() {
+  const [clientes, setClientes] = useState<any[]>([]);
+  const [promoActiva, setPromoActiva] = useState(false);
+  const [enviados, setEnviados] = useState<Set<string>>(new Set());
+
+  useEffect(() => { load(); const i = setInterval(load, 15000); return () => clearInterval(i); }, []);
+
+  const load = async () => {
+    const { data } = await supabase
+      .from('orders')
+      .select('id, notes, client_id, table_id, opened_at, tables:table_id(number), clients:client_id(name, phone, member_number, total_visits)')
+      .eq('status', 'abierta')
+      .not('table_id', 'is', null);
+    if (!data) { setClientes([]); return; }
+    const list = data.map((o: any) => ({
+      orderId: o.id,
+      mesa: o.tables?.number || '?',
+      nombre: o.clients?.name || (o.notes?.replace('Cliente: ', '').split('|')[0]?.trim()) || 'Sin nombre',
+      phone: o.clients?.phone || null,
+      member: o.clients?.member_number || null,
+      visitas: o.clients?.total_visits || 0,
+      hora: o.opened_at,
+    })).sort((a: any, b: any) => a.mesa - b.mesa);
+    setClientes(list);
+  };
+
+  const enviarPromo = (c: any) => {
+    if (!c.phone) { Alert.alert('Sin teléfono', 'Este cliente no tiene teléfono registrado.'); return; }
+    const tel = c.phone.replace(/[^0-9]/g, '');
+    const telWA = tel.startsWith('56') ? tel : '56' + tel;
+    const nombre = c.nombre.split(' ')[0];
+    const msg = `¡Hola ${nombre}! 🔥\n\n*PROMO FLASH solo para ti en Almíbar* ⚡\n\n🥃 *Shot de Tequila a solo $1.000* 🤯\n\nVálido ahora mismo en tu mesa. Solo muestra este mensaje a tu garzón.\n\n¡Salud! 🥂`;
+    Linking.openURL(`https://wa.me/${telWA}?text=${encodeURIComponent(msg)}`);
+    setEnviados(prev => new Set([...prev, c.orderId]));
+  };
+
+  const enviarATodos = () => {
+    const conTel = clientes.filter(c => c.phone && !enviados.has(c.orderId));
+    if (conTel.length === 0) { Alert.alert('Sin destinatarios', 'No hay clientes con teléfono o ya se envió a todos.'); return; }
+    Alert.alert(
+      'Promo Flash a ' + conTel.length + ' mesas',
+      'Se abrirá WhatsApp para cada cliente. ¿Continuar?',
+      [{ text: 'Cancelar' }, { text: 'Enviar', onPress: () => { conTel.forEach((c, i) => setTimeout(() => enviarPromo(c), i * 1500)); } }]
+    );
+  };
+
+  const togglePromo = async () => {
+    setPromoActiva(!promoActiva);
+    // Activar/desactivar producto promo en la app
+    // Buscar producto "Shot Tequila" o similar
+    const { data: prod } = await supabase.from('products').select('id').ilike('name', '%shot%tequila%').limit(1);
+    if (prod && prod[0]) {
+      await supabase.from('products').update({ active: !promoActiva }).eq('id', prod[0].id);
+    }
+    Alert.alert(promoActiva ? 'Promo desactivada' : 'Promo Flash activada', promoActiva ? 'El producto ya no aparece en la app' : 'Shot de Tequila $1.000 visible en la app');
+  };
+
+  if (clientes.length === 0) return null;
+
+  const fH = (ts: string) => new Date(ts).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false });
+
+  return (
+    <View style={cl.wrap}>
+      <View style={cl.header}>
+        <View style={{ flex: 1 }}>
+          <Text style={cl.title}>🪑 Clientes en el local ({clientes.length})</Text>
+          <Text style={{ fontSize: 10, color: COLORS.textMuted }}>Toca un cliente para enviar promo por WhatsApp</Text>
+        </View>
+        <TouchableOpacity style={[cl.promoBtn, promoActiva && cl.promoBtnActiva]} onPress={togglePromo}>
+          <Text style={{ fontSize: 12, color: promoActiva ? '#fff' : '#f59e0b', fontWeight: '700' }}>⚡ {promoActiva ? 'Promo ON' : 'Activar Promo'}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={cl.enviarTodos} onPress={enviarATodos}>
+          <Text style={{ fontSize: 11, color: '#25D366', fontWeight: '700' }}>💬 Enviar a todos</Text>
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 8 }}>
+        {clientes.map((c, i) => {
+          const yaEnviado = enviados.has(c.orderId);
+          return (
+            <TouchableOpacity key={i} style={[cl.card, yaEnviado && cl.cardEnviado]} onPress={() => enviarPromo(c)} activeOpacity={0.7}>
+              <View style={cl.mesaBadge}><Text style={cl.mesaNum}>{c.mesa}</Text></View>
+              <Text style={cl.nombre} numberOfLines={1}>{c.nombre}</Text>
+              <Text style={cl.hora}>Desde {fH(c.hora)}</Text>
+              {c.member && <Text style={cl.socio}>Socio #{c.member}</Text>}
+              {c.phone ? (
+                <Text style={cl.waBtn}>{yaEnviado ? '✅ Enviado' : '💬 Enviar promo'}</Text>
+              ) : (
+                <Text style={{ fontSize: 9, color: COLORS.textMuted, marginTop: 4 }}>Sin teléfono</Text>
+              )}
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+}
+
+const cl = StyleSheet.create({
+  wrap: { marginHorizontal: 16, marginTop: 8, marginBottom: 4, backgroundColor: COLORS.card, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: COLORS.border },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' },
+  title: { fontSize: 14, fontWeight: '700', color: COLORS.text },
+  promoBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1.5, borderColor: '#f59e0b', backgroundColor: '#f59e0b10' },
+  promoBtnActiva: { backgroundColor: '#f59e0b', borderColor: '#f59e0b' },
+  enviarTodos: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1.5, borderColor: '#25D366', backgroundColor: '#25D36610' },
+  card: { backgroundColor: COLORS.background, borderRadius: 10, padding: 10, minWidth: 130, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
+  cardEnviado: { borderColor: '#25D366', backgroundColor: '#25D36608' },
+  mesaBadge: { width: 32, height: 32, borderRadius: 8, backgroundColor: COLORS.primary + '18', alignItems: 'center', justifyContent: 'center' },
+  mesaNum: { fontSize: 14, fontWeight: '800', color: COLORS.primary },
+  nombre: { fontSize: 12, fontWeight: '700', color: COLORS.text, marginTop: 4, textAlign: 'center', maxWidth: 120 },
+  hora: { fontSize: 10, color: COLORS.textMuted, marginTop: 2 },
+  socio: { fontSize: 9, color: COLORS.primary, fontWeight: '600', marginTop: 1 },
+  waBtn: { fontSize: 10, fontWeight: '700', color: '#25D366', marginTop: 4, backgroundColor: '#25D36615', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, overflow: 'hidden' },
 });
 
 function Menu({ onSelect, onOpenEditor }: { onSelect: (s: Sub) => void; onOpenEditor: () => void }) {
@@ -235,6 +362,7 @@ function Menu({ onSelect, onOpenEditor }: { onSelect: (s: Sub) => void; onOpenEd
   return (
     <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
       <CumpleanosProximos />
+      <ClientesEnLocal />
       <View style={s.grid}>
         {items.map(i => (
           <TouchableOpacity key={i.key} style={s.card} onPress={() => onSelect(i.key)}>
