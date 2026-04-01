@@ -115,10 +115,10 @@ function AppContent() {
     );
   }
 
-  // Mobile view for phones (< 600px)
+  // Mobile view for phones (< 600px) — solo garzones ven vista simplificada
   const isMobile = Dimensions.get('window').width < 600;
 
-  if (isMobile) {
+  if (isMobile && user.role === 'garzon') {
     if (detail?.type === 'order') {
       return <OrderScreen table={detail.table} onBack={() => setDetail(null)} />;
     }

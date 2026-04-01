@@ -263,7 +263,7 @@ function ClientesEnLocal() {
     const tel = c.phone.replace(/[^0-9]/g, '');
     const telWA = tel.startsWith('56') ? tel : '56' + tel;
     const nombre = c.nombre.split(' ')[0];
-    const msg = `¡Hola ${nombre}! 🔥\n\n*PROMO FLASH solo para ti en Almíbar* ⚡\n\n🥃 *Shot de Tequila a solo $1.000* 🤯\n\nVálido ahora mismo en tu mesa. Solo muestra este mensaje a tu garzón.\n\n¡Salud! 🥂`;
+    const msg = `¡Hola ${nombre}! 🔥\n\n*PROMO FLASH solo para ti en Almíbar* ⚡\n\n🥃 Shot de Tequila *$1.000*\n🍺 Schop Patagonia *$2.500*\n🍹 Mojito Cubano *$2.500*\n\nVálido por 5 minutos. Pide desde la app o muestra este mensaje a tu garzón.\n\n👉 https://almibarcurico-ai.github.io/\n\n¡Salud! 🥂`;
     Linking.openURL(`https://wa.me/${telWA}?text=${encodeURIComponent(msg)}`);
     setEnviados(prev => new Set([...prev, c.orderId]));
   };
@@ -279,14 +279,29 @@ function ClientesEnLocal() {
   };
 
   const togglePromo = async () => {
-    setPromoActiva(!promoActiva);
-    // Activar/desactivar producto promo en la app
-    // Buscar producto "Shot Tequila" o similar
-    const { data: prod } = await supabase.from('products').select('id').ilike('name', '%shot%tequila%').limit(1);
-    if (prod && prod[0]) {
-      await supabase.from('products').update({ active: !promoActiva }).eq('id', prod[0].id);
+    const nueva = !promoActiva;
+    setPromoActiva(nueva);
+
+    if (nueva) {
+      // Activar: insertar o actualizar banner promo flash
+      const ahora = new Date().toISOString();
+      const { data: existing } = await supabase.from('promo_banners').select('id').eq('title', 'PROMO FLASH').limit(1);
+      if (existing && existing.length > 0) {
+        await supabase.from('promo_banners').update({ active: true, subtitle: '🥃 Shot Tequila $1.000 · 🍺 Schop $2.500 · 🍹 Mojito $2.500', emoji: '🔥', sort_order: 0, created_at: ahora }).eq('id', existing[0].id);
+      } else {
+        await supabase.from('promo_banners').insert({ title: 'PROMO FLASH', subtitle: '🥃 Shot Tequila $1.000 · 🍺 Schop $2.500 · 🍹 Mojito $2.500', emoji: '🔥', image_url: '', sort_order: 0, active: true, created_at: ahora });
+      }
+      // Auto-desactivar en 10 minutos
+      setTimeout(async () => {
+        await supabase.from('promo_banners').update({ active: false }).eq('title', 'PROMO FLASH');
+        setPromoActiva(false);
+      }, 5 * 60 * 1000); // 5 minutos
+      Alert.alert('⚡ Promo Flash activada', '3 productos en promo por 5 minutos.\nShot Tequila $1.000\nSchop Patagonia $2.500\nMojito Cubano $2.500');
+    } else {
+      // Desactivar: ocultar banner
+      await supabase.from('promo_banners').update({ active: false }).eq('title', 'PROMO FLASH');
+      Alert.alert('Promo desactivada', 'El banner ya no aparece en la app');
     }
-    Alert.alert(promoActiva ? 'Promo desactivada' : 'Promo Flash activada', promoActiva ? 'El producto ya no aparece en la app' : 'Shot de Tequila $1.000 visible en la app');
   };
 
   if (clientes.length === 0) return null;
