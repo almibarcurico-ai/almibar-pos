@@ -352,12 +352,18 @@ supabase.channel('tables-changes')
         const unpaidItems = (order.order_items || []).filter(i => !i.paid);
         const subtotal = unpaidItems.reduce((a, i) => a + (i.total_price || 0), 0);
 
-        // Miércoles: 40% descuento automático
+        // Descuento: leer de la orden si existe, o calcular miércoles
         const esMiercoles = new Date().getDay() === 3;
-        const discount = esMiercoles ? Math.round(subtotal * 0.4) : 0;
-        const discountLabel = esMiercoles ? 'Dcto 40% Mie:' : '';
+        let discount = 0, discountLabel = '';
+        if (order.discount_value && order.discount_value > 0) {
+          discount = order.discount_value;
+          discountLabel = order.discount_type === 'percent' ? 'Dcto ' + Math.round(order.discount_value / subtotal * 100) + '%:' : 'Descuento:';
+        } else if (esMiercoles) {
+          discount = Math.round(subtotal * 0.4);
+          discountLabel = 'Dcto 40% Mie:';
+        }
         const subtotalConDesc = subtotal - discount;
-        const tip = Math.round(subtotal * 0.1); // propina sobre subtotal sin descuento
+        const tip = Math.round(subtotal * 0.1);
 
         const ticket = generateBoleta({
           table: table.number, waiter: waiter?.name || '',
