@@ -21,13 +21,13 @@ export default function CajaScreen() {
 
   return (
     <View style={s.c}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.tabBar} contentContainerStyle={{ gap: 0 }}>
+      <View style={s.tabBar}>
         {TABS.map(t => (
           <TouchableOpacity key={t.key} style={[s.tabItem, tab === t.key && s.tabItemA]} onPress={() => setTab(t.key as any)}>
             <Text style={[s.tabItemT, tab === t.key && s.tabItemTA]}>{t.label}</Text>
           </TouchableOpacity>
         ))}
-      </ScrollView>
+      </View>
       {tab === 'ventas' && <VentasTab />}
       {tab === 'movimientos' && <MovimientosTab />}
       {tab === 'arqueos' && <ArqueosTab />}
@@ -209,7 +209,7 @@ function VentasTab() {
   };
 
   return (
-    <View style={{ flex: 1 }}>
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 20 }} nestedScrollEnabled>
       {/* Filter bar - fixed at top */}
       <View style={s.filterBar}>
         {/* Period selector */}
@@ -296,8 +296,7 @@ function VentasTab() {
         {totals.propinas > 0 && <SumCard label="Propinas" value={fmt(totals.propinas)} />}
       </View>
 
-      {/* Table - scrollable */}
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 20 }}>
+      {/* Table */}
       <View style={s.tblHdr}>
         <Text style={[s.tblH, { width: 130 }]}>Hora Inicio</Text>
         <Text style={[s.tblH, { width: 130 }]}>Hora cierre</Text>
@@ -390,8 +389,6 @@ function VentasTab() {
         );
       })()}
 
-      </ScrollView>
-
       {/* Detail Modal */}
       <Modal visible={detailModal} transparent animationType="fade">
         <View style={s.ov}><ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 16 }}>
@@ -475,7 +472,7 @@ function VentasTab() {
           </View>
         </ScrollView></View>
       </Modal>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -1403,7 +1400,7 @@ const s = StyleSheet.create({
   hdr: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 4, backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.border },
   hdrT: { fontSize: 22, fontWeight: '800', color: COLORS.text },
 
-  tabBar: { flexDirection: 'row', backgroundColor: COLORS.card, borderBottomWidth: 2, borderBottomColor: COLORS.border, paddingHorizontal: 16 },
+  tabBar: { flexDirection: 'row', backgroundColor: COLORS.card, borderBottomWidth: 2, borderBottomColor: COLORS.border, paddingHorizontal: 16, flexGrow: 0, flexShrink: 0 },
   tabItem: { paddingVertical: 8, paddingHorizontal: 14, borderBottomWidth: 3, borderBottomColor: 'transparent', marginBottom: -2 },
   tabItemA: { borderBottomColor: COLORS.primary },
   tabItemT: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary },
