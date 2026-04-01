@@ -33,7 +33,6 @@ export default function AdminScreen({ onOpenEditor, onOpenInventory }: Props) {
       {sub === 'products' && <ProductsScreen />}
       {sub === 'ingredients' && <IngredientsScreen />}
       {sub === 'users' && <UsersScreen />}
-      {sub === 'reports' && <ReportsScreen />}
       {sub === 'clients' && <ClientsScreen />}
       {sub === 'modifiers' && <ModifiersScreen />}
       {sub === 'printers' && <PrintersScreen />}
@@ -154,11 +153,9 @@ function Menu({ onSelect, onOpenEditor }: { onSelect: (s: Sub) => void; onOpenEd
     { key: 'printers', icon: '🖨️', title: 'Impresoras', desc: 'Cocina, Barra, Caja' },
     { key: 'clients', icon: '🤝', title: 'Socios', desc: 'Club de Amigos' },
     { key: 'users', icon: '👥', title: 'Usuarios', desc: 'Roles y accesos' },
-    { key: 'reports', icon: '📊', title: 'Reportes', desc: 'Ventas y análisis' },
   ];
   return (
     <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
-      <ClientesPresentes />
       <View style={s.grid}>
         {items.map(i => (
           <TouchableOpacity key={i.key} style={s.card} onPress={() => onSelect(i.key)}>
@@ -179,7 +176,7 @@ function Menu({ onSelect, onOpenEditor }: { onSelect: (s: Sub) => void; onOpenEd
 
 const s = StyleSheet.create({
   c: { flex: 1, backgroundColor: COLORS.background },
-  hdr: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingTop: 50, paddingBottom: 12, backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  hdr: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12, backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.border },
   hdrT: { fontSize: 22, fontWeight: '800', color: COLORS.text },
   back: { color: COLORS.primary, fontSize: 15, fontWeight: '600' },
   grid: { padding: 16, flexDirection: 'row', flexWrap: 'wrap', gap: 12 },

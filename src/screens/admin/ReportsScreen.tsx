@@ -1,186 +1,385 @@
 // src/screens/admin/ReportsScreen.tsx
+// Reportes estilo Fudo: sidebar + contenido con gráficos
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, StyleSheet, Dimensions } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { COLORS } from '../../theme';
-import { Chip, fmt, sh } from './shared';
 
-type Period = 'hoy' | 'semana' | 'mes' | 'custom';
+type Section = 'ventas' | 'productos' | 'mesas' | 'garzones' | 'pagos';
+type Period = 'turno' | 'diario' | 'semanal' | 'mensual' | 'anual' | 'rango';
 
 const toLocal = (d: Date) => d.toISOString().split('T')[0];
-const today = () => toLocal(new Date());
-const daysAgo = (n: number) => { const d = new Date(); d.setDate(d.getDate() - n); return toLocal(d); };
-const monthsAgo = (n: number) => { const d = new Date(); d.setMonth(d.getMonth() - n); return toLocal(d); };
+const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-CL');
+const SW = Dimensions.get('window').width;
 
 export default function ReportsScreen() {
+  const [section, setSection] = useState<Section>('ventas');
+  const [period, setPeriod] = useState<Period>('diario');
+  const [date, setDate] = useState(toLocal(new Date()));
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [orders, setOrders] = useState<any[]>([]);
   const [items, setItems] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
-  const [period, setPeriod] = useState<Period>('hoy');
-  const [dateFrom, setDateFrom] = useState(today());
-  const [dateTo, setDateTo] = useState(today());
+  const [users, setUsers] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (period === 'hoy') { setDateFrom(today()); setDateTo(today()); }
-    else if (period === 'semana') { setDateFrom(daysAgo(7)); setDateTo(today()); }
-    else if (period === 'mes') { setDateFrom(monthsAgo(1)); setDateTo(today()); }
-  }, [period]);
+  useEffect(() => { loadMeta(); }, []);
+  useEffect(() => { load(); }, [period, date]);
 
-  useEffect(() => { load(); }, [dateFrom, dateTo]);
+  const loadMeta = async () => {
+    const [u, c] = await Promise.all([
+      supabase.from('users').select('id,name').order('name'),
+      supabase.from('categories').select('id,name').eq('active', true).order('sort_order'),
+    ]);
+    if (u.data) setUsers(u.data);
+    if (c.data) setCategories(c.data);
+  };
+
+  const getRange = () => {
+    const d = new Date(date + 'T00:00:00');
+    if (period === 'rango') return { since: dateFrom, until: dateTo + 'T23:59:59' };
+    if (period === 'turno') {
+      // Turno actual: desde apertura de caja o últimas 12h
+      const from = new Date(); from.setHours(from.getHours() - 12);
+      return { since: toLocal(from), until: toLocal(new Date()) + 'T23:59:59' };
+    }
+    if (period === 'diario') return { since: date, until: date + 'T23:59:59' };
+    if (period === 'semanal') { const s = new Date(d); s.setDate(s.getDate() - s.getDay()); const e = new Date(s); e.setDate(e.getDate() + 6); return { since: toLocal(s), until: toLocal(e) + 'T23:59:59' }; }
+    if (period === 'mensual') { const s = new Date(d.getFullYear(), d.getMonth(), 1); const e = new Date(d.getFullYear(), d.getMonth() + 1, 0); return { since: toLocal(s), until: toLocal(e) + 'T23:59:59' }; }
+    // anual
+    return { since: `${d.getFullYear()}-01-01`, until: `${d.getFullYear()}-12-31T23:59:59` };
+  };
 
   const load = async () => {
-    const until = dateTo + 'T23:59:59';
-    const { data: o } = await supabase.from('orders').select('*').eq('status', 'cerrada').gte('closed_at', dateFrom).lte('closed_at', until).order('closed_at', { ascending: false });
-    if (o) setOrders(o);
+    setLoading(true);
+    const { since, until } = getRange();
+    const { data: o } = await supabase.from('orders').select('*, table:table_id(number)').eq('status', 'cerrada').gte('closed_at', since).lte('closed_at', until).order('closed_at', { ascending: false });
+    setOrders(o || []);
     const ids = (o || []).map((x: any) => x.id);
     if (ids.length > 0) {
       const [itRes, payRes] = await Promise.all([
-        supabase.from('order_items').select('*, product:product_id(name, category_id)').in('order_id', ids),
+        supabase.from('order_items').select('*, product:product_id(name, category_id, price)').in('order_id', ids),
         supabase.from('payments').select('*').in('order_id', ids),
       ]);
-      if (itRes.data) setItems(itRes.data);
-      if (payRes.data) setPayments(payRes.data);
+      setItems(itRes.data || []);
+      setPayments(payRes.data || []);
     } else { setItems([]); setPayments([]); }
+    setLoading(false);
   };
 
+  const changeDate = (dir: number) => {
+    const d = new Date(date + 'T12:00:00');
+    if (period === 'diario') d.setDate(d.getDate() + dir);
+    else if (period === 'semanal') d.setDate(d.getDate() + (dir * 7));
+    else if (period === 'mensual') d.setMonth(d.getMonth() + dir);
+    else if (period === 'anual') d.setFullYear(d.getFullYear() + dir);
+    setDate(toLocal(d));
+  };
+
+  const dateLabel = () => {
+    const d = new Date(date + 'T12:00:00');
+    if (period === 'turno') return 'Turno actual';
+    if (period === 'diario') return d.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    if (period === 'semanal') return `Semana del ${d.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}`;
+    if (period === 'mensual') return d.toLocaleDateString('es-CL', { month: 'long', year: 'numeric' });
+    if (period === 'anual') return String(d.getFullYear());
+    return `${dateFrom} → ${dateTo}`;
+  };
+
+  const waiterName = (id: string) => users.find(u => u.id === id)?.name || '?';
+  const catName = (id: string) => categories.find(c => c.id === id)?.name || '?';
+
+  // ── Cálculos ──
   const totalVentas = orders.reduce((s: number, o: any) => s + (o.total || 0), 0);
   const totalTips = payments.reduce((s: number, p: any) => s + (p.tip_amount || 0), 0);
-  const totalDiscount = orders.reduce((s: number, o: any) => s + (o.discount_value || 0), 0);
   const avgTicket = orders.length > 0 ? Math.round(totalVentas / orders.length) : 0;
 
-  // By payment method
-  const byMethod: Record<string, number> = {};
-  payments.filter((p: any) => p.amount > 0).forEach((p: any) => {
-    byMethod[p.method] = (byMethod[p.method] || 0) + p.amount;
-  });
-
-  // Top products
-  const prodMap: Record<string, { name: string; qty: number; total: number }> = {};
-  items.forEach((i: any) => {
-    const name = i.product?.name || '?';
-    if (!prodMap[name]) prodMap[name] = { name, qty: 0, total: 0 };
-    prodMap[name].qty += i.quantity;
-    prodMap[name].total += i.total_price;
-  });
-  const top = Object.values(prodMap).sort((a, b) => b.total - a.total).slice(0, 20);
-
-  // By day (for chart-like display)
-  const byDay: Record<string, { ventas: number; ordenes: number }> = {};
-  orders.forEach((o: any) => {
-    const day = o.closed_at?.split('T')[0] || '?';
-    if (!byDay[day]) byDay[day] = { ventas: 0, ordenes: 0 };
-    byDay[day].ventas += o.total || 0;
-    byDay[day].ordenes += 1;
-  });
-  const days = Object.entries(byDay).sort(([a], [b]) => a.localeCompare(b));
-  const maxDayVentas = Math.max(...days.map(([, d]) => d.ventas), 1);
-
-  // Export CSV
   const exportCSV = () => {
-    const header = 'Fecha,Orden,Mesa,Método Pago,Subtotal,Descuento,Total,Propina\n';
-    const rows = orders.map((o: any) =>
-      `${o.closed_at?.split('T')[0]},${o.order_number || ''},${o.table_number || ''},${o.payment_method || ''},${o.subtotal || 0},${o.discount_value || 0},${o.total || 0},${o.tip_amount || 0}`
-    ).join('\n');
-    const csv = header + rows;
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `reporte_${dateFrom}_${dateTo}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const header = 'Fecha,Mesa,Método,Subtotal,Descuento,Total,Propina\n';
+    const rows = orders.map((o: any) => `${o.closed_at?.split('T')[0]},${o.table?.number || ''},${o.payment_method || ''},${o.subtotal || 0},${o.discount_value || 0},${o.total || 0},${o.tip_amount || 0}`).join('\n');
+    const blob = new Blob(['\uFEFF' + header + rows], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `reporte_${date}.csv`; a.click();
   };
 
-  const methodLabel = (m: string) => m === 'efectivo' ? '💵 Efectivo' : m === 'debito' ? '💳 Débito' : m === 'credito' ? '💳 Crédito' : '📱 Transferencia';
+  // ── Sidebar ──
+  const SECTIONS: { key: Section; label: string; icon: string }[] = [
+    { key: 'ventas', label: 'Ventas', icon: '💰' },
+    { key: 'productos', label: 'Productos', icon: '🍕' },
+    { key: 'mesas', label: 'Mesas', icon: '🪑' },
+    { key: 'garzones', label: 'Garzones', icon: '👤' },
+    { key: 'pagos', label: 'Medios de Pago', icon: '💳' },
+  ];
 
   return (
-    <View style={sh.c}>
-      {/* Period selector */}
-      <View style={{ flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 10, gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-        {(['hoy', 'semana', 'mes', 'custom'] as const).map(p => (
-          <Chip key={p} label={p === 'custom' ? '📅 Rango' : p.charAt(0).toUpperCase() + p.slice(1)} active={period === p} onPress={() => setPeriod(p)} />
+    <View style={st.wrap}>
+      {/* Sidebar */}
+      <View style={st.sidebar}>
+        <Text style={st.sideTitle}>REPORTES</Text>
+        {SECTIONS.map(s => (
+          <TouchableOpacity key={s.key} style={[st.sideBtn, section === s.key && st.sideBtnA]} onPress={() => setSection(s.key)}>
+            <Text style={{ fontSize: 16 }}>{s.icon}</Text>
+            <Text style={[st.sideBtnT, section === s.key && st.sideBtnTA]}>{s.label}</Text>
+          </TouchableOpacity>
         ))}
-        <TouchableOpacity onPress={exportCSV} style={{ marginLeft: 'auto', backgroundColor: COLORS.success, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 }}>
-          <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>📥 Exportar CSV</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Custom date range */}
-      {period === 'custom' && (
-        <View style={{ flexDirection: 'row', paddingHorizontal: 16, paddingBottom: 10, gap: 8, alignItems: 'center' }}>
-          <Text style={{ fontSize: 12, color: COLORS.textSecondary }}>Desde:</Text>
-          <TextInput
-            style={{ backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, fontSize: 13, color: COLORS.text, width: 120 }}
-            value={dateFrom} onChangeText={setDateFrom} placeholder="2026-01-01" placeholderTextColor={COLORS.textMuted}
-          />
-          <Text style={{ fontSize: 12, color: COLORS.textSecondary }}>Hasta:</Text>
-          <TextInput
-            style={{ backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, fontSize: 13, color: COLORS.text, width: 120 }}
-            value={dateTo} onChangeText={setDateTo} placeholder="2026-12-31" placeholderTextColor={COLORS.textMuted}
-          />
-          <TouchableOpacity onPress={load} style={{ backgroundColor: COLORS.primary, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 }}>
-            <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>Buscar</Text>
+        <View style={{ marginTop: 'auto', padding: 12 }}>
+          <TouchableOpacity onPress={exportCSV} style={st.exportBtn}>
+            <Text style={st.exportBtnT}>📥 Exportar CSV</Text>
           </TouchableOpacity>
         </View>
-      )}
+      </View>
 
-      <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}>
-        {/* Summary cards */}
-        <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
-          <View style={cardStyle}><Text style={cardNum}>{fmt(totalVentas)}</Text><Text style={cardLabel}>Ventas</Text></View>
-          <View style={cardStyle}><Text style={cardNum}>{orders.length}</Text><Text style={cardLabel}>Órdenes</Text></View>
-          <View style={cardStyle}><Text style={cardNum}>{fmt(avgTicket)}</Text><Text style={cardLabel}>Ticket prom.</Text></View>
-          <View style={cardStyle}><Text style={[cardNum, { color: COLORS.warning }]}>{fmt(totalTips)}</Text><Text style={cardLabel}>Propinas</Text></View>
-          {totalDiscount > 0 && <View style={cardStyle}><Text style={[cardNum, { color: COLORS.success }]}>{fmt(totalDiscount)}</Text><Text style={cardLabel}>Descuentos</Text></View>}
-        </View>
-
-        {/* By payment method */}
-        <Text style={sectionTitle}>Por método de pago</Text>
-        <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
-          {Object.entries(byMethod).map(([m, total]) => (
-            <View key={m} style={[cardStyle, { minWidth: 140 }]}>
-              <Text style={{ fontSize: 16, fontWeight: '800', color: COLORS.text }}>{fmt(total)}</Text>
-              <Text style={cardLabel}>{methodLabel(m)}</Text>
-            </View>
-          ))}
-          {Object.keys(byMethod).length === 0 && <Text style={{ color: COLORS.textMuted }}>Sin pagos</Text>}
-        </View>
-
-        {/* Daily breakdown */}
-        {days.length > 1 && (
-          <>
-            <Text style={sectionTitle}>Ventas por día</Text>
-            <View style={{ marginBottom: 16 }}>
-              {days.map(([day, d]) => (
-                <View key={day} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-                  <Text style={{ fontSize: 11, color: COLORS.textSecondary, width: 80 }}>{day.slice(5)}</Text>
-                  <View style={{ flex: 1, height: 20, backgroundColor: COLORS.background, borderRadius: 4, overflow: 'hidden' as const }}>
-                    <View style={{ width: `${(d.ventas / maxDayVentas) * 100}%`, height: '100%', backgroundColor: COLORS.primary + '60', borderRadius: 4 }} />
-                  </View>
-                  <Text style={{ fontSize: 11, fontWeight: '700', color: COLORS.text, width: 80, textAlign: 'right' }}>{fmt(d.ventas)}</Text>
-                  <Text style={{ fontSize: 10, color: COLORS.textMuted, width: 30, textAlign: 'right' }}>{d.ordenes}ord</Text>
-                </View>
-              ))}
-            </View>
-          </>
-        )}
-
-        {/* Top Products */}
-        <Text style={sectionTitle}>Top Productos</Text>
-        {top.map((p, i) => (
-          <View key={p.name} style={sh.row}>
-            <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.textMuted, width: 24 }}>{i + 1}</Text>
-            <View style={{ flex: 1 }}><Text style={sh.rowName}>{p.name}</Text><Text style={sh.rowSub}>{p.qty} vendidos</Text></View>
-            <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.primary }}>{fmt(p.total)}</Text>
+      {/* Content */}
+      <View style={st.content}>
+        {/* Period bar */}
+        <View style={st.periodBar}>
+          <View style={{ flexDirection: 'row', gap: 4 }}>
+            {(['turno', 'diario', 'semanal', 'mensual', 'anual', 'rango'] as const).map(p => (
+              <TouchableOpacity key={p} style={[st.pChip, period === p && st.pChipA]} onPress={() => setPeriod(p)}>
+                <Text style={[st.pChipT, period === p && st.pChipTA]}>{p.charAt(0).toUpperCase() + p.slice(1)}</Text>
+              </TouchableOpacity>
+            ))}
           </View>
-        ))}
-        {top.length === 0 && <Text style={{ textAlign: 'center', color: COLORS.textMuted, marginTop: 20 }}>Sin datos para este período</Text>}
-      </ScrollView>
+          {period !== 'turno' && period !== 'rango' && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginLeft: 16 }}>
+              <TouchableOpacity onPress={() => changeDate(-1)} style={st.navBtn}><Text style={st.navBtnT}>◀</Text></TouchableOpacity>
+              <Text style={st.dateLabel}>{dateLabel()}</Text>
+              <TouchableOpacity onPress={() => changeDate(1)} style={st.navBtn}><Text style={st.navBtnT}>▶</Text></TouchableOpacity>
+            </View>
+          )}
+          {period === 'rango' && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: 16 }}>
+              <TextInput style={st.dateInput} value={dateFrom} onChangeText={setDateFrom} placeholder="2026-01-01" placeholderTextColor={COLORS.textMuted} />
+              <Text style={{ color: COLORS.textMuted }}>→</Text>
+              <TextInput style={st.dateInput} value={dateTo} onChangeText={setDateTo} placeholder="2026-12-31" placeholderTextColor={COLORS.textMuted} />
+              <TouchableOpacity onPress={load} style={[st.pChip, st.pChipA]}><Text style={st.pChipTA}>Buscar</Text></TouchableOpacity>
+            </View>
+          )}
+        </View>
+
+        {/* Summary cards */}
+        <View style={st.summaryRow}>
+          <SC label="Ventas totales" value={fmt(totalVentas)} color={COLORS.primary} />
+          <SC label="Órdenes" value={String(orders.length)} />
+          <SC label="Ticket promedio" value={fmt(avgTicket)} />
+          <SC label="Propinas" value={fmt(totalTips)} color={COLORS.warning} />
+        </View>
+
+        {/* Section content */}
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: 60 }}>
+          {loading && <Text style={{ textAlign: 'center', color: COLORS.textMuted, padding: 40 }}>Cargando...</Text>}
+
+          {!loading && section === 'ventas' && <VentasSection orders={orders} />}
+          {!loading && section === 'productos' && <ProductosSection items={items} catName={catName} />}
+          {!loading && section === 'mesas' && <MesasSection orders={orders} />}
+          {!loading && section === 'garzones' && <GarzonesSection orders={orders} payments={payments} waiterName={waiterName} />}
+          {!loading && section === 'pagos' && <PagosSection payments={payments} />}
+        </ScrollView>
+      </View>
     </View>
   );
 }
 
-const cardStyle = { flex: 1, backgroundColor: COLORS.card, borderRadius: 12, padding: 14, alignItems: 'center' as const, borderWidth: 1, borderColor: COLORS.border };
-const cardNum = { fontSize: 20, fontWeight: '800' as const, color: COLORS.primary };
-const cardLabel = { fontSize: 11, color: COLORS.textSecondary, marginTop: 2 };
-const sectionTitle = { fontSize: 13, fontWeight: '700' as const, color: COLORS.textSecondary, textTransform: 'uppercase' as const, marginBottom: 8, letterSpacing: 1 };
+// ── VENTAS ──
+function VentasSection({ orders }: { orders: any[] }) {
+  const byDay: Record<string, { ventas: number; ordenes: number }> = {};
+  orders.forEach(o => { const d = o.closed_at?.split('T')[0] || '?'; if (!byDay[d]) byDay[d] = { ventas: 0, ordenes: 0 }; byDay[d].ventas += o.total || 0; byDay[d].ordenes++; });
+  const days = Object.entries(byDay).sort(([a], [b]) => a.localeCompare(b));
+  const max = Math.max(...days.map(([, d]) => d.ventas), 1);
+  if (days.length === 0) return <Empty />;
+  return (
+    <View>
+      <Text style={st.secTitle}>VENTAS POR DÍA</Text>
+      <Text style={st.secSub}>{days.length} días con ventas</Text>
+      {days.map(([day, d]) => (
+        <View key={day} style={st.barRow}>
+          <Text style={st.barLabel}>{day.slice(5)}</Text>
+          <View style={st.barTrack}><View style={[st.barFill, { width: `${(d.ventas / max) * 100}%`, backgroundColor: COLORS.primary }]} /></View>
+          <Text style={st.barValue}>{fmt(d.ventas)}</Text>
+          <Text style={st.barSub}>{d.ordenes}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+// ── PRODUCTOS ──
+function ProductosSection({ items, catName }: { items: any[]; catName: (id: string) => string }) {
+  const prodMap: Record<string, { name: string; qty: number; total: number; price: number; catId: string }> = {};
+  items.forEach(i => {
+    const name = i.product?.name || '?';
+    if (!prodMap[name]) prodMap[name] = { name, qty: 0, total: 0, price: i.product?.price || i.unit_price, catId: i.product?.category_id || '' };
+    prodMap[name].qty += i.quantity; prodMap[name].total += i.total_price;
+  });
+  const top = Object.values(prodMap).sort((a, b) => b.qty - a.qty);
+  const maxQty = Math.max(...top.map(p => p.qty), 1);
+  const COLORS_BAR = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#8b5cf6', '#ec4899', '#14b8a6', '#f59e0b', '#6366f1'];
+  if (top.length === 0) return <Empty />;
+  return (
+    <View>
+      <Text style={st.secTitle}>PRODUCTOS</Text>
+      <Text style={st.secSub}>{top.length} productos vendidos</Text>
+      <View style={{ flexDirection: 'row', gap: 20 }}>
+        {/* Chart */}
+        <View style={{ flex: 1 }}>
+          {top.slice(0, 15).map((p, i) => (
+            <View key={p.name} style={st.barRow}>
+              <Text style={[st.barLabel, { width: 120, fontSize: 11 }]} numberOfLines={1}>{p.name}</Text>
+              <View style={st.barTrack}><View style={[st.barFill, { width: `${(p.qty / maxQty) * 100}%`, backgroundColor: COLORS_BAR[i % COLORS_BAR.length] }]} /></View>
+              <Text style={st.barValue}>{p.qty}</Text>
+            </View>
+          ))}
+        </View>
+        {/* Table */}
+        <View style={{ minWidth: 320 }}>
+          <View style={{ flexDirection: 'row', paddingVertical: 6, borderBottomWidth: 2, borderBottomColor: COLORS.border }}>
+            <Text style={[st.th, { width: 30 }]}>#</Text>
+            <Text style={[st.th, { flex: 1 }]}>Producto</Text>
+            <Text style={[st.th, { width: 50 }]}>Ventas</Text>
+            <Text style={[st.th, { width: 70, textAlign: 'right' }]}>Precio</Text>
+          </View>
+          {top.slice(0, 20).map((p, i) => (
+            <View key={p.name} style={{ flexDirection: 'row', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: COLORS.border, alignItems: 'center' }}>
+              <Text style={{ width: 30, fontSize: 12, color: COLORS.textMuted }}>{i + 1}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.text }}>{p.name}</Text>
+                <Text style={{ fontSize: 10, color: COLORS.textMuted }}>{catName(p.catId)}</Text>
+              </View>
+              <Text style={{ width: 50, fontSize: 14, fontWeight: '800', color: COLORS.primary, textAlign: 'center' }}>{p.qty}</Text>
+              <Text style={{ width: 70, fontSize: 12, color: COLORS.text, textAlign: 'right' }}>{fmt(p.price)}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+// ── MESAS ──
+function MesasSection({ orders }: { orders: any[] }) {
+  const byMesa: Record<string, { num: string; ventas: number; ordenes: number; avgTicket: number }> = {};
+  orders.forEach(o => {
+    const n = String(o.table?.number || o.table_number || '?');
+    if (!byMesa[n]) byMesa[n] = { num: n, ventas: 0, ordenes: 0, avgTicket: 0 };
+    byMesa[n].ventas += o.total || 0; byMesa[n].ordenes++;
+  });
+  Object.values(byMesa).forEach(m => { m.avgTicket = m.ordenes > 0 ? Math.round(m.ventas / m.ordenes) : 0; });
+  const sorted = Object.values(byMesa).sort((a, b) => b.ventas - a.ventas);
+  const max = Math.max(...sorted.map(m => m.ventas), 1);
+  if (sorted.length === 0) return <Empty />;
+  return (
+    <View>
+      <Text style={st.secTitle}>MESAS</Text>
+      <Text style={st.secSub}>{sorted.length} mesas con ventas</Text>
+      {sorted.map((m, i) => (
+        <View key={m.num} style={st.barRow}>
+          <Text style={[st.barLabel, { width: 60, fontWeight: '700' }]}>Mesa {m.num}</Text>
+          <View style={st.barTrack}><View style={[st.barFill, { width: `${(m.ventas / max) * 100}%`, backgroundColor: '#06b6d4' }]} /></View>
+          <Text style={st.barValue}>{fmt(m.ventas)}</Text>
+          <Text style={st.barSub}>{m.ordenes} ord</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+// ── GARZONES ──
+function GarzonesSection({ orders, payments, waiterName }: { orders: any[]; payments: any[]; waiterName: (id: string) => string }) {
+  const byW: Record<string, { name: string; ventas: number; ordenes: number; tips: number }> = {};
+  orders.forEach(o => {
+    const wid = o.waiter_id || '?';
+    if (!byW[wid]) byW[wid] = { name: waiterName(wid), ventas: 0, ordenes: 0, tips: 0 };
+    byW[wid].ventas += o.total || 0; byW[wid].ordenes++;
+  });
+  payments.forEach(p => { const wid = orders.find(o => o.id === p.order_id)?.waiter_id; if (wid && byW[wid]) byW[wid].tips += p.tip_amount || 0; });
+  const sorted = Object.values(byW).sort((a, b) => b.ventas - a.ventas);
+  const max = Math.max(...sorted.map(w => w.ventas), 1);
+  if (sorted.length === 0) return <Empty />;
+  return (
+    <View>
+      <Text style={st.secTitle}>GARZONES</Text>
+      {sorted.map(w => (
+        <View key={w.name} style={st.barRow}>
+          <Text style={[st.barLabel, { width: 100 }]}>{w.name}</Text>
+          <View style={st.barTrack}><View style={[st.barFill, { width: `${(w.ventas / max) * 100}%`, backgroundColor: '#8b5cf6' }]} /></View>
+          <Text style={st.barValue}>{fmt(w.ventas)}</Text>
+          <Text style={[st.barSub, { width: 50 }]}>{w.ordenes} ord</Text>
+          <Text style={[st.barSub, { width: 70, color: COLORS.warning }]}>{fmt(w.tips)} tip</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+// ── PAGOS ──
+function PagosSection({ payments }: { payments: any[] }) {
+  const byM: Record<string, { total: number; count: number; tips: number }> = {};
+  payments.forEach(p => {
+    const m = p.method || '?';
+    if (!byM[m]) byM[m] = { total: 0, count: 0, tips: 0 };
+    byM[m].total += p.amount || 0; byM[m].count++; byM[m].tips += p.tip_amount || 0;
+  });
+  const sorted = Object.entries(byM).sort((a, b) => b[1].total - a[1].total);
+  const max = Math.max(...sorted.map(([, d]) => d.total), 1);
+  const icons: Record<string, string> = { efectivo: '💵', debito: '💳', credito: '💳', transferencia: '📱' };
+  if (sorted.length === 0) return <Empty />;
+  return (
+    <View>
+      <Text style={st.secTitle}>MEDIOS DE PAGO</Text>
+      {sorted.map(([m, d]) => (
+        <View key={m} style={st.barRow}>
+          <Text style={[st.barLabel, { width: 120 }]}>{icons[m] || '💰'} {m.charAt(0).toUpperCase() + m.slice(1)}</Text>
+          <View style={st.barTrack}><View style={[st.barFill, { width: `${(d.total / max) * 100}%`, backgroundColor: '#f97316' }]} /></View>
+          <Text style={st.barValue}>{fmt(d.total)}</Text>
+          <Text style={st.barSub}>{d.count} pagos</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+// ── Helpers ──
+function SC({ label, value, color }: { label: string; value: string; color?: string }) {
+  return (
+    <View style={st.sc}>
+      <Text style={{ fontSize: 11, color: COLORS.textSecondary }}>{label}</Text>
+      <Text style={{ fontSize: 22, fontWeight: '800', color: color || COLORS.text, marginTop: 2 }}>{value}</Text>
+    </View>
+  );
+}
+function Empty() { return <Text style={{ textAlign: 'center', color: COLORS.textMuted, padding: 40 }}>Sin datos para este período</Text>; }
+
+// ── Styles ──
+const st = StyleSheet.create({
+  wrap: { flex: 1, flexDirection: 'row', backgroundColor: COLORS.background },
+  sidebar: { width: 170, backgroundColor: COLORS.card, borderRightWidth: 1, borderRightColor: COLORS.border, paddingTop: 16 },
+  sideTitle: { fontSize: 16, fontWeight: '800', color: COLORS.text, paddingHorizontal: 16, marginBottom: 12 },
+  sideBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 16, borderLeftWidth: 3, borderLeftColor: 'transparent' },
+  sideBtnA: { borderLeftColor: COLORS.primary, backgroundColor: COLORS.primary + '10' },
+  sideBtnT: { fontSize: 13, fontWeight: '500', color: COLORS.textMuted },
+  sideBtnTA: { color: COLORS.text, fontWeight: '700' },
+  exportBtn: { backgroundColor: COLORS.success, paddingVertical: 10, borderRadius: 8, alignItems: 'center' },
+  exportBtnT: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  content: { flex: 1 },
+  periodBar: { flexDirection: 'row', alignItems: 'center', padding: 12, backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.border, flexWrap: 'wrap', gap: 4 },
+  pChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border },
+  pChipA: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  pChipT: { fontSize: 12, fontWeight: '500', color: COLORS.textSecondary },
+  pChipTA: { color: '#fff', fontWeight: '600' },
+  navBtn: { width: 30, height: 30, borderRadius: 6, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center' },
+  navBtnT: { fontSize: 12, color: COLORS.textSecondary },
+  dateLabel: { fontSize: 14, fontWeight: '600', color: COLORS.text, textTransform: 'capitalize' },
+  dateInput: { backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border, borderRadius: 6, paddingHorizontal: 10, paddingVertical: 6, fontSize: 12, color: COLORS.text, width: 110 },
+  summaryRow: { flexDirection: 'row', backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  sc: { flex: 1, padding: 14, borderRightWidth: 1, borderRightColor: COLORS.border },
+  secTitle: { fontSize: 16, fontWeight: '800', color: COLORS.text, marginBottom: 4 },
+  secSub: { fontSize: 12, color: COLORS.textMuted, marginBottom: 16 },
+  barRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4, gap: 6 },
+  barLabel: { fontSize: 12, color: COLORS.textSecondary, width: 80 },
+  barTrack: { flex: 1, height: 22, backgroundColor: COLORS.background, borderRadius: 4, overflow: 'hidden' },
+  barFill: { height: '100%', borderRadius: 4 },
+  barValue: { fontSize: 12, fontWeight: '700', color: COLORS.text, width: 80, textAlign: 'right' },
+  barSub: { fontSize: 10, color: COLORS.textMuted, width: 40, textAlign: 'right' },
+  th: { fontSize: 11, fontWeight: '700', color: COLORS.textSecondary, textTransform: 'uppercase' },
+});

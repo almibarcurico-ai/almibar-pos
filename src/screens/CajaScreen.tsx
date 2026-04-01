@@ -1354,7 +1354,7 @@ function ARQ({ label, val, bold }: { label: string; val: string; bold?: boolean 
 // =====================================================
 const s = StyleSheet.create({
   c: { flex: 1, backgroundColor: COLORS.background },
-  hdr: { paddingHorizontal: 16, paddingTop: 50, paddingBottom: 8, backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  hdr: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8, backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.border },
   hdrT: { fontSize: 22, fontWeight: '800', color: COLORS.text },
 
   tabBar: { flexDirection: 'row', backgroundColor: COLORS.card, borderBottomWidth: 2, borderBottomColor: COLORS.border, paddingHorizontal: 16 },

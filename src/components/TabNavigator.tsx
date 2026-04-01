@@ -16,6 +16,7 @@ const ALL_TABS: Tab[] = [
   { key: 'mesas', label: 'Mesas', icon: '🪑', roles: ['garzon', 'cajero', 'admin'] },
   { key: 'caja', label: 'Caja', icon: '💰', roles: ['cajero', 'admin'] },
   { key: 'delivery', label: 'Delivery', icon: '🛵', roles: ['cajero', 'admin'] },
+  { key: 'reportes', label: 'Reportes', icon: '📊', roles: ['admin'] },
   { key: 'admin', label: 'Admin', icon: '⚙️', roles: ['admin'] },
 ];
 
@@ -52,36 +53,35 @@ export default function TabNavigator({ activeTab, onChangeTab, role }: Props) {
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    backgroundColor: '#0B0D14',
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    paddingBottom: 20,
-    paddingTop: 6,
+    backgroundColor: COLORS.card,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    paddingHorizontal: 8,
+    gap: 2,
   },
   tab: {
-    flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
-    position: 'relative',
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    gap: 6,
+    borderBottomWidth: 3,
+    borderBottomColor: 'transparent',
   },
-  tabActive: {},
-  icon: { fontSize: 20 },
+  tabActive: {
+    borderBottomColor: COLORS.primary,
+  },
+  icon: { fontSize: 16 },
   label: {
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: '600',
     color: COLORS.textMuted,
-    marginTop: 3,
   },
   labelActive: {
-    color: COLORS.primary,
+    color: COLORS.text,
     fontWeight: '700',
   },
   indicator: {
-    position: 'absolute',
-    bottom: 0,
-    width: 32,
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: COLORS.primary,
+    display: 'none',
   },
 });

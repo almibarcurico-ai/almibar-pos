@@ -14,6 +14,7 @@ import CajaScreen from './src/screens/CajaScreen';
 import DeliveryScreen from './src/screens/DeliveryScreen';
 import AdminScreen from './src/screens/AdminScreen';
 import InventoryScreen from './src/screens/InventoryScreen';
+import ReportsScreen from './src/screens/admin/ReportsScreen';
 import TabNavigator from './src/components/TabNavigator';
 import MobileTableScreen from './src/screens/MobileTableScreen';
 import { COLORS } from './src/theme';
@@ -121,6 +122,7 @@ function AppContent() {
   return (
     <View style={s.container}>
       <OfflineBanner />
+      <TabNavigator activeTab={activeTab} onChangeTab={setActiveTab} role={user.role} />
       <View style={s.content}>
         {activeTab === 'mesas' && (
           <TableMapScreen
@@ -130,9 +132,9 @@ function AppContent() {
         )}
         {activeTab === 'caja' && <CajaScreen />}
         {activeTab === 'delivery' && <DeliveryScreen user={user} />}
+        {activeTab === 'reportes' && <ReportsScreen />}
         {activeTab === 'admin' && <AdminScreen onOpenEditor={navigateToEditor} onOpenInventory={navigateToInventory} />}
       </View>
-      <TabNavigator activeTab={activeTab} onChangeTab={setActiveTab} role={user.role} />
     </View>
   );
 }

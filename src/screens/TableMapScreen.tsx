@@ -285,7 +285,7 @@ function SB({ label, count, color }: { label: string; count: number; color: stri
 const s = StyleSheet.create({
   c: { flex: 1, backgroundColor: COLORS.background },
   center: { alignItems: 'center', justifyContent: 'center' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingTop: 50, paddingBottom: 12, backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingTop: 10, paddingBottom: 10, backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.border },
   hTitle: { fontSize: 20, fontWeight: '800', color: COLORS.primary, letterSpacing: 2 },
   hUser: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
   editBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: COLORS.primaryDark },

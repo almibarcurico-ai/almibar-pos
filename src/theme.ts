@@ -2,19 +2,19 @@
 
 export const COLORS = {
   // Brand - Emerald accent
-  primary: '#10B981',
-  primaryDark: '#059669',
+  primary: '#059669',
+  primaryDark: '#047857',
   primaryLight: '#34D399',
 
-  // Backgrounds - Dark slate
-  background: '#0F1117',
-  card: '#1A1D27',
-  cardHover: '#242836',
+  // Backgrounds - Light
+  background: '#F1F5F9',
+  card: '#FFFFFF',
+  cardHover: '#F8FAFC',
 
   // Text
-  text: '#F1F5F9',
-  textSecondary: '#94A3B8',
-  textMuted: '#64748B',
+  text: '#0F172A',
+  textSecondary: '#475569',
+  textMuted: '#94A3B8',
 
   // Status - Mesas
   tableLibre: '#10B981',
@@ -23,7 +23,7 @@ export const COLORS = {
   tableReservada: '#6366F1',
 
   // UI
-  border: '#2D3348',
+  border: '#E2E8F0',
   error: '#EF4444',
   success: '#10B981',
   warning: '#F59E0B',
@@ -34,7 +34,7 @@ export const COLORS = {
   barra: '#10B981',
 
   // Overlay
-  overlay: 'rgba(0, 0, 0, 0.6)',
+  overlay: 'rgba(0, 0, 0, 0.4)',
 };
 
 export const TABLE_STATUS_COLORS: Record<string, string> = {
