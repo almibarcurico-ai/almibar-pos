@@ -132,10 +132,11 @@ function VentasTab() {
       until = toChileISO(addDays(rangoHasta, 1));
     }
 
-    // Mesa orders cerradas
-    const { data: mesaData } = await supabase.from('orders').select('*, table:table_id(number)').eq('status', 'cerrada').gte('closed_at', since!).lt('closed_at', until!).order('closed_at', { ascending: false });
-    // Delivery orders
-    const { data: delivData } = await supabase.from('delivery_orders').select('*').eq('status', 'entregado').gte('closed_at', since!).lt('closed_at', until!).order('closed_at', { ascending: false });
+    // Mesa orders cerradas + Delivery orders en paralelo
+    const [{ data: mesaData }, { data: delivData }] = await Promise.all([
+      supabase.from('orders').select('*, table:table_id(number)').eq('status', 'cerrada').gte('closed_at', since!).lt('closed_at', until!).order('closed_at', { ascending: false }),
+      supabase.from('delivery_orders').select('*').eq('status', 'entregado').gte('closed_at', since!).lt('closed_at', until!).order('closed_at', { ascending: false }),
+    ]);
 
     const mesaOrders = (mesaData || []).map((o: any) => ({ ...o, _type: 'mesa', table_number: o.table?.number || null }));
     const delivOrders = (delivData || []).map((o: any) => ({
@@ -198,9 +199,11 @@ function VentasTab() {
 
   const viewDetail = async (order: any) => {
     setDetailOrder(order);
-    const { data } = await supabase.from('order_items').select('*, product:product_id(name)').eq('order_id', order.id).order('created_at');
+    const [{ data }, { data: w }] = await Promise.all([
+      supabase.from('order_items').select('*, product:product_id(name)').eq('order_id', order.id).order('created_at'),
+      supabase.from('users').select('name').eq('id', order.waiter_id).single(),
+    ]);
     setDetailItems(data || []);
-    const { data: w } = await supabase.from('users').select('name').eq('id', order.waiter_id).single();
     if (w) setDetailOrder((p: any) => ({ ...p, waiter_name: w.name }));
     setDetailModal(true);
   };

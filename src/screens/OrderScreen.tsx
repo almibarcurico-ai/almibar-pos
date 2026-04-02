@@ -74,45 +74,58 @@ export default function OrderScreen({ table, onBack }: Props) {
   const [tipEntries, setTipEntries] = useState<{method:string;amount:string}[]>([]);
   const [payEntries, setPayEntries] = useState<{method:string;amount:string}[]>([]);
 
+  useEffect(() => {
+    loadAll(); const c = setupRT(); return c;
+  }, []);
+
+  const loadAll = async () => {
+    await Promise.all([loadOrder(), loadMenu(), loadPrinters()]);
+    setLoading(false);
+  };
+
   const loadPrinters = async () => {
-    const { data: p } = await supabase.from('printers').select('*').eq('active', true);
-    const { data: cp } = await supabase.from('category_printer').select('*');
+    const [{ data: p }, { data: cp }] = await Promise.all([
+      supabase.from('printers').select('*').eq('active', true),
+      supabase.from('category_printer').select('*'),
+    ]);
     if (p) setPrinters(p);
     if (cp) setCategoryPrinters(cp);
   };
 
-  useEffect(() => { loadPrinters(); }, []);
-
-  useEffect(() => { loadAll(); const c = setupRT(); return c; }, []);
-  const loadAll = async () => { await Promise.all([loadOrder(), loadMenu()]); setLoading(false); };
   const loadOrder = async () => {
     if (!table.current_order_id) return;
-    const { data: o } = await supabase.from('orders').select('*').eq('id', table.current_order_id).single();
-    if (o) { setOrder(o); const { data: w } = await supabase.from('users').select('name').eq('id', o.waiter_id).single(); if (w) setWaiterName(w.name); }
-    const { data: items } = await supabase.from('order_items').select('*, product:product_id(*)').eq('order_id', table.current_order_id).order('created_at');
+    const [{ data: o }, { data: items }] = await Promise.all([
+      supabase.from('orders').select('*').eq('id', table.current_order_id).single(),
+      supabase.from('order_items').select('*, product:product_id(*)').eq('order_id', table.current_order_id).order('created_at'),
+    ]);
+    if (o) {
+      setOrder(o);
+      const { data: w } = await supabase.from('users').select('name').eq('id', o.waiter_id).single();
+      if (w) setWaiterName(w.name);
+    }
     if (items) setOrderItems(items);
   };
+
   const loadMenu = async () => {
-    const { data: c } = await supabase.from('categories').select('*').eq('active', true).order('sort_order');
-    const { data: p } = await supabase.from('products').select('*').eq('active', true).order('sort_order');
+    const [{ data: c }, { data: p }, { data: pmg }, { data: mg }, { data: mo }] = await Promise.all([
+      supabase.from('categories').select('*').eq('active', true).order('sort_order'),
+      supabase.from('products').select('*').eq('active', true).order('sort_order'),
+      supabase.from('product_modifier_groups').select('product_id, group_id'),
+      supabase.from('modifier_groups').select('*').eq('active', true).order('sort_order'),
+      supabase.from('modifier_options').select('*').eq('active', true).order('sort_order'),
+    ]);
     if (c) setCategories(c);
     if (p) {
       const HH_CAT = 'd0000000-0000-0000-0000-000000000041';
       const COMBO_CAT = 'd0000000-0000-0000-0000-000000000040';
       const now = new Date();
       const hora = now.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Santiago' });
-      const dow = now.getDay(); // 0=Dom, 3=Mié
+      const dow = now.getDay();
       const esMiercoles = dow === 3;
       const hhActivo = !esMiercoles && dow >= 1 && dow <= 6 && hora >= '17:00' && hora < '21:00';
-      // Miércoles: bloquear HH y Combos (40% descuento no aplica a promos)
-      // Otros días: bloquear HH fuera de horario
       const bloqueadas = esMiercoles ? [HH_CAT, COMBO_CAT] : (hhActivo ? [] : [HH_CAT]);
       setProducts(p.filter((pr: any) => !bloqueadas.includes(pr.category_id)));
     }
-    // Load modifier groups per product
-    const { data: pmg } = await supabase.from('product_modifier_groups').select('product_id, group_id');
-    const { data: mg } = await supabase.from('modifier_groups').select('*').eq('active', true).order('sort_order');
-    const { data: mo } = await supabase.from('modifier_options').select('*').eq('active', true).order('sort_order');
     if (pmg && mg && mo) {
       const map: Record<string, ModGroup[]> = {};
       pmg.forEach((link: any) => {

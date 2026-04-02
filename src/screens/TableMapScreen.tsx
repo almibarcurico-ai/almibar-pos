@@ -63,7 +63,7 @@ export default function TableMapScreen({ onOpenOrder, onOpenEditor }: Props) {
       setAppOrderTables([...new Set(tableNums)]);
     };
     loadPending();
-    const iv = setInterval(loadPending, 3000);
+    const iv = setInterval(loadPending, 10000);
     return () => clearInterval(iv);
   }, []);
 
