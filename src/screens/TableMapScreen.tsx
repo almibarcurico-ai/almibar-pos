@@ -33,6 +33,13 @@ export default function TableMapScreen({ onOpenOrder, onOpenEditor }: Props) {
   const [selectedClient, setSelectedClient] = useState<any>(null);
   const [printServerOk, setPrintServerOk] = useState(true);
 
+  // Registro rápido de socio
+  const [showRegister, setShowRegister] = useState(false);
+  const [regName, setRegName] = useState('');
+  const [regRut, setRegRut] = useState('');
+  const [regPhone, setRegPhone] = useState('');
+  const [regSaving, setRegSaving] = useState(false);
+
   // Health check del print server cada 15 segundos
   useEffect(() => {
     const check = () => {
@@ -75,6 +82,55 @@ export default function TableMapScreen({ onOpenOrder, onOpenEditor }: Props) {
     setSelectedClient(client);
     setCustomerName(client.name);
     setClientSuggestions([]);
+    setShowRegister(false);
+  };
+
+  const openRegisterForm = () => {
+    setShowRegister(true);
+    setRegName(customerName);
+    setRegRut('');
+    setRegPhone('');
+    setClientSuggestions([]);
+  };
+
+  const formatRut = (value: string) => {
+    let clean = value.replace(/[^0-9kK]/g, '');
+    if (clean.length > 9) clean = clean.slice(0, 9);
+    if (clean.length <= 1) return clean;
+    const dv = clean.slice(-1);
+    const body = clean.slice(0, -1);
+    const formatted = body.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    return formatted + '-' + dv;
+  };
+
+  const registerClient = async () => {
+    if (!regName.trim()) { Alert.alert('', 'Ingresa el nombre'); return; }
+    if (!regRut.trim()) { Alert.alert('', 'Ingresa el RUT'); return; }
+    if (!regPhone.trim()) { Alert.alert('', 'Ingresa el celular'); return; }
+    setRegSaving(true);
+    try {
+      // Verificar si ya existe por RUT o teléfono
+      const { data: existing } = await supabase.from('clients')
+        .select('id, name, member_number')
+        .or('notes.ilike.%' + regRut.trim() + '%,phone.eq.' + regPhone.trim())
+        .limit(1);
+      if (existing && existing.length > 0) {
+        Alert.alert('Socio ya existe', existing[0].name + ' (Socio #' + existing[0].member_number + ') ya está registrado con ese RUT o celular.');
+        setRegSaving(false);
+        return;
+      }
+      const { data, error } = await supabase.from('clients').insert({
+        name: regName.trim(),
+        phone: regPhone.trim(),
+        notes: 'RUT: ' + regRut.trim(),
+        tags: ['pos'],
+      }).select('*').single();
+      if (error) throw error;
+      pickClient(data);
+      setShowRegister(false);
+      Alert.alert('✅ Socio registrado', regName.trim() + ' es ahora Socio #' + data.member_number);
+    } catch (e: any) { Alert.alert('Error', e.message); }
+    setRegSaving(false);
   };
 
   useEffect(() => { loadData(); const c = setupRT(); return c; }, []);
@@ -132,7 +188,7 @@ export default function TableMapScreen({ onOpenOrder, onOpenEditor }: Props) {
 
   const handleTablePress = (table: TableWithOrder) => {
     if (table.status === 'libre') {
-      setSelectedTable(table); setCustomerName(''); setCustomerCount('2'); setSelectedClient(null); setClientSuggestions([]); setOpenModal(true);
+      setSelectedTable(table); setCustomerName(''); setCustomerCount('2'); setSelectedClient(null); setClientSuggestions([]); setShowRegister(false); setOpenModal(true);
     } else {
       onOpenOrder(table);
     }
@@ -262,7 +318,44 @@ export default function TableMapScreen({ onOpenOrder, onOpenEditor }: Props) {
             {selectedClient && (
               <View style={{ backgroundColor: COLORS.primary + '15', borderRadius: 8, padding: 8, marginBottom: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Text style={{ color: COLORS.primary, fontSize: 12, fontWeight: '600' }}>✅ Socio: {selectedClient.name} (#{selectedClient.member_number})</Text>
-                <TouchableOpacity onPress={() => { setSelectedClient(null); setCustomerName(''); }}><Text style={{ color: COLORS.error, fontSize: 12 }}>✕</Text></TouchableOpacity>
+                <TouchableOpacity onPress={() => { setSelectedClient(null); setCustomerName(''); setShowRegister(false); }}><Text style={{ color: COLORS.error, fontSize: 12 }}>✕</Text></TouchableOpacity>
+              </View>
+            )}
+            {/* Botón registrar socio: aparece cuando hay nombre escrito, sin coincidencias, sin socio seleccionado */}
+            {!selectedClient && !showRegister && customerName.length >= 2 && clientSuggestions.length === 0 && (
+              <TouchableOpacity style={{ backgroundColor: COLORS.info + '15', borderWidth: 1, borderColor: COLORS.info + '40', borderRadius: 8, padding: 10, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }} onPress={openRegisterForm}>
+                <Text style={{ fontSize: 18 }}>👤</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: COLORS.info, fontSize: 13, fontWeight: '700' }}>Registrar como socio</Text>
+                  <Text style={{ color: COLORS.textMuted, fontSize: 11 }}>"{customerName}" no está registrado</Text>
+                </View>
+                <Text style={{ color: COLORS.info, fontSize: 16 }}>+</Text>
+              </TouchableOpacity>
+            )}
+            {/* Formulario de registro rápido */}
+            {showRegister && !selectedClient && (
+              <View style={{ backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.primary + '40', borderRadius: 10, padding: 12, marginBottom: 8, gap: 8 }}>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: COLORS.primary }}>📋 Registro rápido de socio</Text>
+                <View>
+                  <Text style={{ fontSize: 11, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 3 }}>Nombre *</Text>
+                  <TextInput style={s.input} value={regName} onChangeText={setRegName} placeholder="Nombre completo" placeholderTextColor={COLORS.textMuted} />
+                </View>
+                <View>
+                  <Text style={{ fontSize: 11, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 3 }}>RUT *</Text>
+                  <TextInput style={s.input} value={regRut} onChangeText={(t) => setRegRut(formatRut(t))} placeholder="12.345.678-9" placeholderTextColor={COLORS.textMuted} />
+                </View>
+                <View>
+                  <Text style={{ fontSize: 11, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 3 }}>Celular *</Text>
+                  <TextInput style={s.input} value={regPhone} onChangeText={setRegPhone} placeholder="+56 9 1234 5678" placeholderTextColor={COLORS.textMuted} keyboardType="phone-pad" />
+                </View>
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
+                  <TouchableOpacity style={{ flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center' }} onPress={() => setShowRegister(false)}>
+                    <Text style={{ color: COLORS.textSecondary, fontSize: 13, fontWeight: '600' }}>Cancelar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: COLORS.primary, alignItems: 'center', opacity: regSaving ? 0.5 : 1 }} onPress={registerClient} disabled={regSaving}>
+                    <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>{regSaving ? 'Guardando...' : 'Registrar'}</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             )}
             <Text style={s.label}>Cantidad de personas</Text>
