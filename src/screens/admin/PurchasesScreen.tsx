@@ -30,6 +30,8 @@ export default function PurchasesScreen({ onBack }: { onBack?: () => void }) {
 
   // Edit invoice
   const [editInvoice, setEditInvoice] = useState<any>(null);
+  const [searchIdx, setSearchIdx] = useState<number | null>(null);
+  const [searchText, setSearchText] = useState('');
 
   useEffect(() => { load(); }, []);
 
@@ -234,11 +236,39 @@ export default function PurchasesScreen({ onBack }: { onBack?: () => void }) {
             const pctChange = priceChanged && item.matched ? Math.round((parseFloat(item.precio_unitario) - item.matched.cost_per_unit) / item.matched.cost_per_unit * 100) : 0;
             return (
               <View key={idx} style={[s.card, { borderLeftWidth: 3, borderLeftColor: item.matched ? COLORS.success : COLORS.warning }]}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                   <TextInput style={[s.inp, { flex: 1, fontWeight: '600', fontSize: 14 }]} value={item.descripcion} onChangeText={v => updateScannedItem(idx, 'descripcion', v)} />
-                  {item.matched && <View style={{ backgroundColor: COLORS.success + '20', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}><Text style={{ fontSize: 9, fontWeight: '700', color: COLORS.success }}>✓ {item.matched.name}</Text></View>}
-                  {item.is_new && <View style={{ backgroundColor: COLORS.warning + '20', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}><Text style={{ fontSize: 9, fontWeight: '700', color: COLORS.warning }}>Nuevo</Text></View>}
+                  {item.matched ? (
+                    <TouchableOpacity style={{ backgroundColor: COLORS.success + '20', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, flexDirection: 'row', alignItems: 'center', gap: 4 }} onPress={() => { setSearchIdx(idx); setSearchText(''); }}>
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: COLORS.success }}>✓ {item.matched.name}</Text>
+                      <Text style={{ fontSize: 9, color: COLORS.success }}>✏️</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={{ backgroundColor: COLORS.warning + '20', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}><Text style={{ fontSize: 9, fontWeight: '700', color: COLORS.warning }}>Nuevo</Text></View>
+                  )}
                 </View>
+                {/* Búsqueda manual de ingrediente */}
+                {searchIdx === idx && (
+                  <View style={{ backgroundColor: COLORS.background, borderRadius: 8, padding: 8, marginBottom: 6, borderWidth: 1, borderColor: COLORS.primary + '40' }}>
+                    <TextInput style={[s.inp, { marginBottom: 4 }]} placeholder="🔍 Buscar ingrediente..." placeholderTextColor={COLORS.textMuted} value={searchText} onChangeText={setSearchText} autoFocus />
+                    <ScrollView style={{ maxHeight: 120 }} nestedScrollEnabled>
+                      {ingredients.filter(i => !searchText || i.name.toLowerCase().includes(searchText.toLowerCase())).slice(0, 15).map(i => (
+                        <TouchableOpacity key={i.id} style={{ paddingVertical: 6, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }} onPress={() => { assignIngredient(idx, i); setSearchIdx(null); setSearchText(''); }}>
+                          <Text style={{ fontSize: 12, color: COLORS.text }}>{i.name}</Text>
+                          <Text style={{ fontSize: 10, color: COLORS.textMuted }}>{i.unit} · Stock: {i.stock}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
+                      <TouchableOpacity style={{ flex: 1, paddingVertical: 6, borderRadius: 6, backgroundColor: COLORS.border, alignItems: 'center' }} onPress={() => { setSearchIdx(null); updateScannedItem(idx, 'matched', null); updateScannedItem(idx, 'is_new', true); }}>
+                        <Text style={{ fontSize: 11, color: COLORS.textSecondary, fontWeight: '600' }}>Sin asignar</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={{ flex: 1, paddingVertical: 6, borderRadius: 6, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center' }} onPress={() => setSearchIdx(null)}>
+                        <Text style={{ fontSize: 11, color: COLORS.textSecondary, fontWeight: '600' }}>Cerrar</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
                 <View style={{ flexDirection: 'row', gap: 8 }}>
                   <View style={{ flex: 1 }}><Text style={s.lb}>Cant.</Text><TextInput style={s.inp} value={item.cantidad} onChangeText={v => updateScannedItem(idx, 'cantidad', v)} keyboardType="numeric" /></View>
                   <View style={{ flex: 1 }}><Text style={s.lb}>Unidad</Text><TextInput style={s.inp} value={item.unidad} onChangeText={v => updateScannedItem(idx, 'unidad', v)} /></View>
