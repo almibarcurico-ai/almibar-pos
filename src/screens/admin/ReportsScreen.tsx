@@ -171,7 +171,7 @@ export default function ReportsScreen() {
           {loading && <Text style={{ textAlign: 'center', color: COLORS.textMuted, padding: 40 }}>Cargando...</Text>}
 
           {!loading && section === 'ventas' && <VentasSection orders={orders} />}
-          {!loading && section === 'productos' && <ProductosSection items={items} catName={catName} />}
+          {!loading && section === 'productos' && <ProductosSection items={items} catName={catName} categories={categories} />}
           {!loading && section === 'mesas' && <MesasSection orders={orders} />}
           {!loading && section === 'garzones' && <GarzonesSection orders={orders} payments={payments} waiterName={waiterName} />}
           {!loading && section === 'pagos' && <PagosSection payments={payments} />}
@@ -205,25 +205,62 @@ function VentasSection({ orders }: { orders: any[] }) {
 }
 
 // ── PRODUCTOS ──
-function ProductosSection({ items, catName }: { items: any[]; catName: (id: string) => string }) {
+function ProductosSection({ items, catName, categories }: { items: any[]; catName: (id: string) => string; categories: any[] }) {
+  const [filterCat, setFilterCat] = React.useState('todas');
+  const [sortOrder, setSortOrder] = React.useState<'top' | 'bottom'>('top');
+
   const prodMap: Record<string, { name: string; qty: number; total: number; price: number; catId: string }> = {};
   items.forEach(i => {
     const name = i.product?.name || '?';
     if (!prodMap[name]) prodMap[name] = { name, qty: 0, total: 0, price: i.product?.price || i.unit_price, catId: i.product?.category_id || '' };
     prodMap[name].qty += i.quantity; prodMap[name].total += i.total_price;
   });
-  const top = Object.values(prodMap).sort((a, b) => b.qty - a.qty);
-  const maxQty = Math.max(...top.map(p => p.qty), 1);
+
+  let filtered = Object.values(prodMap);
+  if (filterCat !== 'todas') filtered = filtered.filter(p => p.catId === filterCat);
+
+  const sorted = sortOrder === 'top'
+    ? filtered.sort((a, b) => b.qty - a.qty)
+    : filtered.sort((a, b) => a.qty - b.qty);
+
+  const display = sorted.slice(0, 100);
+  const maxQty = Math.max(...display.map(p => p.qty), 1);
   const COLORS_BAR = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#8b5cf6', '#ec4899', '#14b8a6', '#f59e0b', '#6366f1'];
-  if (top.length === 0) return <Empty />;
+
+  // Categorías que tienen ventas
+  const catsWithSales = new Set(Object.values(prodMap).map(p => p.catId));
+  const activeCats = categories.filter(c => catsWithSales.has(c.id));
+
+  if (Object.keys(prodMap).length === 0) return <Empty />;
   return (
     <View>
       <Text style={st.secTitle}>PRODUCTOS</Text>
-      <Text style={st.secSub}>{top.length} productos vendidos</Text>
+      <Text style={st.secSub}>{filtered.length} productos · mostrando {display.length}</Text>
+
+      {/* Filtros */}
+      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+        {/* Orden */}
+        <TouchableOpacity onPress={() => setSortOrder(sortOrder === 'top' ? 'bottom' : 'top')}
+          style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: COLORS.primary, flexDirection: 'row', gap: 4, alignItems: 'center' }}>
+          <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>{sortOrder === 'top' ? '🔥 Más vendidos' : '📉 Menos vendidos'}</Text>
+        </TouchableOpacity>
+        {/* Categoría: Todas */}
+        <TouchableOpacity onPress={() => setFilterCat('todas')}
+          style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: filterCat === 'todas' ? COLORS.text : COLORS.card, borderWidth: 1, borderColor: filterCat === 'todas' ? COLORS.text : COLORS.border }}>
+          <Text style={{ fontSize: 11, fontWeight: '600', color: filterCat === 'todas' ? '#fff' : COLORS.textSecondary }}>Todas</Text>
+        </TouchableOpacity>
+        {activeCats.map(c => (
+          <TouchableOpacity key={c.id} onPress={() => setFilterCat(c.id)}
+            style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: filterCat === c.id ? COLORS.text : COLORS.card, borderWidth: 1, borderColor: filterCat === c.id ? COLORS.text : COLORS.border }}>
+            <Text style={{ fontSize: 11, fontWeight: '600', color: filterCat === c.id ? '#fff' : COLORS.textSecondary }}>{c.name}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
       <View style={{ flexDirection: 'row', gap: 20 }}>
         {/* Chart */}
         <View style={{ flex: 1 }}>
-          {top.slice(0, 15).map((p, i) => (
+          {display.slice(0, 20).map((p, i) => (
             <View key={p.name} style={st.barRow}>
               <Text style={[st.barLabel, { width: 120, fontSize: 11 }]} numberOfLines={1}>{p.name}</Text>
               <View style={st.barTrack}><View style={[st.barFill, { width: `${(p.qty / maxQty) * 100}%`, backgroundColor: COLORS_BAR[i % COLORS_BAR.length] }]} /></View>
@@ -232,14 +269,15 @@ function ProductosSection({ items, catName }: { items: any[]; catName: (id: stri
           ))}
         </View>
         {/* Table */}
-        <View style={{ minWidth: 320 }}>
+        <View style={{ minWidth: 360 }}>
           <View style={{ flexDirection: 'row', paddingVertical: 6, borderBottomWidth: 2, borderBottomColor: COLORS.border }}>
             <Text style={[st.th, { width: 30 }]}>#</Text>
             <Text style={[st.th, { flex: 1 }]}>Producto</Text>
-            <Text style={[st.th, { width: 50 }]}>Ventas</Text>
+            <Text style={[st.th, { width: 50 }]}>Uds</Text>
+            <Text style={[st.th, { width: 80, textAlign: 'right' }]}>Total</Text>
             <Text style={[st.th, { width: 70, textAlign: 'right' }]}>Precio</Text>
           </View>
-          {top.slice(0, 20).map((p, i) => (
+          {display.map((p, i) => (
             <View key={p.name} style={{ flexDirection: 'row', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: COLORS.border, alignItems: 'center' }}>
               <Text style={{ width: 30, fontSize: 12, color: COLORS.textMuted }}>{i + 1}</Text>
               <View style={{ flex: 1 }}>
@@ -247,7 +285,8 @@ function ProductosSection({ items, catName }: { items: any[]; catName: (id: stri
                 <Text style={{ fontSize: 10, color: COLORS.textMuted }}>{catName(p.catId)}</Text>
               </View>
               <Text style={{ width: 50, fontSize: 14, fontWeight: '800', color: COLORS.primary, textAlign: 'center' }}>{p.qty}</Text>
-              <Text style={{ width: 70, fontSize: 12, color: COLORS.text, textAlign: 'right' }}>{fmt(p.price)}</Text>
+              <Text style={{ width: 80, fontSize: 12, fontWeight: '600', color: COLORS.text, textAlign: 'right' }}>{fmt(p.total)}</Text>
+              <Text style={{ width: 70, fontSize: 12, color: COLORS.textMuted, textAlign: 'right' }}>{fmt(p.price)}</Text>
             </View>
           ))}
         </View>
