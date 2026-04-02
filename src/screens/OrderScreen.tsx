@@ -137,8 +137,8 @@ export default function OrderScreen({ table, onBack }: Props) {
       const hora = now.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Santiago' });
       const dow = now.getDay();
       const esMiercoles = dow === 3;
-      const hhActivo = dow >= 1 && dow <= 6 && hora < '21:00';
-      const bloqueadas = hhActivo ? [] : [HH_CAT];
+      // HH siempre visible, nunca bloquear categoría
+      const bloqueadas: string[] = [];
       setProducts(p.filter((pr: any) => !bloqueadas.includes(pr.category_id)));
     }
     if (pmg && mg && mo) {
@@ -171,7 +171,20 @@ export default function OrderScreen({ table, onBack }: Props) {
   const [modPickerProduct, setModPickerProduct] = useState<Product | null>(null);
   const [modPickerSelections, setModPickerSelections] = useState<Record<string, ModOption[]>>({});
 
+  const HH_CAT_ID = 'd0000000-0000-0000-0000-000000000041';
+  const isHHAllowed = () => {
+    const now = new Date();
+    const h = now.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Santiago' });
+    const dow = now.getDay();
+    return dow >= 1 && dow <= 6 && h >= '17:00' && h < '21:00';
+  };
+
   const addToCart = (product: Product) => {
+    // Bloquear productos HH fuera de horario
+    if (product.category_id === HH_CAT_ID && !isHHAllowed()) {
+      Alert.alert('⏰ Fuera de horario', 'Happy Hour disponible de Lunes a Sábado entre 17:00 y 21:00');
+      return;
+    }
     playClickPOS();
     const groups = productModGroups[product.id];
     if (groups && groups.length > 0) {
