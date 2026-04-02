@@ -1251,7 +1251,7 @@ function ArqueosTab() {
 
               {/* DIFERENCIA */}
               {(() => {
-                const sysT = (editArqueo?.total_cash||0) + (editArqueo?.total_debit||0) + (editArqueo?.total_credit||0) + (editArqueo?.total_transfer||0);
+                const sysT = (editArqueo?.opening_amount||0) + (editArqueo?.total_cash||0) + (editArqueo?.total_debit||0) + (editArqueo?.total_credit||0) + (editArqueo?.total_transfer||0) + (editArqueo?.total_cash_in||0) - (editArqueo?.total_expenses||0);
                 const userT = (parseInt(editUserEfectivo)||0) + (parseInt(editUserDebito)||0) + (parseInt(editUserCredito)||0) + (parseInt(editUserTransfer)||0);
                 const diff = userT - sysT;
                 if (!editUserEfectivo && !editUserDebito && !editUserCredito && !editUserTransfer) return null;
