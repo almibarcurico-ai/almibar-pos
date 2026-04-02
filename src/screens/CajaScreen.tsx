@@ -852,16 +852,19 @@ function ArqueosTab() {
       setEditCloseFecha(ca.toLocaleDateString('en-CA'));
       setEditCloseHora(ca.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false }));
       setEditCloseMonto(String(arqueo.closing_amount || 0));
-      // Extraer conteo por método de las notas si existen
-      const notas = arqueo.notes || '';
-      const matchEf = notas.match(/Efectivo[:\s]*\$?([\d.]+)/i);
-      const matchDe = notas.match(/Débito[:\s]*\$?([\d.]+)/i);
-      const matchCr = notas.match(/Crédito[:\s]*\$?([\d.]+)/i);
-      const matchTr = notas.match(/Transfer[:\s]*\$?([\d.]+)/i);
-      setEditUserEfectivo(matchEf ? matchEf[1].replace(/\./g, '') : '');
-      setEditUserDebito(matchDe ? matchDe[1].replace(/\./g, '') : '');
-      setEditUserCredito(matchCr ? matchCr[1].replace(/\./g, '') : '');
-      setEditUserTransfer(matchTr ? matchTr[1].replace(/\./g, '') : '');
+      // Extraer conteo usuario de JSON en notas o del closing_amount
+      try {
+        const jsonMatch = (arqueo.notes || '').match(/\{[^}]+\}/);
+        if (jsonMatch) {
+          const ud = JSON.parse(jsonMatch[0]);
+          setEditUserEfectivo(String(ud.user_cash || 0));
+          setEditUserDebito(String(ud.user_debit || 0));
+          setEditUserCredito(String(ud.user_credit || 0));
+          setEditUserTransfer(String(ud.user_transfer || 0));
+        } else {
+          setEditUserEfectivo(''); setEditUserDebito(''); setEditUserCredito(''); setEditUserTransfer('');
+        }
+      } catch { setEditUserEfectivo(''); setEditUserDebito(''); setEditUserCredito(''); setEditUserTransfer(''); }
     } else {
       setEditCloseFecha(''); setEditCloseHora(''); setEditCloseMonto('');
       setEditUserEfectivo(''); setEditUserDebito(''); setEditUserCredito(''); setEditUserTransfer('');
@@ -886,7 +889,9 @@ function ArqueosTab() {
       const uTr = parseInt(editUserTransfer) || 0;
       update.closed_at = closeDT.toISOString();
       update.closing_amount = uEf + uDe + uCr + uTr;
-      update.notes = `Efectivo contado: $${uEf.toLocaleString('es-CL')} | Débito contado: $${uDe.toLocaleString('es-CL')} | Crédito contado: $${uCr.toLocaleString('es-CL')} | Transfer contado: $${uTr.toLocaleString('es-CL')}` + (editNotas.trim() && !editNotas.includes('contado') ? ' | ' + editNotas.trim() : '');
+      const userJson = JSON.stringify({ user_cash: uEf, user_debit: uDe, user_credit: uCr, user_transfer: uTr });
+      const cleanNotes = editNotas.replace(/\{[^}]+\}\s*\|?\s*/g, '').trim();
+      update.notes = userJson + (cleanNotes ? ' | ' + cleanNotes : '');
     }
     const { error } = await supabase.from('cash_registers').update(update).eq('id', editArqueo.id);
     if (error) { Alert.alert('Error', error.message); return; }
