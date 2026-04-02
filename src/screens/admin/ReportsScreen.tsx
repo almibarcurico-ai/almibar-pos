@@ -8,8 +8,10 @@ import { COLORS } from '../../theme';
 type Section = 'ventas' | 'productos' | 'mesas' | 'garzones' | 'pagos';
 type Period = 'turno' | 'diario' | 'semanal' | 'mensual' | 'anual' | 'rango';
 
-const toLocal = (d: Date) => d.toISOString().split('T')[0];
+const toLocal = (d: Date) => d.toLocaleDateString('en-CA');
 const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-CL');
+const toChileISO = (ds: string) => { const l = new Date(ds + 'T00:00:00'); const om = l.getTimezoneOffset(); const sg = om <= 0 ? '+' : '-'; const ao = Math.abs(om); return ds + 'T00:00:00' + sg + String(Math.floor(ao/60)).padStart(2,'0') + ':' + String(ao%60).padStart(2,'0'); };
+const toChileEnd = (ds: string) => { const l = new Date(ds + 'T23:59:59'); const om = l.getTimezoneOffset(); const sg = om <= 0 ? '+' : '-'; const ao = Math.abs(om); return ds + 'T23:59:59' + sg + String(Math.floor(ao/60)).padStart(2,'0') + ':' + String(ao%60).padStart(2,'0'); };
 const SW = Dimensions.get('window').width;
 
 export default function ReportsScreen() {
@@ -38,18 +40,16 @@ export default function ReportsScreen() {
   };
 
   const getRange = () => {
-    const d = new Date(date + 'T00:00:00');
-    if (period === 'rango') return { since: dateFrom, until: dateTo + 'T23:59:59' };
+    const d = new Date(date + 'T12:00:00');
+    if (period === 'rango') return { since: toChileISO(dateFrom), until: toChileEnd(dateTo) };
     if (period === 'turno') {
-      // Turno actual: desde apertura de caja o últimas 12h
       const from = new Date(); from.setHours(from.getHours() - 12);
-      return { since: toLocal(from), until: toLocal(new Date()) + 'T23:59:59' };
+      return { since: toChileISO(toLocal(from)), until: toChileEnd(toLocal(new Date())) };
     }
-    if (period === 'diario') return { since: date, until: date + 'T23:59:59' };
-    if (period === 'semanal') { const s = new Date(d); s.setDate(s.getDate() - s.getDay()); const e = new Date(s); e.setDate(e.getDate() + 6); return { since: toLocal(s), until: toLocal(e) + 'T23:59:59' }; }
-    if (period === 'mensual') { const s = new Date(d.getFullYear(), d.getMonth(), 1); const e = new Date(d.getFullYear(), d.getMonth() + 1, 0); return { since: toLocal(s), until: toLocal(e) + 'T23:59:59' }; }
-    // anual
-    return { since: `${d.getFullYear()}-01-01`, until: `${d.getFullYear()}-12-31T23:59:59` };
+    if (period === 'diario') return { since: toChileISO(date), until: toChileEnd(date) };
+    if (period === 'semanal') { const s = new Date(d); s.setDate(s.getDate() - s.getDay()); const e = new Date(s); e.setDate(e.getDate() + 6); return { since: toChileISO(toLocal(s)), until: toChileEnd(toLocal(e)) }; }
+    if (period === 'mensual') { const s = new Date(d.getFullYear(), d.getMonth(), 1); const e = new Date(d.getFullYear(), d.getMonth() + 1, 0); return { since: toChileISO(toLocal(s)), until: toChileEnd(toLocal(e)) }; }
+    return { since: toChileISO(`${d.getFullYear()}-01-01`), until: toChileEnd(`${d.getFullYear()}-12-31`) };
   };
 
   const load = async () => {
