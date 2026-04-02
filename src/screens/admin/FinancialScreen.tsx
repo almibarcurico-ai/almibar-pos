@@ -21,6 +21,7 @@ export default function FinancialScreen() {
 
   // Ventas
   const [ventas, setVentas] = useState<any>(null);
+  const [fudoVentas, setFudoVentas] = useState<any>(null);
 
   // SII
   const [siiRows, setSiiRows] = useState<SIIRow[]>([]);
@@ -47,11 +48,33 @@ export default function FinancialScreen() {
     const { data: orders } = await supabase.from('orders').select('total, tip_amount, payment_method, closed_at')
       .eq('status', 'cerrada').gte('closed_at', desde).lt('closed_at', hasta);
 
-    if (orders) {
+    if (orders && orders.length > 0) {
       const ventaBruta = orders.reduce((a, o) => a + (o.total || 0), 0);
       const propinas = orders.reduce((a, o) => a + (o.tip_amount || 0), 0);
       const ivaDeb = Math.round(ventaBruta * IVA_RATE / (1 + IVA_RATE));
-      setVentas({ bruta: ventaBruta, neta: ventaBruta - ivaDeb, ivaDebito: ivaDeb, propinas, ordenes: orders.length });
+      setVentas({ bruta: ventaBruta, neta: ventaBruta - ivaDeb, ivaDebito: ivaDeb, propinas, ordenes: orders.length, source: 'pos' });
+    } else {
+      setVentas(null);
+    }
+
+    // Ventas históricas Fudo
+    const { data: fudo } = await supabase.from('fudo_sales').select('total, medio_pago, fecha, estado, camarero, personas')
+      .eq('estado', 'Cerrada').gte('fecha', desde).lt('fecha', hasta).gt('total', 0);
+    if (fudo && fudo.length > 0) {
+      const fudoBruta = fudo.reduce((a, o) => a + (o.total || 0), 0);
+      const fudoIva = Math.round(fudoBruta * IVA_RATE / (1 + IVA_RATE));
+      // Agrupar por método de pago
+      const byMethod: Record<string, number> = {};
+      fudo.forEach(o => { const m = o.medio_pago || 'Sin método'; byMethod[m] = (byMethod[m] || 0) + (o.total || 0); });
+      // Agrupar por día
+      const byDay: Record<string, number> = {};
+      fudo.forEach(o => { byDay[o.fecha] = (byDay[o.fecha] || 0) + (o.total || 0); });
+      // Agrupar por camarero
+      const byWaiter: Record<string, { ventas: number; ordenes: number }> = {};
+      fudo.forEach(o => { const w = o.camarero || 'Sin asignar'; if (!byWaiter[w]) byWaiter[w] = { ventas: 0, ordenes: 0 }; byWaiter[w].ventas += o.total || 0; byWaiter[w].ordenes++; });
+      setFudoVentas({ bruta: fudoBruta, neta: fudoBruta - fudoIva, ivaDebito: fudoIva, ordenes: fudo.length, personas: fudo.reduce((a, o) => a + (o.personas || 0), 0), byMethod, byDay, byWaiter });
+    } else {
+      setFudoVentas(null);
     }
 
     // Costos guardados
@@ -148,14 +171,16 @@ export default function FinancialScreen() {
     setCosts(prev => ({ ...prev, [key]: parseInt(val.replace(/\D/g, '')) || 0 }));
   };
 
-  // Calculations
+  // Calculations — usa POS si hay datos, sino Fudo
   const activeSII = siiRows.filter(r => !r.excluded);
   const comprasNetas = activeSII.reduce((a, r) => a + r.neto, 0);
   const ivaCred = activeSII.reduce((a, r) => a + r.iva, 0);
-  const ventaNeta = ventas?.neta || 0;
-  const ventaBruta = ventas?.bruta || 0;
-  const ivaDebito = ventas?.ivaDebito || 0;
+  const salesSource = ventas || fudoVentas;
+  const ventaNeta = salesSource?.neta || 0;
+  const ventaBruta = salesSource?.bruta || 0;
+  const ivaDebito = salesSource?.ivaDebito || 0;
   const propinas = ventas?.propinas || 0;
+  const dataSource = ventas ? 'POS Almíbar' : fudoVentas ? 'Fudo (histórico)' : 'Sin datos';
   const ivaPagar = Math.max(0, ivaDebito - ivaCred);
 
   const totalRemuneraciones = costs.sueldos_brutos + costs.cotizaciones + costs.gratificacion;
@@ -244,15 +269,48 @@ export default function FinancialScreen() {
       <View style={st.card}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <Text style={st.cardTitle}>💰 Ingresos — {MESES[mes-1]} {anio}</Text>
-          {ventas && <Text style={{ fontSize: 11, color: COLORS.success, fontWeight: '700' }}>✓ {ventas.ordenes} órdenes</Text>}
+          <View style={{ alignItems: 'flex-end' }}>
+            {salesSource && <Text style={{ fontSize: 11, color: COLORS.success, fontWeight: '700' }}>✓ {salesSource.ordenes} órdenes</Text>}
+            <Text style={{ fontSize: 10, color: COLORS.textMuted }}>{dataSource}</Text>
+          </View>
         </View>
-        {ventas ? (
+        {salesSource ? (
           <View style={{ marginTop: 8 }}>
             <Row label="Venta bruta (con IVA)" val={fmt(ventaBruta)} />
             <Row label="IVA débito (19%)" val={'-' + fmt(ivaDebito)} sub />
             <Row label="Venta neta" val={fmt(ventaNeta)} bold />
-            <Row label="Propinas" val={fmt(propinas)} sub />
+            {propinas > 0 && <Row label="Propinas" val={fmt(propinas)} sub />}
             <Row label="INGRESOS TOTALES" val={fmt(ventaNeta + propinas)} bold accent />
+
+            {/* Datos extra de Fudo */}
+            {fudoVentas && !ventas && (
+              <View style={{ marginTop: 12, borderTopWidth: 1, borderTopColor: COLORS.border, paddingTop: 10 }}>
+                <Text style={{ fontSize: 11, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 6 }}>DESGLOSE FUDO</Text>
+                <Row label="Personas atendidas" val={String(fudoVentas.personas)} sub />
+                <Row label="Ticket promedio" val={fmt(fudoVentas.ordenes > 0 ? Math.round(fudoVentas.bruta / fudoVentas.ordenes) : 0)} sub />
+                {fudoVentas.byMethod && Object.entries(fudoVentas.byMethod).sort((a: any, b: any) => b[1] - a[1]).map(([method, amount]: any) => (
+                  <Row key={method} label={'  ' + method} val={fmt(amount)} sub />
+                ))}
+                {fudoVentas.byWaiter && (
+                  <View style={{ marginTop: 8 }}>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 4 }}>POR GARZÓN</Text>
+                    {Object.entries(fudoVentas.byWaiter).sort((a: any, b: any) => b[1].ventas - a[1].ventas).slice(0, 8).map(([name, data]: any) => (
+                      <Row key={name} label={'  ' + name} val={`${fmt(data.ventas)} (${data.ordenes})`} sub />
+                    ))}
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* Si hay POS Y Fudo, mostrar comparación */}
+            {ventas && fudoVentas && (
+              <View style={{ marginTop: 12, backgroundColor: COLORS.info + '10', borderRadius: 8, padding: 10, borderWidth: 1, borderColor: COLORS.info + '30' }}>
+                <Text style={{ fontSize: 11, fontWeight: '700', color: COLORS.info, marginBottom: 4 }}>📊 FUDO (comparación)</Text>
+                <Row label="Ventas Fudo mismo período" val={fmt(fudoVentas.bruta)} sub />
+                <Row label="Órdenes Fudo" val={String(fudoVentas.ordenes)} sub />
+                <Row label="Personas Fudo" val={String(fudoVentas.personas)} sub />
+              </View>
+            )}
           </View>
         ) : <Text style={{ color: COLORS.textMuted, marginTop: 8 }}>Sin ventas en este período</Text>}
       </View>
