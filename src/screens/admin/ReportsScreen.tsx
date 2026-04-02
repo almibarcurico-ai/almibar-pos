@@ -173,7 +173,7 @@ export default function ReportsScreen() {
           {!loading && section === 'ventas' && <VentasSection orders={orders} />}
           {!loading && section === 'productos' && <ProductosSection items={items} catName={catName} categories={categories} />}
           {!loading && section === 'mesas' && <MesasSection orders={orders} />}
-          {!loading && section === 'garzones' && <GarzonesSection orders={orders} payments={payments} waiterName={waiterName} />}
+          {!loading && section === 'garzones' && <GarzonesSection orders={orders} items={items} payments={payments} waiterName={waiterName} />}
           {!loading && section === 'pagos' && <PagosSection payments={payments} />}
         </ScrollView>
       </View>
@@ -324,27 +324,34 @@ function MesasSection({ orders }: { orders: any[] }) {
 }
 
 // ── GARZONES ──
-function GarzonesSection({ orders, payments, waiterName }: { orders: any[]; payments: any[]; waiterName: (id: string) => string }) {
-  const byW: Record<string, { name: string; ventas: number; ordenes: number; tips: number }> = {};
-  orders.forEach(o => {
-    const wid = o.waiter_id || '?';
-    if (!byW[wid]) byW[wid] = { name: waiterName(wid), ventas: 0, ordenes: 0, tips: 0 };
-    byW[wid].ventas += o.total || 0; byW[wid].ordenes++;
+function GarzonesSection({ orders, items, payments, waiterName }: { orders: any[]; items: any[]; payments: any[]; waiterName: (id: string) => string }) {
+  // Agrupar por quien ENVIÓ cada producto (created_by), no por quien abrió la mesa
+  const byW: Record<string, { name: string; ventas: number; items: number; ordenes: Set<string>; tips: number }> = {};
+  items.forEach(i => {
+    const wid = i.created_by || '?';
+    if (!byW[wid]) byW[wid] = { name: waiterName(wid), ventas: 0, items: 0, ordenes: new Set(), tips: 0 };
+    byW[wid].ventas += i.total_price || 0;
+    byW[wid].items++;
+    byW[wid].ordenes.add(i.order_id);
   });
+  // Propinas siguen por orders.waiter_id (quien cerró la mesa)
   payments.forEach(p => { const wid = orders.find(o => o.id === p.order_id)?.waiter_id; if (wid && byW[wid]) byW[wid].tips += p.tip_amount || 0; });
-  const sorted = Object.values(byW).sort((a, b) => b.ventas - a.ventas);
+
+  const sorted = Object.entries(byW).map(([id, w]) => ({ id, ...w, ordenesCount: w.ordenes.size })).sort((a, b) => b.ventas - a.ventas);
   const max = Math.max(...sorted.map(w => w.ventas), 1);
   if (sorted.length === 0) return <Empty />;
   return (
     <View>
-      <Text style={st.secTitle}>GARZONES</Text>
+      <Text style={st.secTitle}>GARZONES — por productos enviados</Text>
+      <Text style={{ fontSize: 11, color: COLORS.textMuted, marginBottom: 12 }}>Cada producto se asigna a quien lo envió a cocina, no a quien abrió la mesa</Text>
       {sorted.map(w => (
-        <View key={w.name} style={st.barRow}>
+        <View key={w.id} style={st.barRow}>
           <Text style={[st.barLabel, { width: 100 }]}>{w.name}</Text>
           <View style={st.barTrack}><View style={[st.barFill, { width: `${(w.ventas / max) * 100}%`, backgroundColor: '#8b5cf6' }]} /></View>
           <Text style={st.barValue}>{fmt(w.ventas)}</Text>
-          <Text style={[st.barSub, { width: 50 }]}>{w.ordenes} ord</Text>
-          <Text style={[st.barSub, { width: 70, color: COLORS.warning }]}>{fmt(w.tips)} tip</Text>
+          <Text style={[st.barSub, { width: 60 }]}>{w.items} prod</Text>
+          <Text style={[st.barSub, { width: 50 }]}>{w.ordenesCount} mesa{w.ordenesCount > 1 ? 's' : ''}</Text>
+          {w.tips > 0 && <Text style={[st.barSub, { width: 70, color: COLORS.warning }]}>{fmt(w.tips)} tip</Text>}
         </View>
       ))}
     </View>
