@@ -1,7 +1,6 @@
-// src/components/TabNavigator.tsx
-
+// src/components/TabNavigator.tsx — Fudo-style top bar
 import React from 'react';
-import { View, TouchableOpacity, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { UserRole } from '../types';
 import { COLORS } from '../theme';
 
@@ -29,9 +28,18 @@ interface Props {
 
 export default function TabNavigator({ activeTab, onChangeTab, role }: Props) {
   const visibleTabs = ALL_TABS.filter((t) => t.roles.includes(role));
+  const now = new Date();
+  const dayName = now.toLocaleDateString('es-CL', { weekday: 'long' }).toUpperCase();
+  const time = now.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false });
 
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.container} contentContainerStyle={{ paddingHorizontal: 8, gap: 2 }}>
+    <View style={styles.container}>
+      {/* Logo */}
+      <View style={styles.logo}>
+        <Text style={styles.logoText}>ALMÍBAR</Text>
+      </View>
+
+      {/* Tabs */}
       {visibleTabs.map((tab) => {
         const isActive = activeTab === tab.key;
         return (
@@ -43,45 +51,78 @@ export default function TabNavigator({ activeTab, onChangeTab, role }: Props) {
           >
             <Text style={styles.icon}>{tab.icon}</Text>
             <Text style={[styles.label, isActive && styles.labelActive]}>{tab.label}</Text>
-            {isActive && <View style={styles.indicator} />}
           </TouchableOpacity>
         );
       })}
-    </ScrollView>
+
+      {/* Spacer */}
+      <View style={{ flex: 1 }} />
+
+      {/* Clock */}
+      <View style={styles.clock}>
+        <Text style={styles.clockDay}>{dayName}</Text>
+        <Text style={styles.clockTime}>{time}</Text>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: COLORS.card,
-    borderBottomWidth: 2,
-    borderBottomColor: COLORS.border,
-    flexGrow: 0,
-    flexShrink: 0,
+    backgroundColor: '#3C3C3C',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 0,
+    height: 56,
+  },
+  logo: {
+    paddingHorizontal: 16,
+    justifyContent: 'center',
+    height: 56,
+  },
+  logoText: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: COLORS.primary,
+    letterSpacing: 2,
   },
   tab: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 22,
-    gap: 8,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    gap: 6,
+    height: 56,
     borderBottomWidth: 3,
     borderBottomColor: 'transparent',
   },
   tabActive: {
+    backgroundColor: COLORS.primary,
     borderBottomColor: COLORS.primary,
   },
-  icon: { fontSize: 18 },
+  icon: { fontSize: 16 },
   label: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
-    color: COLORS.textMuted,
+    color: '#AAAAAA',
   },
   labelActive: {
-    color: COLORS.text,
+    color: '#FFFFFF',
     fontWeight: '700',
   },
-  indicator: {
-    display: 'none',
+  clock: {
+    paddingHorizontal: 16,
+    alignItems: 'flex-end',
+  },
+  clockDay: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: '#888888',
+    letterSpacing: 1,
+  },
+  clockTime: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });

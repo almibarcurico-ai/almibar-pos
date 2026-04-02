@@ -1,32 +1,32 @@
 // src/theme.ts — Dark modern theme
 
 export const COLORS = {
-  // Brand - Emerald accent
-  primary: '#059669',
-  primaryDark: '#047857',
-  primaryLight: '#34D399',
+  // Brand - Fudo Orange
+  primary: '#E8562A',
+  primaryDark: '#D14A22',
+  primaryLight: '#F27A54',
 
-  // Backgrounds - Light
-  background: '#F1F5F9',
+  // Backgrounds - Light (Fudo style)
+  background: '#F5F5F5',
   card: '#FFFFFF',
-  cardHover: '#F8FAFC',
+  cardHover: '#FAFAFA',
 
   // Text
-  text: '#0F172A',
-  textSecondary: '#475569',
-  textMuted: '#94A3B8',
+  text: '#1A1A1A',
+  textSecondary: '#666666',
+  textMuted: '#999999',
 
-  // Status - Mesas
-  tableLibre: '#10B981',
-  tableOcupada: '#EF4444',
-  tableCuenta: '#F59E0B',
+  // Status - Mesas (Fudo mint green)
+  tableLibre: '#7ECDB5',
+  tableOcupada: '#E8562A',
+  tableCuenta: '#F5A623',
   tableReservada: '#6366F1',
 
   // UI
-  border: '#E2E8F0',
+  border: '#E8E8E8',
   error: '#EF4444',
   success: '#10B981',
-  warning: '#F59E0B',
+  warning: '#F5A623',
   info: '#3B82F6',
 
   // Category accent
