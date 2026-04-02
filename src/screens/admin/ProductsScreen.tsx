@@ -46,6 +46,7 @@ export default function ProductsScreen() {
   const [search, setSearch] = useState('');
   const [editName, setEditName] = useState('');
   const [editPrice, setEditPrice] = useState('');
+  const [editDesc, setEditDesc] = useState('');
   const [editCatId, setEditCatId] = useState('');
   const [isNew, setIsNew] = useState(false);
   // Recipe add
@@ -80,12 +81,12 @@ export default function ProductsScreen() {
   const catName = (id: string) => categories.find(c => c.id === id)?.name || '';
 
   const selectProduct = (p: any) => {
-    setSelectedProduct(p); setEditName(p.name); setEditPrice(String(p.price)); setEditCatId(p.category_id);
+    setSelectedProduct(p); setEditName(p.name); setEditPrice(String(p.price)); setEditDesc(p.description || ''); setEditCatId(p.category_id);
     setIsNew(false); setShowIngSearch(false); setShowModAdd(false);
   };
 
   const openNew = () => {
-    setSelectedProduct({ id: null }); setEditName(''); setEditPrice('');
+    setSelectedProduct({ id: null }); setEditName(''); setEditPrice(''); setEditDesc('');
     setEditCatId(selectedCat || categories[0]?.id || '');
     setIsNew(true); setShowIngSearch(false); setShowModAdd(false);
   };
@@ -94,10 +95,10 @@ export default function ProductsScreen() {
     if (!editName.trim()) return;
     try {
       if (isNew) {
-        const { data } = await supabase.from('products').insert({ name: editName.trim(), price: parseInt(editPrice) || 0, category_id: editCatId, sort_order: 0 }).select('*').single();
+        const { data } = await supabase.from('products').insert({ name: editName.trim(), price: parseInt(editPrice) || 0, description: editDesc.trim() || null, category_id: editCatId, sort_order: 0 }).select('*').single();
         if (data) { setSelectedProduct(data); setIsNew(false); }
       } else {
-        await supabase.from('products').update({ name: editName.trim(), price: parseInt(editPrice) || 0, category_id: editCatId }).eq('id', selectedProduct.id);
+        await supabase.from('products').update({ name: editName.trim(), price: parseInt(editPrice) || 0, description: editDesc.trim() || null, category_id: editCatId }).eq('id', selectedProduct.id);
       }
       await load();
     } catch (e: any) { Alert.alert('Error', e.message); }
@@ -234,6 +235,7 @@ export default function ProductsScreen() {
           <View style={s.dBlock}>
             <Text style={s.dBlockTitle}>Detalles</Text>
             <View style={s.field}><Text style={s.fLabel}>Nombre *</Text><TextInput style={s.fInput} value={editName} onChangeText={setEditName} /></View>
+            <View style={s.field}><Text style={s.fLabel}>Descripción</Text><TextInput style={[s.fInput, { minHeight: 50 }]} value={editDesc} onChangeText={setEditDesc} placeholder="Descripción del producto..." placeholderTextColor={COLORS.textMuted} multiline /></View>
             <View style={s.field}><Text style={s.fLabel}>Precio *</Text><TextInput style={s.fInput} value={editPrice} onChangeText={setEditPrice} keyboardType="number-pad" /></View>
             <View style={s.field}>
               <Text style={s.fLabel}>Categoría *</Text>
