@@ -137,7 +137,7 @@ export default function OrderScreen({ table, onBack }: Props) {
       const hora = now.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Santiago' });
       const dow = now.getDay();
       const esMiercoles = dow === 3;
-      const hhActivo = !esMiercoles && dow >= 1 && dow <= 6 && hora >= '17:00' && hora < '21:00';
+      const hhActivo = !esMiercoles && dow >= 1 && dow <= 6 && hora < '21:00';
       const bloqueadas = esMiercoles ? [HH_CAT, COMBO_CAT] : (hhActivo ? [] : [HH_CAT]);
       setProducts(p.filter((pr: any) => !bloqueadas.includes(pr.category_id)));
     }
