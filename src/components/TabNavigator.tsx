@@ -13,6 +13,7 @@ export interface Tab {
 
 const ALL_TABS: Tab[] = [
   { key: 'mesas', label: 'Mesas', icon: '🪑', roles: ['garzon', 'cajero', 'admin'] },
+  { key: 'reservas', label: 'Reservas', icon: '📋', roles: ['garzon', 'cajero', 'admin'] },
   { key: 'caja', label: 'Caja', icon: '💰', roles: ['cajero', 'admin'] },
   { key: 'delivery', label: 'Delivery', icon: '🛵', roles: ['cajero', 'admin'] },
   { key: 'productos', label: 'Productos', icon: '🍕', roles: ['admin'] },

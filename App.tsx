@@ -11,6 +11,7 @@ import TableMapScreen from './src/screens/TableMapScreen';
 import OrderScreen from './src/screens/OrderScreen';
 import TableEditorScreen from './src/screens/TableEditorScreen';
 import CajaScreen from './src/screens/CajaScreen';
+import ReservationsScreen from './src/screens/ReservationsScreen';
 import DeliveryScreen from './src/screens/DeliveryScreen';
 import AdminScreen from './src/screens/AdminScreen';
 import InventoryScreen from './src/screens/InventoryScreen';
@@ -171,6 +172,7 @@ function AppContent() {
             onOpenEditor={navigateToEditor}
           />
         )}
+        {activeTab === 'reservas' && <ReservationsScreen />}
         {activeTab === 'caja' && <CajaScreen />}
         {activeTab === 'delivery' && <DeliveryScreen user={user} />}
         {activeTab === 'productos' && <ProductosHub />}
