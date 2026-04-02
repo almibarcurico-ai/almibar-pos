@@ -106,29 +106,8 @@ export default function ReservationsScreen() {
       <View style={{ flex: 1, flexDirection: 'row' }}>
         {/* Main list */}
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
-          {/* PENDIENTES */}
-          {pendientes.length > 0 && (
-            <View style={{ marginBottom: 20 }}>
-              <Text style={s.secTitle}>⏳ PENDIENTES ({pendientes.length})</Text>
-              {pendientes.map(r => <ReservaCard key={r.id} r={r} selected={selected} onSelect={setSelected} fmt={fmt} today={today} />)}
-            </View>
-          )}
-
-          {/* CONFIRMADAS */}
-          {confirmadas.length > 0 && (
-            <View style={{ marginBottom: 20 }}>
-              <Text style={s.secTitle}>✅ CONFIRMADAS ({confirmadas.length})</Text>
-              {confirmadas.map(r => <ReservaCard key={r.id} r={r} selected={selected} onSelect={setSelected} fmt={fmt} today={today} />)}
-            </View>
-          )}
-
-          {/* OTRAS */}
-          {otras.length > 0 && (
-            <View style={{ marginBottom: 20 }}>
-              <Text style={s.secTitle}>HISTORIAL ({otras.length})</Text>
-              {otras.map(r => <ReservaCard key={r.id} r={r} selected={selected} onSelect={setSelected} fmt={fmt} today={today} />)}
-            </View>
-          )}
+          {/* Todas las reservas en una sola lista */}
+          {reservations.map(r => <ReservaCard key={r.id} r={r} selected={selected} onSelect={setSelected} fmt={fmt} today={today} onAssignMesa={assignMesa} />)}
 
           {reservations.length === 0 && !loading && (
             <View style={{ alignItems: 'center', paddingTop: 80 }}>
@@ -159,17 +138,6 @@ export default function ReservationsScreen() {
                 {selected.motivo && <Text style={{ fontSize: 12, color: COLORS.textSecondary, marginTop: 8 }}>🎯 {selected.motivo}</Text>}
                 {selected.notas && <Text style={{ fontSize: 12, color: COLORS.textSecondary, marginTop: 4 }}>📝 {selected.notas}</Text>}
                 <Text style={{ fontSize: 10, color: COLORS.textMuted, marginTop: 8 }}>📅 {fmt(selected.fecha)}</Text>
-              </View>
-
-              {/* Asignar mesa → confirma automáticamente */}
-              <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 8 }}>ASIGNAR MESA</Text>
-              <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
-                {Array.from({ length: 20 }, (_, i) => i + 1).map(n => (
-                  <TouchableOpacity key={n} onPress={() => assignMesa(selected.id, n)}
-                    style={{ width: 42, height: 42, borderRadius: 10, backgroundColor: selected.mesa_asignada === n ? COLORS.primary : COLORS.card, borderWidth: 1.5, borderColor: selected.mesa_asignada === n ? COLORS.primary : COLORS.border, alignItems: 'center', justifyContent: 'center' }}>
-                    <Text style={{ fontSize: 14, fontWeight: '700', color: selected.mesa_asignada === n ? '#fff' : COLORS.text }}>{n}</Text>
-                  </TouchableOpacity>
-                ))}
               </View>
 
               {/* Acciones */}
@@ -236,39 +204,47 @@ export default function ReservationsScreen() {
   );
 }
 
-function ReservaCard({ r, selected, onSelect, fmt, today }: any) {
+function ReservaCard({ r, selected, onSelect, fmt, today, onAssignMesa }: any) {
   const sc = SC[r.status] || SC.pendiente;
   const isActive = selected?.id === r.id;
   const isToday = r.fecha === today;
+  const [mesaInput, setMesaInput] = React.useState(r.mesa_asignada ? String(r.mesa_asignada) : '');
+
   return (
-    <TouchableOpacity onPress={() => onSelect(r)}
-      style={{ flexDirection: 'row', alignItems: 'center', padding: 14, marginBottom: 6, borderRadius: 12, backgroundColor: isActive ? COLORS.primary + '08' : COLORS.card, borderWidth: isActive ? 2 : 1, borderColor: isActive ? COLORS.primary : COLORS.border, borderLeftWidth: 4, borderLeftColor: sc.color, gap: 14 }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', padding: 14, marginBottom: 6, borderRadius: 12, backgroundColor: isActive ? COLORS.primary + '08' : COLORS.card, borderWidth: isActive ? 2 : 1, borderColor: isActive ? COLORS.primary : COLORS.border, borderLeftWidth: 4, borderLeftColor: sc.color, gap: 12 }}>
       {/* Hora */}
       <View style={{ width: 55, alignItems: 'center' }}>
         <Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.text }}>{r.hora || '-'}</Text>
         <Text style={{ fontSize: 10, color: isToday ? COLORS.primary : COLORS.textMuted, fontWeight: isToday ? '700' : '400' }}>{fmt(r.fecha)}</Text>
       </View>
       {/* Info */}
-      <View style={{ flex: 1 }}>
+      <TouchableOpacity style={{ flex: 1 }} onPress={() => onSelect(r)}>
         <Text style={{ fontSize: 15, fontWeight: '700', color: COLORS.text }}>{r.nombre}</Text>
-        <View style={{ flexDirection: 'row', gap: 8, marginTop: 3, alignItems: 'center' }}>
+        <View style={{ flexDirection: 'row', gap: 8, marginTop: 3, alignItems: 'center', flexWrap: 'wrap' }}>
           <Text style={{ fontSize: 12, color: COLORS.textSecondary }}>👥 {r.personas}</Text>
           {r.motivo && <Text style={{ fontSize: 12, color: COLORS.textMuted }}>{r.motivo}</Text>}
           {r.celular && <Text style={{ fontSize: 11, color: COLORS.textMuted }}>📱 {r.celular}</Text>}
+          {r.notas && <Text style={{ fontSize: 11, color: COLORS.textMuted }}>📝 {r.notas}</Text>}
         </View>
+      </TouchableOpacity>
+      {/* Mesa input */}
+      <View style={{ alignItems: 'center', width: 60 }}>
+        <TextInput
+          style={{ width: 50, height: 40, borderRadius: 8, backgroundColor: r.mesa_asignada ? COLORS.primary + '15' : COLORS.background, borderWidth: 1.5, borderColor: r.mesa_asignada ? COLORS.primary : COLORS.border, textAlign: 'center', fontSize: 16, fontWeight: '800', color: r.mesa_asignada ? COLORS.primary : COLORS.text }}
+          value={mesaInput}
+          onChangeText={setMesaInput}
+          onBlur={() => { const n = parseInt(mesaInput); if (n > 0) onAssignMesa(r.id, n); }}
+          keyboardType="number-pad"
+          placeholder="—"
+          placeholderTextColor={COLORS.textMuted}
+        />
+        <Text style={{ fontSize: 8, color: COLORS.textMuted, marginTop: 2, fontWeight: '600' }}>MESA</Text>
       </View>
-      {/* Mesa */}
-      {r.mesa_asignada && (
-        <View style={{ backgroundColor: COLORS.primary + '15', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, alignItems: 'center' }}>
-          <Text style={{ fontSize: 16, fontWeight: '800', color: COLORS.primary }}>{r.mesa_asignada}</Text>
-          <Text style={{ fontSize: 8, color: COLORS.primary, fontWeight: '600' }}>MESA</Text>
-        </View>
-      )}
       {/* Status */}
       <View style={{ backgroundColor: sc.bg, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 }}>
         <Text style={{ fontSize: 11, fontWeight: '700', color: sc.color }}>{sc.icon} {sc.label}</Text>
       </View>
-    </TouchableOpacity>
+    </View>
   );
 }
 
