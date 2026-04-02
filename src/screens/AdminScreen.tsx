@@ -16,8 +16,9 @@ import PrintersScreen from './admin/PrintersScreen';
 import SuppliersScreen from './admin/SuppliersScreen';
 import PurchasesScreen from './admin/PurchasesScreen';
 import InventoryCountScreen from './admin/InventoryCountScreen';
+import FacturaScannerScreen from './admin/FacturaScannerScreen';
 
-type Sub = 'menu'|'products'|'ingredients'|'suppliers'|'purchases'|'inventory'|'users'|'reports'|'clients'|'modifiers'|'printers';
+type Sub = 'menu'|'products'|'ingredients'|'suppliers'|'purchases'|'inventory'|'users'|'reports'|'clients'|'modifiers'|'printers'|'scanner';
 
 interface Props { onOpenEditor: () => void; onOpenInventory?: (sub: string) => void; }
 
@@ -38,6 +39,7 @@ export default function AdminScreen({ onOpenEditor, onOpenInventory }: Props) {
       {sub === 'printers' && <PrintersScreen />}
       {sub === 'suppliers' && <SuppliersScreen />}
       {sub === 'purchases' && <PurchasesScreen />}
+      {sub === 'scanner' && <FacturaScannerScreen />}
       {sub === 'inventory' && <InventoryCountScreen />}
     </View>
   );
@@ -366,6 +368,7 @@ function Menu({ onSelect, onOpenEditor }: { onSelect: (s: Sub) => void; onOpenEd
   const items: { key: Sub; icon: string; title: string; desc: string }[] = [
     { key: 'suppliers', icon: '🚚', title: 'Proveedores', desc: 'Contactos y datos' },
     { key: 'purchases', icon: '🧾', title: 'Compras', desc: 'Facturas y stock' },
+    { key: 'scanner', icon: '📷', title: 'Escanear Factura', desc: 'OCR con IA' },
     { key: 'printers', icon: '🖨️', title: 'Impresoras', desc: 'Cocina, Barra, Caja' },
     { key: 'clients', icon: '🤝', title: 'Socios', desc: 'Club de Amigos' },
     { key: 'users', icon: '👥', title: 'Usuarios', desc: 'Roles y accesos' },
