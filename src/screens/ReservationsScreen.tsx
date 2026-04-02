@@ -30,6 +30,8 @@ export default function ReservationsScreen() {
   const [loading, setLoading] = useState(true);
   const [newModal, setNewModal] = useState(false);
   const [rNombre, setRNombre] = useState(''); const [rCelular, setRCelular] = useState('');
+  const [clientSearch, setClientSearch] = useState<any[]>([]);
+  const [selectedClient, setSelectedClient] = useState<any>(null);
   const [rMotivo, setRMotivo] = useState('cena'); const [rPersonas, setRPersonas] = useState('2');
   const [rFecha, setRFecha] = useState(new Date().toLocaleDateString('en-CA'));
   const [rHora, setRHora] = useState('20:00'); const [rNotas, setRNotas] = useState(''); const [rMesa, setRMesa] = useState('');
@@ -69,10 +71,25 @@ export default function ReservationsScreen() {
     await load();
   };
 
+  const searchClient = async (text: string) => {
+    setRNombre(text);
+    setSelectedClient(null);
+    if (text.length < 2) { setClientSearch([]); return; }
+    const { data } = await supabase.from('clients').select('id, name, phone, member_number, total_visits').or('name.ilike.%' + text + '%,phone.ilike.%' + text + '%').limit(5);
+    if (data) setClientSearch(data);
+  };
+
+  const pickClient = (c: any) => {
+    setSelectedClient(c);
+    setRNombre(c.name);
+    setRCelular(c.phone || '');
+    setClientSearch([]);
+  };
+
   const createReservation = async () => {
     if (!rNombre.trim() || !rFecha) return;
-    await supabase.from('reservations').insert({ nombre: rNombre.trim(), celular: rCelular.trim() || null, motivo: rMotivo, personas: parseInt(rPersonas) || 2, fecha: rFecha, hora: rHora, notas: rNotas.trim() || null, mesa_asignada: parseInt(rMesa) || null, status: parseInt(rMesa) ? 'confirmada' : 'pendiente', confirmed_by: parseInt(rMesa) ? user?.id : null, confirmed_at: parseInt(rMesa) ? new Date().toISOString() : null });
-    setNewModal(false); setRNombre(''); setRCelular(''); setRNotas(''); setRMesa('');
+    await supabase.from('reservations').insert({ nombre: rNombre.trim(), celular: rCelular.trim() || null, motivo: rMotivo, personas: parseInt(rPersonas) || 2, fecha: rFecha, hora: rHora, notas: rNotas.trim() || null, mesa_asignada: parseInt(rMesa) || null, status: parseInt(rMesa) ? 'confirmada' : 'pendiente', confirmed_by: parseInt(rMesa) ? user?.id : null, confirmed_at: parseInt(rMesa) ? new Date().toISOString() : null, client_id: selectedClient?.id || null });
+    setNewModal(false); setRNombre(''); setRCelular(''); setRNotas(''); setRMesa(''); setSelectedClient(null); setClientSearch([]);
     await load();
   };
 
@@ -171,10 +188,31 @@ export default function ReservationsScreen() {
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' }}>
           <View style={{ backgroundColor: COLORS.card, borderRadius: 16, padding: 24, width: '90%', maxWidth: 420 }}>
             <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.text, marginBottom: 16 }}>Nueva Reserva</Text>
-            <View style={{ flexDirection: 'row', gap: 10 }}>
-              <View style={{ flex: 1 }}><Text style={s.lb}>Nombre *</Text><TextInput style={s.inp} value={rNombre} onChangeText={setRNombre} placeholder="Nombre" placeholderTextColor={COLORS.textMuted} /></View>
-              <View style={{ flex: 1 }}><Text style={s.lb}>Celular</Text><TextInput style={s.inp} value={rCelular} onChangeText={setRCelular} placeholder="+569..." placeholderTextColor={COLORS.textMuted} /></View>
-            </View>
+            <Text style={s.lb}>Nombre *</Text>
+            <TextInput style={s.inp} value={rNombre} onChangeText={searchClient} placeholder="Buscar socio o escribir nombre..." placeholderTextColor={COLORS.textMuted} />
+            {clientSearch.length > 0 && (
+              <View style={{ backgroundColor: COLORS.card, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, maxHeight: 130, marginTop: 4 }}>
+                <ScrollView nestedScrollEnabled>
+                  {clientSearch.map(c => (
+                    <TouchableOpacity key={c.id} style={{ padding: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }} onPress={() => pickClient(c)}>
+                      <View>
+                        <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.text }}>{c.name}</Text>
+                        <Text style={{ fontSize: 10, color: COLORS.textMuted }}>{c.phone || ''} · Socio #{c.member_number}</Text>
+                      </View>
+                      <Text style={{ fontSize: 10, color: COLORS.primary, fontWeight: '600' }}>{c.total_visits} visitas</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+            {selectedClient && (
+              <View style={{ backgroundColor: COLORS.primary + '10', borderRadius: 8, padding: 8, marginTop: 4, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={{ fontSize: 12, fontWeight: '600', color: COLORS.primary }}>✅ Socio #{selectedClient.member_number} · {selectedClient.total_visits} visitas</Text>
+                <TouchableOpacity onPress={() => { setSelectedClient(null); setRNombre(''); setRCelular(''); }}><Text style={{ color: COLORS.error, fontSize: 12 }}>✕</Text></TouchableOpacity>
+              </View>
+            )}
+            <Text style={s.lb}>Celular</Text>
+            <TextInput style={s.inp} value={rCelular} onChangeText={setRCelular} placeholder="+569..." placeholderTextColor={COLORS.textMuted} />
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
               <View style={{ flex: 1 }}><Text style={s.lb}>Fecha *</Text><TextInput style={s.inp} value={rFecha} onChangeText={setRFecha} /></View>
               <View style={{ flex: 1 }}><Text style={s.lb}>Hora</Text><TextInput style={s.inp} value={rHora} onChangeText={setRHora} /></View>
