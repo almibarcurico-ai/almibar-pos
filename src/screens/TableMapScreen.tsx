@@ -138,6 +138,16 @@ export default function TableMapScreen({ onOpenOrder, onOpenEditor }: Props) {
   const loadData = async () => {
     const { data: sd } = await supabase.from('sectors').select('*').eq('active', true).order('sort_order');
     if (sd && sd.length > 0) { setSectors(sd); if (!activeSector) setActiveSector(sd[0].id); }
+    // Limpiar órdenes huérfanas: abiertas pero mesa libre
+    const { data: huerfanas } = await supabase.from('orders').select('id, table_id').eq('status', 'abierta');
+    if (huerfanas && huerfanas.length > 0) {
+      const { data: mesasLibres } = await supabase.from('tables').select('id').eq('status', 'libre');
+      const libresSet = new Set((mesasLibres || []).map((t: any) => t.id));
+      const orphans = huerfanas.filter((o: any) => o.table_id && libresSet.has(o.table_id));
+      for (const o of orphans) {
+        await supabase.from('orders').update({ status: 'cerrada', closed_at: new Date().toISOString() }).eq('id', o.id);
+      }
+    }
     await loadTables();
     setLoading(false);
   };
