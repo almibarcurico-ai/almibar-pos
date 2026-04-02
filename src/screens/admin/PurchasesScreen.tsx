@@ -70,8 +70,8 @@ export default function PurchasesScreen({ onBack }: { onBack?: () => void }) {
         if (!perm.granted) { Alert.alert('Permiso requerido'); return; }
       }
       const result = fromCamera
-        ? await ImagePicker.launchCameraAsync({ base64: true, quality: 0.7 })
-        : await ImagePicker.launchImageLibraryAsync({ base64: true, quality: 0.7 });
+        ? await ImagePicker.launchCameraAsync({ base64: true, quality: 0.85, allowsEditing: false })
+        : await ImagePicker.launchImageLibraryAsync({ base64: true, quality: 0.85, allowsEditing: false });
       if (result.canceled || !result.assets?.[0]?.base64) return;
 
       setScanning(true);
