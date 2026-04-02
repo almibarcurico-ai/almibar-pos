@@ -232,7 +232,7 @@ export default function ProductsScreen() {
           {displayed.map((p, i) => {
             const rec = recipes.find(r => r.product_id === p.id);
             const ris = rec ? recipeItems.filter(ri => ri.recipe_id === rec.id) : [];
-            const cost = ris.reduce((s, ri) => { const ing = ingredients.find(x => x.id === ri.ingredient_id); return s + (ing ? ing.cost_per_unit * ri.quantity : 0); }, 0);
+            const cost = ris.reduce((s, ri) => { const ing = ingredients.find(x => x.id === ri.ingredient_id); if (!ing) return s; return s + calcIngCost(ing, ri.quantity, ri.unit || ing.unit); }, 0);
             const isActive = selectedProduct?.id === p.id;
             return (
               <TouchableOpacity key={p.id} style={[s.tRow, i % 2 === 0 && s.tRowA, isActive && { backgroundColor: COLORS.primary + '18', borderLeftWidth: 3, borderLeftColor: COLORS.primary }]} onPress={() => selectProduct(p)}>
