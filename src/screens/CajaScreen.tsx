@@ -43,9 +43,9 @@ export default function CajaScreen() {
 function VentasTab() {
   const [orders, setOrders] = useState<any[]>([]);
   const [period, setPeriod] = useState<'turno' | 'diario' | 'semanal' | 'mensual' | 'anual' | 'rango'>('turno');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [rangoDesde, setRangoDesde] = useState(new Date().toISOString().split('T')[0]);
-  const [rangoHasta, setRangoHasta] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(new Date().toLocaleDateString('en-CA'));
+  const [rangoDesde, setRangoDesde] = useState(new Date().toLocaleDateString('en-CA'));
+  const [rangoHasta, setRangoHasta] = useState(new Date().toLocaleDateString('en-CA'));
   const [filterPago, setFilterPago] = useState('todos');
   const [filterGarzon, setFilterGarzon] = useState('todos');
   const [users, setUsers] = useState<any[]>([]);
@@ -79,40 +79,57 @@ function VentasTab() {
     setCurrentArqueo(cajas?.[0] || null);
 
     let since: string, until: string;
-    const d = new Date(date + 'T00:00:00');
+
+    // Convertir fecha local (Chile) a ISO con offset correcto
+    // Esto asegura que "2026-04-01" sea medianoche Chile, no medianoche UTC
+    const toChileISO = (dateStr: string) => {
+      // Crear fecha en hora local del navegador (que está en Chile)
+      const local = new Date(dateStr + 'T00:00:00');
+      // Obtener offset en minutos y convertir a formato ±HH:MM
+      const offsetMin = local.getTimezoneOffset();
+      const sign = offsetMin <= 0 ? '+' : '-';
+      const absOff = Math.abs(offsetMin);
+      const hh = String(Math.floor(absOff / 60)).padStart(2, '0');
+      const mm = String(absOff % 60).padStart(2, '0');
+      return dateStr + 'T00:00:00' + sign + hh + ':' + mm;
+    };
+
+    const addDays = (dateStr: string, days: number) => {
+      const d = new Date(dateStr + 'T12:00:00'); // noon to avoid DST edge
+      d.setDate(d.getDate() + days);
+      return d.toISOString().split('T')[0];
+    };
+
+    const d = new Date(date + 'T12:00:00');
 
     if (period === 'turno') {
       // Desde la apertura del arqueo actual hasta ahora
       if (cajas?.[0]) {
         since = cajas[0].opened_at;
       } else {
-        since = new Date().toISOString().split('T')[0];
+        since = toChileISO(new Date().toLocaleDateString('en-CA'));
       }
-      until = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+      until = toChileISO(addDays(new Date().toLocaleDateString('en-CA'), 1));
     } else if (period === 'diario') {
-      since = date;
-      const next = new Date(d); next.setDate(next.getDate() + 1);
-      until = next.toISOString().split('T')[0];
+      since = toChileISO(date);
+      until = toChileISO(addDays(date, 1));
     } else if (period === 'semanal') {
       const start = new Date(d); start.setDate(start.getDate() - start.getDay());
-      const end = new Date(start); end.setDate(end.getDate() + 7);
-      since = start.toISOString().split('T')[0];
-      until = end.toISOString().split('T')[0];
+      const startStr = start.toISOString().split('T')[0];
+      since = toChileISO(startStr);
+      until = toChileISO(addDays(startStr, 7));
     } else if (period === 'mensual') {
-      const start = new Date(d.getFullYear(), d.getMonth(), 1);
+      const startStr = date.substring(0, 7) + '-01';
       const end = new Date(d.getFullYear(), d.getMonth() + 1, 1);
-      since = start.toISOString().split('T')[0];
-      until = end.toISOString().split('T')[0];
+      const endStr = end.toISOString().split('T')[0];
+      since = toChileISO(startStr);
+      until = toChileISO(endStr);
     } else if (period === 'anual') {
-      const start = new Date(d.getFullYear(), 0, 1);
-      const end = new Date(d.getFullYear() + 1, 0, 1);
-      since = start.toISOString().split('T')[0];
-      until = end.toISOString().split('T')[0];
+      since = toChileISO(d.getFullYear() + '-01-01');
+      until = toChileISO((d.getFullYear() + 1) + '-01-01');
     } else if (period === 'rango') {
-      since = rangoDesde;
-      const h = new Date(rangoHasta + 'T00:00:00');
-      h.setDate(h.getDate() + 1);
-      until = h.toISOString().split('T')[0];
+      since = toChileISO(rangoDesde);
+      until = toChileISO(addDays(rangoHasta, 1));
     }
 
     // Mesa orders cerradas
@@ -195,7 +212,7 @@ function VentasTab() {
     else if (period === 'semanal') d.setDate(d.getDate() + (dir * 7));
     else if (period === 'mensual') d.setMonth(d.getMonth() + dir);
     else if (period === 'anual') d.setFullYear(d.getFullYear() + dir);
-    setDate(d.toISOString().split('T')[0]);
+    setDate(d.toLocaleDateString('en-CA'));
   };
 
   const dateLabel = () => {
@@ -495,16 +512,22 @@ function MovimientosTab() {
   const fmt = (p: number) => '$' + Math.round(p).toLocaleString('es-CL');
 
   const loadData = async () => {
-    const today = new Date().toISOString().split('T')[0];
-    const { data: cajas } = await supabase.from('cash_registers').select('*').gte('opened_at', today).is('closed_at', null).order('opened_at', { ascending: false }).limit(1);
+    const todayLocal = new Date();
+    const todayStr = todayLocal.toLocaleDateString('en-CA');
+    const offsetMin = todayLocal.getTimezoneOffset();
+    const sign = offsetMin <= 0 ? '+' : '-';
+    const absOff = Math.abs(offsetMin);
+    const tz = sign + String(Math.floor(absOff / 60)).padStart(2, '0') + ':' + String(absOff % 60).padStart(2, '0');
+    const todayISO = todayStr + 'T00:00:00' + tz;
+
+    const { data: cajas } = await supabase.from('cash_registers').select('*').gte('opened_at', todayISO).is('closed_at', null).order('opened_at', { ascending: false }).limit(1);
     const caja = cajas?.[0] || null;
     setCashRegister(caja);
     if (caja) {
       const { data: movs } = await supabase.from('cash_movements').select('*, users:created_by(name)').eq('cash_register_id', caja.id).order('created_at', { ascending: false });
       if (movs) setMovements(movs);
     } else {
-      // Show all movements from today even without open register
-      const { data: movs } = await supabase.from('cash_movements').select('*, users:created_by(name)').gte('created_at', today).order('created_at', { ascending: false });
+      const { data: movs } = await supabase.from('cash_movements').select('*, users:created_by(name)').gte('created_at', todayISO).order('created_at', { ascending: false });
       if (movs) setMovements(movs);
     }
     setLoading(false);
@@ -662,12 +685,19 @@ function ArqueosTab() {
 
   const loadData = async () => {
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const todayLocal = new Date();
+      const todayStr = todayLocal.toLocaleDateString('en-CA');
+      const offsetMin = todayLocal.getTimezoneOffset();
+      const sign = offsetMin <= 0 ? '+' : '-';
+      const absOff = Math.abs(offsetMin);
+      const tz = sign + String(Math.floor(absOff / 60)).padStart(2, '0') + ':' + String(absOff % 60).padStart(2, '0');
+      const todayISO = todayStr + 'T00:00:00' + tz;
+
       const { data: cajas } = await supabase.from('cash_registers').select('*').is('closed_at', null).order('opened_at', { ascending: false }).limit(1);
       const caja = cajas?.[0] || null;
       setCashRegister(caja);
 
-      const { data: ords } = await supabase.from('orders').select('*, table:table_id(number)').eq('status', 'cerrada').gte('closed_at', today);
+      const { data: ords } = await supabase.from('orders').select('*, table:table_id(number)').eq('status', 'cerrada').gte('closed_at', todayISO);
       if (ords) setTodayOrders(ords.map((o: any) => ({ ...o, table_number: o.table?.number || null })));
 
       if (caja) {
@@ -684,7 +714,7 @@ function ArqueosTab() {
         if (sp) setShiftPayments(sp);
       } else { setShiftPayments([]); }
       // Delivery payments from today
-      const { data: dp } = await supabase.from('delivery_payments').select('*').gte('created_at', today);
+      const { data: dp } = await supabase.from('delivery_payments').select('*').gte('created_at', todayISO);
       if (dp) setShiftDelivPayments(dp); else setShiftDelivPayments([]);
       if (hist) setHistorial(hist);
     } catch (e) { console.error(e); }
@@ -1178,7 +1208,7 @@ function ArqueosTab() {
 function AnulacionesTab() {
   const [logs, setLogs] = useState<any[]>([]);
   const [period, setPeriod] = useState<'diario' | 'semanal' | 'mensual'>('diario');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(new Date().toLocaleDateString('en-CA'));
   const [users, setUsers] = useState<any[]>([]);
 
   useEffect(() => { loadUsers(); }, []);
@@ -1188,12 +1218,15 @@ function AnulacionesTab() {
   const waiterName = (id: string) => users.find((u: any) => u.id === id)?.name || '-';
   const fmt = (p: number) => '$' + Math.round(p).toLocaleString('es-CL');
 
+  const toChileISO = (ds: string) => { const l = new Date(ds + 'T00:00:00'); const om = l.getTimezoneOffset(); const sg = om <= 0 ? '+' : '-'; const ao = Math.abs(om); return ds + 'T00:00:00' + sg + String(Math.floor(ao/60)).padStart(2,'0') + ':' + String(ao%60).padStart(2,'0'); };
+  const addDays = (ds: string, n: number) => { const x = new Date(ds + 'T12:00:00'); x.setDate(x.getDate() + n); return x.toLocaleDateString('en-CA'); };
+
   const load = async () => {
     let since: string, until: string;
-    const d = new Date(date + 'T00:00:00');
-    if (period === 'diario') { since = date; const n = new Date(d); n.setDate(n.getDate() + 1); until = n.toISOString().split('T')[0]; }
-    else if (period === 'semanal') { const st = new Date(d); st.setDate(st.getDate() - st.getDay()); const en = new Date(st); en.setDate(en.getDate() + 7); since = st.toISOString().split('T')[0]; until = en.toISOString().split('T')[0]; }
-    else { const st = new Date(d.getFullYear(), d.getMonth(), 1); const en = new Date(d.getFullYear(), d.getMonth() + 1, 1); since = st.toISOString().split('T')[0]; until = en.toISOString().split('T')[0]; }
+    const d = new Date(date + 'T12:00:00');
+    if (period === 'diario') { since = toChileISO(date); until = toChileISO(addDays(date, 1)); }
+    else if (period === 'semanal') { const st = new Date(d); st.setDate(st.getDate() - st.getDay()); const ss = st.toLocaleDateString('en-CA'); since = toChileISO(ss); until = toChileISO(addDays(ss, 7)); }
+    else { const ss = date.substring(0,7) + '-01'; const en = new Date(d.getFullYear(), d.getMonth() + 1, 1); since = toChileISO(ss); until = toChileISO(en.toLocaleDateString('en-CA')); }
 
     const { data } = await supabase.from('order_logs').select('*').eq('action', 'item_anulado').gte('created_at', since).lt('created_at', until).order('created_at', { ascending: false });
     setLogs(data || []);
@@ -1204,7 +1237,7 @@ function AnulacionesTab() {
     if (period === 'diario') d.setDate(d.getDate() + dir);
     else if (period === 'semanal') d.setDate(d.getDate() + (dir * 7));
     else d.setMonth(d.getMonth() + dir);
-    setDate(d.toISOString().split('T')[0]);
+    setDate(d.toLocaleDateString('en-CA'));
   };
 
   const totalAnulado = logs.reduce((a, l) => a + (l.details?.total_price || 0), 0);
@@ -1258,7 +1291,7 @@ function PropinasTab() {
   const [orders, setOrders] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
   const [period, setPeriod] = useState<'diario' | 'semanal' | 'mensual'>('diario');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(new Date().toLocaleDateString('en-CA'));
   const [users, setUsers] = useState<any[]>([]);
 
   useEffect(() => { loadUsers(); }, []);
@@ -1268,12 +1301,15 @@ function PropinasTab() {
   const waiterName = (id: string) => users.find((u: any) => u.id === id)?.name || '-';
   const fmt = (p: number) => '$' + Math.round(p).toLocaleString('es-CL');
 
+  const toChileISO = (ds: string) => { const l = new Date(ds + 'T00:00:00'); const om = l.getTimezoneOffset(); const sg = om <= 0 ? '+' : '-'; const ao = Math.abs(om); return ds + 'T00:00:00' + sg + String(Math.floor(ao/60)).padStart(2,'0') + ':' + String(ao%60).padStart(2,'0'); };
+  const addDays = (ds: string, n: number) => { const x = new Date(ds + 'T12:00:00'); x.setDate(x.getDate() + n); return x.toLocaleDateString('en-CA'); };
+
   const load = async () => {
     let since: string, until: string;
-    const d = new Date(date + 'T00:00:00');
-    if (period === 'diario') { since = date; const n = new Date(d); n.setDate(n.getDate() + 1); until = n.toISOString().split('T')[0]; }
-    else if (period === 'semanal') { const st = new Date(d); st.setDate(st.getDate() - st.getDay()); const en = new Date(st); en.setDate(en.getDate() + 7); since = st.toISOString().split('T')[0]; until = en.toISOString().split('T')[0]; }
-    else { const st = new Date(d.getFullYear(), d.getMonth(), 1); const en = new Date(d.getFullYear(), d.getMonth() + 1, 1); since = st.toISOString().split('T')[0]; until = en.toISOString().split('T')[0]; }
+    const d = new Date(date + 'T12:00:00');
+    if (period === 'diario') { since = toChileISO(date); until = toChileISO(addDays(date, 1)); }
+    else if (period === 'semanal') { const st = new Date(d); st.setDate(st.getDate() - st.getDay()); const ss = st.toLocaleDateString('en-CA'); since = toChileISO(ss); until = toChileISO(addDays(ss, 7)); }
+    else { const ss = date.substring(0,7) + '-01'; const en = new Date(d.getFullYear(), d.getMonth() + 1, 1); since = toChileISO(ss); until = toChileISO(en.toLocaleDateString('en-CA')); }
 
     const { data: mesaData } = await supabase.from('orders').select('id,table_id,waiter_id,tip_amount,closed_at,table:table_id(number)').eq('status', 'cerrada').gte('closed_at', since).lt('closed_at', until).gt('tip_amount', 0).order('closed_at', { ascending: false });
     setOrders(mesaData || []);
@@ -1290,7 +1326,7 @@ function PropinasTab() {
     if (period === 'diario') d.setDate(d.getDate() + dir);
     else if (period === 'semanal') d.setDate(d.getDate() + (dir * 7));
     else d.setMonth(d.getMonth() + dir);
-    setDate(d.toISOString().split('T')[0]);
+    setDate(d.toLocaleDateString('en-CA'));
   };
 
   const totalPropinas = orders.reduce((a: number, o: any) => a + (o.tip_amount || 0), 0);
