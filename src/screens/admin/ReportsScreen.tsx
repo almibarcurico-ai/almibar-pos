@@ -98,7 +98,7 @@ export default function ReportsScreen() {
 
   const exportCSV = () => {
     const header = 'Fecha,Mesa,Método,Subtotal,Descuento,Total,Propina\n';
-    const rows = orders.map((o: any) => `${o.closed_at?.split('T')[0]},${o.table?.number || ''},${o.payment_method || ''},${o.subtotal || 0},${o.discount_value || 0},${o.total || 0},${o.tip_amount || 0}`).join('\n');
+    const rows = orders.map((o: any) => `${o.closed_at ? new Date(o.closed_at).toLocaleDateString('en-CA') : ''},${o.table?.number || ''},${o.payment_method || ''},${o.subtotal || 0},${o.discount_value || 0},${o.total || 0},${o.tip_amount || 0}`).join('\n');
     const blob = new Blob(['\uFEFF' + header + rows], { type: 'text/csv;charset=utf-8;' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `reporte_${date}.csv`; a.click();
   };
@@ -184,7 +184,7 @@ export default function ReportsScreen() {
 // ── VENTAS ──
 function VentasSection({ orders }: { orders: any[] }) {
   const byDay: Record<string, { ventas: number; ordenes: number }> = {};
-  orders.forEach(o => { const d = o.closed_at?.split('T')[0] || '?'; if (!byDay[d]) byDay[d] = { ventas: 0, ordenes: 0 }; byDay[d].ventas += o.total || 0; byDay[d].ordenes++; });
+  orders.forEach(o => { const d = o.closed_at ? new Date(o.closed_at).toLocaleDateString('en-CA') : '?'; if (!byDay[d]) byDay[d] = { ventas: 0, ordenes: 0 }; byDay[d].ventas += o.total || 0; byDay[d].ordenes++; });
   const days = Object.entries(byDay).sort(([a], [b]) => a.localeCompare(b));
   const max = Math.max(...days.map(([, d]) => d.ventas), 1);
   if (days.length === 0) return <Empty />;
