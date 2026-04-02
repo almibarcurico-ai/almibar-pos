@@ -1,6 +1,6 @@
 // src/components/TabNavigator.tsx — Fudo-style top bar
 import React from 'react';
-import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { View, TouchableOpacity, Text, StyleSheet, ScrollView } from 'react-native';
 import { UserRole } from '../types';
 import { COLORS } from '../theme';
 
@@ -34,7 +34,7 @@ export default function TabNavigator({ activeTab, onChangeTab, role }: Props) {
   const time = now.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false });
 
   return (
-    <View style={styles.container}>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.container} contentContainerStyle={{ alignItems: 'center', minWidth: '100%' }}>
       {/* Logo */}
       <View style={styles.logo}>
         <Text style={styles.logoText}>ALMÍBAR</Text>
@@ -56,15 +56,12 @@ export default function TabNavigator({ activeTab, onChangeTab, role }: Props) {
         );
       })}
 
-      {/* Spacer */}
-      <View style={{ flex: 1 }} />
-
       {/* Clock */}
       <View style={styles.clock}>
         <Text style={styles.clockDay}>{dayName}</Text>
         <Text style={styles.clockTime}>{time}</Text>
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -72,9 +69,8 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: '#3C3C3C',
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 0,
     height: 56,
+    flexGrow: 0,
   },
   logo: {
     paddingHorizontal: 16,
