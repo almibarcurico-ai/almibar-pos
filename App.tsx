@@ -125,12 +125,8 @@ function AppContent() {
   // Mobile view for phones (< 600px) — solo garzones ven vista simplificada
   const isMobile = Dimensions.get('window').width < 600;
 
-  if (isMobile && user.role === 'garzon') {
-    if (detail?.type === 'order') {
-      return <OrderScreen table={detail.table} onBack={() => setDetail(null)} />;
-    }
-    return <MobileTableScreen onOpenOrder={(table) => setDetail({ type: 'order', table })} />;
-  }
+  // Garzones mobile: si están en detalle de orden, mostrar OrderScreen
+  // Si no, mostrar tabs normales (incluye Reservas)
 
   // Detail screens (overlay main tabs)
   if (detail?.type === 'order') {
