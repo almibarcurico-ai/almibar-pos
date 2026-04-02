@@ -74,9 +74,24 @@ export default function OrderScreen({ table, onBack }: Props) {
   const [tipEntries, setTipEntries] = useState<{method:string;amount:string}[]>([]);
   const [payEntries, setPayEntries] = useState<{method:string;amount:string}[]>([]);
 
+  // Promo flash: productos con precio reducido
+  const [promoProducts, setPromoProducts] = useState<Record<string, number>>({});
+
   useEffect(() => {
-    loadAll(); const c = setupRT(); return c;
+    loadAll(); loadPromo(); const c = setupRT(); return c;
   }, []);
+
+  const PROMO_FLASH_PRODUCTS: Record<string, number> = {
+    'db577525-cdd9-438d-a394-0e1ce02bb3f7': 1000,  // Shot Tequila → $1.000
+    'f3315d09-716d-48a4-a3f5-e6a5a0b3fc7b': 2500,  // Mojito Cubano → $2.500
+    '8279c385-2158-4895-a4bf-ab607602c835': 2500,  // Schop Patagonia → $2.500
+  };
+
+  const loadPromo = async () => {
+    const { data } = await supabase.from('promo_banners').select('active').eq('title', 'PROMO FLASH').limit(1);
+    if (data?.[0]?.active) setPromoProducts(PROMO_FLASH_PRODUCTS);
+    else setPromoProducts({});
+  };
 
   const loadAll = async () => {
     await Promise.all([loadOrder(), loadMenu(), loadPrinters()]);
@@ -165,9 +180,14 @@ export default function OrderScreen({ table, onBack }: Props) {
       setSearchQuery(''); setShowDropdown(false);
       return;
     }
-    const existing = cart.find(c => c.product.id === product.id && c.notes === '' && c.modifiers.length === 0);
+    // Aplicar precio promo si existe
+    const promoPrice = promoProducts[product.id];
+    const effectiveProduct = promoPrice != null ? { ...product, price: promoPrice } : product;
+    const isPromo = promoPrice != null;
+    const promoNote = isPromo ? '[PROMO]' : '';
+    const existing = cart.find(c => c.product.id === product.id && c.notes === promoNote && c.modifiers.length === 0);
     if (existing) setCart(prev => prev.map(c => c.id === existing.id ? { ...c, quantity: c.quantity + 1 } : c));
-    else setCart(prev => [...prev, { id: `c-${Date.now()}-${Math.random()}`, product, quantity: 1, notes: '', modifiers: [] }]);
+    else setCart(prev => [...prev, { id: `c-${Date.now()}-${Math.random()}`, product: effectiveProduct, quantity: 1, notes: promoNote, modifiers: [] }]);
     setSearchQuery(''); setShowDropdown(false);
   };
 
@@ -344,7 +364,9 @@ export default function OrderScreen({ table, onBack }: Props) {
   const paidItems = orderItems.filter(i => i.paid); const unpaidItems = orderItems.filter(i => !i.paid);
   const paidTotal = paidItems.reduce((a, i) => a + i.total_price, 0);
   const unpaidSubtotal = unpaidItems.reduce((a, i) => a + i.total_price, 0);
-  const discountAmount = discountType === 'percent' ? Math.round(unpaidSubtotal * (parseInt(discountValue) || 0) / 100) : discountType === 'fixed' ? (parseInt(discountValue) || 0) : 0;
+  // Excluir items promo del descuento
+  const unpaidDiscountable = unpaidItems.filter(i => !(i.notes || '').includes('[PROMO]')).reduce((a, i) => a + i.total_price, 0);
+  const discountAmount = discountType === 'percent' ? Math.round(unpaidDiscountable * (parseInt(discountValue) || 0) / 100) : discountType === 'fixed' ? (parseInt(discountValue) || 0) : 0;
   const unpaidTotal = Math.max(0, unpaidSubtotal - discountAmount);
   const selectedItems = unpaidItems.filter(i => selectedItemIds.has(i.id));
   const selectedTotal = selectedItems.reduce((a, i) => a + i.total_price, 0);
@@ -445,12 +467,22 @@ export default function OrderScreen({ table, onBack }: Props) {
             <View style={{ flex: 1, zIndex: 10 }}>
               <TextInput style={s.sInp} placeholder="Buscar producto..." placeholderTextColor={COLORS.textMuted} value={searchQuery} onChangeText={t => { setSearchQuery(t); setShowDropdown(t.length >= 1); }} onFocus={() => { if (searchQuery.length >= 1) setShowDropdown(true); }} />
               {showDropdown && searchResults.length > 0 && (
-                <View style={s.dd}>{searchResults.map(p => (
+                <View style={s.dd}>{searchResults.map(p => {
+                  const pp = promoProducts[p.id];
+                  return (
                   <TouchableOpacity key={p.id} style={s.ddI} onPress={() => addToCart(p)}>
-                    <Text style={{ fontSize: 14, color: COLORS.primary, flex: 1 }}>- {p.name}</Text>
-                    <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.text }}>{fmt(p.price)}</Text>
+                    <Text style={{ fontSize: 14, color: COLORS.primary, flex: 1 }}>- {p.name}{pp != null ? ' ⚡' : ''}</Text>
+                    {pp != null ? (
+                      <View style={{ flexDirection: 'row', gap: 4, alignItems: 'center' }}>
+                        <Text style={{ fontSize: 11, color: COLORS.textMuted, textDecorationLine: 'line-through' }}>{fmt(p.price)}</Text>
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: COLORS.warning }}>{fmt(pp)}</Text>
+                      </View>
+                    ) : (
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.text }}>{fmt(p.price)}</Text>
+                    )}
                   </TouchableOpacity>
-                ))}</View>
+                  );
+                })}</View>
               )}
             </View>
           </View>
