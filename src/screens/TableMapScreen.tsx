@@ -204,7 +204,7 @@ export default function TableMapScreen({ onOpenOrder, onOpenEditor }: Props) {
     if (!selectedTable || !user) return;
     if (!customerName.trim()) { Alert.alert('', 'Ingresa el nombre del cliente'); return; }
     try {
-      const { data: od, error: oe } = await supabase.from('orders').insert({ table_id: selectedTable.id, type: 'mesa', status: 'abierta', waiter_id: user.id, notes: customerName ? `Cliente: ${customerName}` : null, client_id: selectedClient ? selectedClient.id : null }).select().single();
+      const { data: od, error: oe } = await supabase.from('orders').insert({ table_id: selectedTable.id, type: 'mesa', status: 'abierta', waiter_id: user.id, notes: customerName ? `Cliente: ${customerName}` : null, client_id: selectedClient ? selectedClient.id : null, personas: parseInt(customerCount) || 1, tipo_venta: 'mesa' }).select().single();
       if (oe) throw oe;
       await supabase.from('tables').update({ status: 'ocupada', current_order_id: od.id }).eq('id', selectedTable.id);
       await supabase.from('order_logs').insert({ order_id: od.id, action: 'table_opened', details: { table_number: selectedTable.number, customer_name: customerName, waiter: user.name }, user_id: user.id });

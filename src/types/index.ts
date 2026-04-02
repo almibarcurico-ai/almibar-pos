@@ -1,11 +1,11 @@
 // src/types/index.ts
 
-export type UserRole = 'admin' | 'cajero' | 'garzon';
+export type UserRole = 'admin' | 'cajero' | 'garzon' | 'cocina' | 'barra';
 export type TableStatus = 'libre' | 'ocupada' | 'cuenta' | 'reservada';
-export type OrderType = 'mesa' | 'delivery' | 'takeaway';
-export type OrderStatus = 'abierta' | 'cerrada' | 'anulada';
+export type OrderType = 'mesa' | 'delivery' | 'takeaway' | 'mostrador';
+export type OrderStatus = 'abierta' | 'cerrada' | 'anulada' | 'en_curso' | 'enviada';
 export type DiscountType = 'none' | 'percent' | 'fixed';
-export type PaymentMethod = 'efectivo' | 'debito' | 'credito' | 'transferencia' | 'mixto';
+export type PaymentMethod = 'efectivo' | 'debito' | 'credito' | 'transferencia' | 'mixto' | 'online';
 export type ItemStatus = 'pendiente' | 'preparando' | 'listo' | 'entregado';
 
 export interface User {
