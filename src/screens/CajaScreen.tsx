@@ -523,7 +523,8 @@ function MovimientosTab() {
     const tz = sign + String(Math.floor(absOff / 60)).padStart(2, '0') + ':' + String(absOff % 60).padStart(2, '0');
     const todayISO = todayStr + 'T00:00:00' + tz;
 
-    const { data: cajas } = await supabase.from('cash_registers').select('*').gte('opened_at', todayISO).is('closed_at', null).order('opened_at', { ascending: false }).limit(1);
+    // Buscar arqueo abierto sin importar fecha de apertura
+    const { data: cajas } = await supabase.from('cash_registers').select('*').is('closed_at', null).order('opened_at', { ascending: false }).limit(1);
     const caja = cajas?.[0] || null;
     setCashRegister(caja);
     if (caja) {
@@ -709,7 +710,10 @@ function ArqueosTab() {
       const caja = cajas?.[0] || null;
       setCashRegister(caja);
 
-      const { data: ords } = await supabase.from('orders').select('*, table:table_id(number)').eq('status', 'cerrada').gte('closed_at', todayISO);
+      // Usar apertura del arqueo como inicio del turno (no "hoy")
+      const shiftSince = caja ? caja.opened_at : todayISO;
+
+      const { data: ords } = await supabase.from('orders').select('*, table:table_id(number)').eq('status', 'cerrada').gte('closed_at', shiftSince);
       if (ords) setTodayOrders(ords.map((o: any) => ({ ...o, table_number: o.table?.number || null })));
 
       if (caja) {
@@ -725,8 +729,8 @@ function ArqueosTab() {
         const { data: sp } = await supabase.from('payments').select('*').in('order_id', orderIds);
         if (sp) setShiftPayments(sp);
       } else { setShiftPayments([]); }
-      // Delivery payments from today
-      const { data: dp } = await supabase.from('delivery_payments').select('*').gte('created_at', todayISO);
+      // Delivery payments from shift
+      const { data: dp } = await supabase.from('delivery_payments').select('*').gte('created_at', shiftSince);
       if (dp) setShiftDelivPayments(dp); else setShiftDelivPayments([]);
       if (hist) setHistorial(hist);
     } catch (e) { console.error(e); }
