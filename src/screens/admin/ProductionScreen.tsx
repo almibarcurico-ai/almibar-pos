@@ -52,7 +52,15 @@ export default function ProductionScreen() {
   };
 
   // Calculate cost from recipe
-  const recipeCost = recipeItems.reduce((a, ri) => a + (ri.ingredient?.cost_per_unit || 0) * (parseFloat(ri.quantity) || 0), 0);
+  const recipeCost = recipeItems.reduce((a, ri) => {
+    const cpu = ri.ingredient?.cost_per_unit || 0;
+    const q = parseFloat(ri.quantity) || 0;
+    const u = ri.unit || ri.ingredient?.unit || 'g';
+    let c = cpu * q;
+    if (ri.ingredient?.unit === 'kg' && u === 'g') c = cpu * q / 1000;
+    if (ri.ingredient?.unit === 'lt' && u === 'ml') c = cpu * q / 1000;
+    return a + c;
+  }, 0);
 
   // Add ingredient to recipe
   const addToRecipe = async (ing: any) => {
@@ -183,17 +191,61 @@ export default function ProductionScreen() {
             {/* Recipe */}
             <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 8, letterSpacing: 0.5 }}>RECETA DE PRODUCCIÓN</Text>
             {recipeItems.length === 0 && <Text style={{ color: COLORS.textMuted, marginBottom: 12 }}>Sin ingredientes. Agrega abajo.</Text>}
-            {recipeItems.map(ri => (
-              <View key={ri.id} style={st.recipeRow}>
-                <Text style={{ flex: 1, fontSize: 13, fontWeight: '600', color: COLORS.text }}>{ri.ingredient?.name}</Text>
-                <TextInput style={[st.qtyInput, { width: 70 }]} value={String(ri.quantity)} onChangeText={v => updateRecipeField(ri.id, 'quantity', v)} onBlur={() => saveRecipeItem(ri.id)} keyboardType="decimal-pad" />
-                <TextInput style={[st.qtyInput, { width: 50 }]} value={ri.unit || ri.ingredient?.unit || 'g'} onChangeText={v => updateRecipeField(ri.id, 'unit', v)} onBlur={() => saveRecipeItem(ri.id)} />
-                <Text style={{ fontSize: 12, fontWeight: '600', color: COLORS.text, width: 80, textAlign: 'right' }}>{fmt((ri.ingredient?.cost_per_unit || 0) * (parseFloat(ri.quantity) || 0))}</Text>
-                <TouchableOpacity onPress={() => deleteRecipeItem(ri.id)} style={{ marginLeft: 8 }}><Text style={{ color: COLORS.error, fontSize: 16 }}>✕</Text></TouchableOpacity>
-              </View>
-            ))}
+            {/* Table header */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 2, borderBottomColor: COLORS.border, marginBottom: 4 }}>
+              <Text style={{ flex: 1, fontSize: 11, fontWeight: '700', color: COLORS.textMuted }}>Ingrediente</Text>
+              <Text style={{ width: 70, fontSize: 11, fontWeight: '700', color: COLORS.textMuted, textAlign: 'center' }}>Cant.</Text>
+              <Text style={{ width: 90, fontSize: 11, fontWeight: '700', color: COLORS.textMuted, textAlign: 'center' }}>Unidad</Text>
+              <Text style={{ width: 80, fontSize: 11, fontWeight: '700', color: COLORS.textMuted, textAlign: 'right' }}>Costo</Text>
+              <View style={{ width: 28 }} />
+            </View>
+            {recipeItems.map(ri => {
+              const units = ri.ingredient?.unit === 'kg' || ri.unit === 'kg' || ri.unit === 'g' ? ['g', 'kg'] :
+                ri.ingredient?.unit === 'lt' || ri.unit === 'lt' || ri.unit === 'ml' ? ['ml', 'lt'] : ['unidad', 'g', 'kg', 'ml', 'lt'];
+              const currentUnit = ri.unit || ri.ingredient?.unit || 'g';
+              // Convertir para costo: si ingrediente es por kg y receta en g, dividir por 1000
+              const costPerUnit = ri.ingredient?.cost_per_unit || 0;
+              const qtyNum = parseFloat(ri.quantity) || 0;
+              let costCalc = costPerUnit * qtyNum;
+              if (ri.ingredient?.unit === 'kg' && currentUnit === 'g') costCalc = costPerUnit * qtyNum / 1000;
+              if (ri.ingredient?.unit === 'lt' && currentUnit === 'ml') costCalc = costPerUnit * qtyNum / 1000;
+              return (
+                <View key={ri.id} style={st.recipeRow}>
+                  <Text style={{ flex: 1, fontSize: 13, fontWeight: '600', color: COLORS.text }}>{ri.ingredient?.name}</Text>
+                  <TextInput style={[st.qtyInput, { width: 70 }]} value={String(ri.quantity)} onChangeText={v => updateRecipeField(ri.id, 'quantity', v)} keyboardType="decimal-pad" />
+                  <View style={{ width: 90, flexDirection: 'row', gap: 2, justifyContent: 'center' }}>
+                    {units.map(u => (
+                      <TouchableOpacity key={u} onPress={() => updateRecipeField(ri.id, 'unit', u)}
+                        style={{ paddingHorizontal: 6, paddingVertical: 3, borderRadius: 4, backgroundColor: currentUnit === u ? COLORS.primary : COLORS.background, borderWidth: 1, borderColor: currentUnit === u ? COLORS.primary : COLORS.border }}>
+                        <Text style={{ fontSize: 10, fontWeight: '600', color: currentUnit === u ? '#fff' : COLORS.textMuted }}>{u}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: COLORS.text, width: 80, textAlign: 'right' }}>{fmt(costCalc)}</Text>
+                  <TouchableOpacity onPress={() => deleteRecipeItem(ri.id)} style={{ marginLeft: 4, width: 24, alignItems: 'center' }}><Text style={{ color: COLORS.error, fontSize: 14 }}>✕</Text></TouchableOpacity>
+                </View>
+              );
+            })}
             {recipeItems.length > 0 && (
-              <View style={{ flexDirection: 'row', justifyContent: 'flex-end', paddingTop: 8, borderTopWidth: 2, borderTopColor: COLORS.primary, marginTop: 8 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 10, borderTopWidth: 2, borderTopColor: COLORS.primary, marginTop: 8 }}>
+                <TouchableOpacity style={{ backgroundColor: COLORS.primary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 }} onPress={async () => {
+                  for (const ri of recipeItems) await saveRecipeItem(ri.id);
+                  // Actualizar costo del item de producción
+                  const totalCost = recipeItems.reduce((a, ri) => {
+                    const cpu = ri.ingredient?.cost_per_unit || 0;
+                    const q = parseFloat(ri.quantity) || 0;
+                    const u = ri.unit || ri.ingredient?.unit || 'g';
+                    let c = cpu * q;
+                    if (ri.ingredient?.unit === 'kg' && u === 'g') c = cpu * q / 1000;
+                    if (ri.ingredient?.unit === 'lt' && u === 'ml') c = cpu * q / 1000;
+                    return a + c;
+                  }, 0);
+                  await supabase.from('ingredients').update({ cost_per_unit: Math.round(totalCost) }).eq('id', selected.id);
+                  Alert.alert('✅ Receta guardada', `Costo actualizado: ${fmt(totalCost)}`);
+                  await load();
+                }}>
+                  <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>💾 Guardar receta</Text>
+                </TouchableOpacity>
                 <Text style={{ fontSize: 14, fontWeight: '800', color: COLORS.primary }}>Costo total: {fmt(recipeCost)}</Text>
               </View>
             )}
