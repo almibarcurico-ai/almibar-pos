@@ -6,14 +6,16 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal,
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { COLORS } from '../theme';
+import PurchasesScreen from './admin/PurchasesScreen';
 
 const SW = Dimensions.get('window').width;
 
 export default function CajaScreen() {
-  const [tab, setTab] = useState<'ventas' | 'movimientos' | 'arqueos' | 'anulaciones' | 'propinas'>('ventas');
+  const [tab, setTab] = useState<'ventas' | 'compras' | 'movimientos' | 'arqueos' | 'anulaciones' | 'propinas'>('ventas');
   const TABS = [
     { key: 'ventas', label: 'Ventas' },
-    { key: 'movimientos', label: 'Ingresos / Egresos' },
+    { key: 'compras', label: 'Compras' },
+    { key: 'movimientos', label: 'Ingresos' },
     { key: 'arqueos', label: 'Arqueos' },
     { key: 'anulaciones', label: 'Anulaciones' },
     { key: 'propinas', label: 'Propinas' },
@@ -29,6 +31,7 @@ export default function CajaScreen() {
         ))}
       </View>
       {tab === 'ventas' && <VentasTab />}
+      {tab === 'compras' && <PurchasesScreen />}
       {tab === 'movimientos' && <MovimientosTab />}
       {tab === 'arqueos' && <ArqueosTab />}
       {tab === 'anulaciones' && <AnulacionesTab />}
@@ -909,9 +912,6 @@ function ArqueosTab() {
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <TouchableOpacity style={[s.fChip, { backgroundColor: COLORS.info + '15', borderColor: COLORS.info + '40' }]} onPress={() => openEditArqueo(cashRegister)}>
               <Text style={{ fontSize: 12, fontWeight: '600', color: COLORS.info }}>✏️ Editar</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[s.fChip, s.fChipA]} onPress={() => { setMovType('gasto'); setMovAmount(''); setMovDesc(''); setMovModal(true); }}>
-              <Text style={s.fChipTA}>📤 Egreso</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[s.fChip, { backgroundColor: COLORS.success, borderColor: COLORS.success }]} onPress={() => { setMovType('ingreso'); setMovAmount(''); setMovDesc(''); setMovModal(true); }}>
               <Text style={{ fontSize: 12, fontWeight: '600', color: '#fff' }}>📥 Ingreso</Text>

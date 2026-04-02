@@ -27,6 +27,9 @@ export default function PurchasesScreen({ onBack }: { onBack?: () => void }) {
   const [scannedData, setScannedData] = useState<any>(null);
   const [scannedItems, setScannedItems] = useState<ScannedItem[]>([]);
   const [saving, setSaving] = useState(false);
+  const [payMethod, setPayMethod] = useState<'efectivo' | 'transferencia' | 'credito_proveedor' | 'debito'>('efectivo');
+  const [linkArqueo, setLinkArqueo] = useState(true);
+  const [currentArqueo, setCurrentArqueo] = useState<any>(null);
 
   // Edit invoice
   const [editInvoice, setEditInvoice] = useState<any>(null);
@@ -36,14 +39,16 @@ export default function PurchasesScreen({ onBack }: { onBack?: () => void }) {
   useEffect(() => { load(); }, []);
 
   const load = async () => {
-    const [{ data: inv }, { data: sup }, { data: ing }] = await Promise.all([
+    const [{ data: inv }, { data: sup }, { data: ing }, { data: arq }] = await Promise.all([
       supabase.from('purchase_invoices').select('*, supplier:supplier_id(name), items:purchase_items(*, ingredient:ingredient_id(name,unit,cost_per_unit,stock))').order('created_at', { ascending: false }),
       supabase.from('suppliers').select('*').eq('active', true).order('name'),
       supabase.from('ingredients').select('*').eq('active', true).order('name'),
+      supabase.from('cash_registers').select('*').is('closed_at', null).order('opened_at', { ascending: false }).limit(1),
     ]);
     if (inv) setInvoices(inv);
     if (sup) setSuppliers(sup);
     if (ing) setIngredients(ing);
+    setCurrentArqueo(arq?.[0] || null);
   };
 
   const fmt = (p: number) => '$' + Math.round(p).toLocaleString('es-CL');
@@ -119,11 +124,23 @@ export default function PurchasesScreen({ onBack }: { onBack?: () => void }) {
         subtotal: parseInt(scannedData.subtotal) || 0,
         iva: parseInt(scannedData.iva) || 0,
         total: parseInt(scannedData.total) || 0,
-        payment_method: 'efectivo',
+        payment_method: payMethod,
         notes: `Escaneada por IA · Proveedor: ${scannedData.proveedor || 'N/A'}`,
         created_by: user.id,
       }).select('id').single();
       if (ie) throw ie;
+
+      // Si es efectivo y hay arqueo abierto → crear egreso automático
+      const totalFactura = parseInt(scannedData.total) || 0;
+      if (payMethod === 'efectivo' && linkArqueo && currentArqueo && totalFactura > 0) {
+        await supabase.from('cash_movements').insert({
+          cash_register_id: currentArqueo.id,
+          type: 'gasto',
+          amount: totalFactura,
+          description: `Compra: ${scannedData.proveedor || 'Proveedor'} #${scannedData.numero_documento || 'S/N'}`,
+          created_by: user.id,
+        });
+      }
 
       // Process items
       const priceChanges: string[] = [];
@@ -228,6 +245,28 @@ export default function PurchasesScreen({ onBack }: { onBack?: () => void }) {
               <Text style={{ fontSize: 12, color: COLORS.textSecondary }}>IVA: {fmt(parseInt(scannedData.iva) || 0)}</Text>
               <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.primary }}>Total: {fmt(parseInt(scannedData.total) || 0)}</Text>
             </View>
+          </View>
+
+          {/* Método de pago */}
+          <View style={s.card}>
+            <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 6 }}>MÉTODO DE PAGO</Text>
+            <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+              {([['efectivo', '💵 Efectivo'], ['transferencia', '📱 Transferencia'], ['debito', '💳 Débito'], ['credito_proveedor', '📋 Crédito proveedor']] as const).map(([key, label]) => (
+                <TouchableOpacity key={key} onPress={() => setPayMethod(key)}
+                  style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, backgroundColor: payMethod === key ? COLORS.primary : COLORS.card, borderWidth: 1, borderColor: payMethod === key ? COLORS.primary : COLORS.border }}>
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: payMethod === key ? '#fff' : COLORS.textSecondary }}>{label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            {payMethod === 'efectivo' && currentArqueo && (
+              <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 }} onPress={() => setLinkArqueo(!linkArqueo)}>
+                <Text style={{ fontSize: 14 }}>{linkArqueo ? '☑' : '☐'}</Text>
+                <Text style={{ fontSize: 12, color: linkArqueo ? COLORS.primary : COLORS.textMuted, fontWeight: '600' }}>Descontar del arqueo actual</Text>
+              </TouchableOpacity>
+            )}
+            {payMethod === 'efectivo' && !currentArqueo && (
+              <Text style={{ fontSize: 11, color: COLORS.warning, marginTop: 6 }}>⚠ No hay arqueo abierto — el egreso no se registrará en caja</Text>
+            )}
           </View>
 
           {/* Items */}
