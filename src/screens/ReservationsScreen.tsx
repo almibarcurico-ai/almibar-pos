@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Alert, Modal, StyleSheet, Platform } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Alert, Modal, StyleSheet, Platform, Dimensions } from 'react-native';
+const SW = Dimensions.get('window').width;
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { COLORS } from '../theme';
@@ -120,68 +121,79 @@ export default function ReservationsScreen() {
         </View>
       </View>
 
-      <View style={{ flex: 1, flexDirection: 'row' }}>
-        {/* Main list */}
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
-          {/* Solo pendientes y confirmadas — completadas/no_show quedan en historial del cliente */}
-          {reservations.filter(r => r.status === 'pendiente' || r.status === 'confirmada').map(r => <ReservaCard key={r.id} r={r} selected={selected} onSelect={setSelected} fmt={fmt} today={today} onAssignMesa={assignMesa} />)}
+      {/* Main list */}
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+        {reservations.filter(r => r.status === 'pendiente' || r.status === 'confirmada').map(r => <ReservaCard key={r.id} r={r} selected={selected} onSelect={setSelected} fmt={fmt} today={today} onAssignMesa={assignMesa} />)}
 
-          {reservations.length === 0 && !loading && (
-            <View style={{ alignItems: 'center', paddingTop: 80 }}>
-              <Text style={{ fontSize: 48 }}>📋</Text>
-              <Text style={{ color: COLORS.textMuted, marginTop: 12, fontSize: 15 }}>Sin reservas para {filter === 'hoy' ? 'hoy' : filter === 'manana' ? 'mañana' : 'este período'}</Text>
-            </View>
-          )}
-        </ScrollView>
-
-        {/* Detail panel */}
-        {selected && (
-          <View style={s.detail}>
-            <ScrollView contentContainerStyle={{ padding: 20 }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <Text style={{ fontSize: 16, fontWeight: '800', color: COLORS.text }}>Detalle</Text>
-                <TouchableOpacity onPress={() => setSelected(null)}><Text style={{ fontSize: 20, color: COLORS.textMuted }}>✕</Text></TouchableOpacity>
-              </View>
-
-              {/* Cliente info */}
-              <View style={{ backgroundColor: COLORS.background, borderRadius: 14, padding: 16, marginBottom: 14 }}>
-                <Text style={{ fontSize: 20, fontWeight: '700', color: COLORS.text }}>{selected.nombre}</Text>
-                {selected.celular && <TouchableOpacity onPress={() => { if (Platform.OS === 'web') window.open('tel:' + selected.celular); }}><Text style={{ fontSize: 14, color: COLORS.primary, marginTop: 4 }}>📱 {selected.celular}</Text></TouchableOpacity>}
-                <View style={{ flexDirection: 'row', gap: 16, marginTop: 10 }}>
-                  <View style={{ alignItems: 'center' }}><Text style={{ fontSize: 24, fontWeight: '800', color: COLORS.text }}>{selected.hora || '-'}</Text><Text style={{ fontSize: 10, color: COLORS.textMuted }}>Hora</Text></View>
-                  <View style={{ alignItems: 'center' }}><Text style={{ fontSize: 24, fontWeight: '800', color: COLORS.text }}>{selected.personas}</Text><Text style={{ fontSize: 10, color: COLORS.textMuted }}>Personas</Text></View>
-                  <View style={{ alignItems: 'center' }}><Text style={{ fontSize: 24, fontWeight: '800', color: selected.mesa_asignada ? COLORS.primary : COLORS.textMuted }}>{selected.mesa_asignada || '—'}</Text><Text style={{ fontSize: 10, color: COLORS.textMuted }}>Mesa</Text></View>
-                </View>
-                {selected.motivo && <Text style={{ fontSize: 12, color: COLORS.textSecondary, marginTop: 8 }}>🎯 {selected.motivo}</Text>}
-                {selected.notas && <Text style={{ fontSize: 12, color: COLORS.textSecondary, marginTop: 4 }}>📝 {selected.notas}</Text>}
-                <Text style={{ fontSize: 10, color: COLORS.textMuted, marginTop: 8 }}>📅 {fmt(selected.fecha)}</Text>
-              </View>
-
-              {/* Acciones */}
-              <View style={{ gap: 8 }}>
-                {selected.status === 'pendiente' && (
-                  <TouchableOpacity style={{ backgroundColor: '#EF4444', borderRadius: 10, paddingVertical: 12, alignItems: 'center' }} onPress={() => updateStatus(selected.id, 'rechazada')}>
-                    <Text style={{ color: '#fff', fontWeight: '700' }}>❌ Rechazar</Text>
-                  </TouchableOpacity>
-                )}
-                {selected.status === 'confirmada' && (<>
-                  <TouchableOpacity style={{ backgroundColor: '#3B82F6', borderRadius: 10, paddingVertical: 12, alignItems: 'center' }} onPress={() => updateStatus(selected.id, 'completada')}>
-                    <Text style={{ color: '#fff', fontWeight: '700' }}>🎉 Completada</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={{ backgroundColor: COLORS.background, borderRadius: 10, paddingVertical: 12, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border }} onPress={() => updateStatus(selected.id, 'no_show')}>
-                    <Text style={{ color: COLORS.textSecondary, fontWeight: '600' }}>👻 No asistió</Text>
-                  </TouchableOpacity>
-                </>)}
-                {['rechazada', 'no_show'].includes(selected.status) && (
-                  <TouchableOpacity style={{ backgroundColor: COLORS.background, borderRadius: 10, paddingVertical: 12, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border }} onPress={() => updateStatus(selected.id, 'pendiente')}>
-                    <Text style={{ color: COLORS.textSecondary, fontWeight: '600' }}>↩ Reabrir</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            </ScrollView>
+        {reservations.filter(r => r.status === 'pendiente' || r.status === 'confirmada').length === 0 && !loading && (
+          <View style={{ alignItems: 'center', paddingTop: 80 }}>
+            <Text style={{ fontSize: 48 }}>📋</Text>
+            <Text style={{ color: COLORS.textMuted, marginTop: 12, fontSize: 15 }}>Sin reservas para {filter === 'hoy' ? 'hoy' : filter === 'manana' ? 'mañana' : 'este período'}</Text>
           </View>
         )}
-      </View>
+      </ScrollView>
+
+      {/* Detail modal */}
+      <Modal visible={!!selected} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ backgroundColor: COLORS.card, borderRadius: 16, padding: 24, width: '92%', maxWidth: 440 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.text }}>📋 Reserva</Text>
+              <TouchableOpacity onPress={() => setSelected(null)}><Text style={{ fontSize: 20, color: COLORS.textMuted }}>✕</Text></TouchableOpacity>
+            </View>
+
+            {selected && (<>
+              <Text style={{ fontSize: 22, fontWeight: '800', color: COLORS.text }}>{selected.nombre}</Text>
+              {selected.celular && <TouchableOpacity onPress={() => { if (Platform.OS === 'web') window.open('tel:' + selected.celular); }}><Text style={{ fontSize: 15, color: COLORS.primary, marginTop: 4 }}>📱 {selected.celular}</Text></TouchableOpacity>}
+
+              <View style={{ flexDirection: 'row', gap: 20, marginTop: 16, marginBottom: 16 }}>
+                <View style={{ backgroundColor: COLORS.background, borderRadius: 12, padding: 14, flex: 1, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 28, fontWeight: '800', color: COLORS.text }}>{selected.hora || '-'}</Text>
+                  <Text style={{ fontSize: 11, color: COLORS.textMuted, fontWeight: '600' }}>Hora</Text>
+                </View>
+                <View style={{ backgroundColor: COLORS.background, borderRadius: 12, padding: 14, flex: 1, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 28, fontWeight: '800', color: COLORS.text }}>{selected.personas}</Text>
+                  <Text style={{ fontSize: 11, color: COLORS.textMuted, fontWeight: '600' }}>Personas</Text>
+                </View>
+                <View style={{ backgroundColor: selected.mesa_asignada ? COLORS.primary + '15' : COLORS.background, borderRadius: 12, padding: 14, flex: 1, alignItems: 'center', borderWidth: selected.mesa_asignada ? 1 : 0, borderColor: COLORS.primary + '30' }}>
+                  <Text style={{ fontSize: 28, fontWeight: '800', color: selected.mesa_asignada ? COLORS.primary : COLORS.textMuted }}>{selected.mesa_asignada || '—'}</Text>
+                  <Text style={{ fontSize: 11, color: COLORS.textMuted, fontWeight: '600' }}>Mesa</Text>
+                </View>
+              </View>
+
+              {selected.motivo && <Text style={{ fontSize: 14, color: COLORS.textSecondary, marginBottom: 4 }}>🎯 {selected.motivo}</Text>}
+              {selected.notas && <Text style={{ fontSize: 14, color: COLORS.textSecondary, marginBottom: 4 }}>📝 {selected.notas}</Text>}
+              <Text style={{ fontSize: 12, color: COLORS.textMuted, marginBottom: 16 }}>📅 {fmt(selected.fecha)}</Text>
+
+              <View style={{ gap: 8 }}>
+                {selected.status === 'pendiente' && (
+                  <TouchableOpacity style={{ backgroundColor: COLORS.primary, borderRadius: 12, paddingVertical: 14, alignItems: 'center' }} onPress={() => { updateStatus(selected.id, 'confirmada'); setSelected(null); }}>
+                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>✅ Confirmar reserva</Text>
+                  </TouchableOpacity>
+                )}
+                {selected.status === 'pendiente' && (
+                  <TouchableOpacity style={{ backgroundColor: '#EF444415', borderRadius: 12, paddingVertical: 14, alignItems: 'center', borderWidth: 1, borderColor: '#EF444430' }} onPress={() => { updateStatus(selected.id, 'rechazada'); setSelected(null); }}>
+                    <Text style={{ color: '#EF4444', fontWeight: '700' }}>❌ Rechazar</Text>
+                  </TouchableOpacity>
+                )}
+                {selected.status === 'confirmada' && (
+                  <TouchableOpacity style={{ backgroundColor: '#3B82F6', borderRadius: 12, paddingVertical: 14, alignItems: 'center' }} onPress={() => { updateStatus(selected.id, 'completada'); setSelected(null); }}>
+                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>🎉 Marcar completada</Text>
+                  </TouchableOpacity>
+                )}
+                {selected.status === 'confirmada' && (
+                  <TouchableOpacity style={{ backgroundColor: COLORS.background, borderRadius: 12, paddingVertical: 14, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border }} onPress={() => { updateStatus(selected.id, 'no_show'); setSelected(null); }}>
+                    <Text style={{ color: COLORS.textSecondary, fontWeight: '600' }}>👻 No asistió</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity style={{ paddingVertical: 10, alignItems: 'center' }} onPress={() => setSelected(null)}>
+                  <Text style={{ color: COLORS.textMuted, fontWeight: '600' }}>Cerrar</Text>
+                </TouchableOpacity>
+              </View>
+            </>)}
+          </View>
+        </View>
+      </Modal>
 
       {/* New modal */}
       <Modal visible={newModal} transparent animationType="fade">
