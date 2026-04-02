@@ -399,30 +399,47 @@ export default function OrderScreen({ table, onBack }: Props) {
       ? finalPayEntries.reduce((a, b) => (parseInt(a.amount) || 0) >= (parseInt(b.amount) || 0) ? a : b).method
       : 'efectivo';
 
-    // Tips ALWAYS follow the main payment method
+    // Tips from tip entries + excess from overpayment
     const tipTotalFromEntries = tipEntries.reduce((a, e) => a + (parseInt(e.amount) || 0), 0);
     const excess = pTotal > unpaidTotal + tipTotalFromEntries ? pTotal - unpaidTotal - tipTotalFromEntries : 0;
     const tipTotalFinal = tipTotalFromEntries + excess;
-    const finalTipEntries = tipTotalFinal > 0 ? [{ method: mainMethod, amount: String(tipTotalFinal) }] : [];
 
-    const payTotalFinal = finalPayEntries.reduce((a, e) => a + (parseInt(e.amount) || 0), 0);
+    if (pTotal < unpaidTotal) { Alert.alert('Error', `El pago (${fmt(pTotal)}) no cubre el consumo (${fmt(unpaidTotal)})`); return; }
 
-    if (payTotalFinal < unpaidTotal) { Alert.alert('Error', `El pago (${fmt(payTotalFinal)}) no cubre el consumo (${fmt(unpaidTotal)})`); return; }
-
-    for (const pe of finalPayEntries) {
+    // Insertar UN solo registro de pago por método con amount = parte del bill + tip incluida
+    // amount = lo que realmente entra (bill portion + tip si aplica)
+    // tip_amount = cuánto de ese amount es propina (metadata)
+    if (finalPayEntries.length === 1) {
+      // Pago simple: un solo método
+      const pe = finalPayEntries[0];
       const amt = parseInt(pe.amount) || 0;
-      if (amt > 0) await supabase.from('payments').insert({ order_id: order.id, method: pe.method, amount: amt, tip_amount: 0, created_by: user.id });
-    }
-    for (const te of finalTipEntries) {
-      const amt = parseInt(te.amount) || 0;
-      if (amt > 0) await supabase.from('payments').insert({ order_id: order.id, method: te.method, amount: 0, tip_amount: amt, created_by: user.id });
+      await supabase.from('payments').insert({
+        order_id: order.id, method: pe.method,
+        amount: amt,  // lo que realmente entra (puede incluir excedente)
+        tip_amount: tipTotalFinal,  // propina incluida en amount
+        created_by: user.id
+      });
+    } else {
+      // Pago split: múltiples métodos
+      // Cada método recibe su parte proporcional de la propina
+      for (const pe of finalPayEntries) {
+        const amt = parseInt(pe.amount) || 0;
+        if (amt <= 0) continue;
+        // Propina proporcional al peso del pago
+        const tipShare = pTotal > 0 ? Math.round(tipTotalFinal * amt / pTotal) : 0;
+        await supabase.from('payments').insert({
+          order_id: order.id, method: pe.method,
+          amount: amt,
+          tip_amount: tipShare,
+          created_by: user.id
+        });
+      }
     }
 
     await supabase.from('order_items').update({ paid: true }).eq('order_id', order.id).eq('paid', false);
     await supabase.from('orders').update({ status: 'cerrada', closed_at: new Date().toISOString(), payment_method: mainMethod, tip_amount: tipTotalFinal, discount_type: discountType, discount_value: discountAmount, total: unpaidTotal }).eq('id', order.id);
     await supabase.from('tables').update({ status: 'libre', current_order_id: null }).eq('id', table.id);
     setCloseModal(false); resetPayState();
-    // Update client stats if assigned
     if (order?.client_id) await supabase.rpc('update_client_stats', { p_client_id: order.client_id });
     Alert.alert('Mesa cerrada', `Consumo: ${fmt(unpaidTotal)}${tipTotalFinal > 0 ? `\nPropina: ${fmt(tipTotalFinal)}` : ''}`);
     onBack();

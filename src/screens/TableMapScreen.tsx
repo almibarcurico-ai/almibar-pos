@@ -217,13 +217,23 @@ export default function TableMapScreen({ onOpenOrder, onOpenEditor }: Props) {
   const handleFreeTable = async (table: TableWithOrder) => {
     Alert.alert(
       'Liberar Mesa ' + table.number,
-      '¿Cerrar y liberar esta mesa?',
+      '¿Cerrar y liberar esta mesa? Si hay consumo sin pagar, se marcará como anulada.',
       [
         { text: 'Cancelar', style: 'cancel' },
         { text: 'Liberar', style: 'destructive', onPress: async () => {
           try {
             if (table.current_order_id) {
-              await supabase.from('orders').update({ status: 'cerrada', closed_at: new Date().toISOString() }).eq('id', table.current_order_id);
+              // Verificar si tiene items
+              const { data: items } = await supabase.from('order_items').select('id').eq('order_id', table.current_order_id).limit(1);
+              // Verificar si tiene pagos
+              const { data: pays } = await supabase.from('payments').select('id').eq('order_id', table.current_order_id).limit(1);
+              if (items && items.length > 0 && (!pays || pays.length === 0)) {
+                // Tiene consumo sin pago → anular
+                await supabase.from('orders').update({ status: 'anulada', closed_at: new Date().toISOString() }).eq('id', table.current_order_id);
+              } else {
+                // Sin consumo o ya pagado → cerrar normal
+                await supabase.from('orders').update({ status: 'cerrada', closed_at: new Date().toISOString() }).eq('id', table.current_order_id);
+              }
             }
             await supabase.from('tables').update({ status: 'libre', current_order_id: null }).eq('id', table.id);
             await loadTables();
