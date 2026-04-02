@@ -977,7 +977,7 @@ function ArqueosTab() {
                     </View>
                   )}
                 </View>
-                <TouchableOpacity onPress={(e) => { e.stopPropagation(); openEditArqueo(h); }} style={{ width: 35, alignItems: 'center' }}><Text style={{ fontSize: 14 }}>✏️</Text></TouchableOpacity>
+                <TouchableOpacity onPress={() => openEditArqueo(h)} style={{ width: 35, alignItems: 'center' }}><Text style={{ fontSize: 14 }}>✏️</Text></TouchableOpacity>
                 <Text style={[s.tblC, { width: 35, fontSize: 11 }]}>→</Text>
               </TouchableOpacity>
             );
