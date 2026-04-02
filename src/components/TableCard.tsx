@@ -38,11 +38,11 @@ export default function TableCard({ table, onPress, onLongPress, hasAppOrder }: 
     >
       <Animated.View style={[
         styles.box,
-        { backgroundColor: hasAppOrder ? '#FF6B00' + '40' : sc + '20', borderColor: hasAppOrder ? '#FF6B00' : sc, opacity: hasAppOrder ? blink : 1 },
+        { backgroundColor: hasAppOrder ? '#FF6B0040' : table.status === 'libre' ? '#7ECDB5' : table.status === 'cuenta' ? '#F5A623' : sc, borderColor: hasAppOrder ? '#FF6B00' : 'transparent', opacity: hasAppOrder ? blink : 1 },
         hasAppOrder && { borderWidth: 3 },
       ]}>
-        {hasAppOrder && <Text style={{ position: 'absolute', top: 2, right: 4, fontSize: 10 }}>📱</Text>}
-        <Text style={[styles.num, { color: hasAppOrder ? '#FF6B00' : sc }]}>{table.number}</Text>
+        {hasAppOrder && <Text style={{ position: 'absolute', top: 4, right: 6, fontSize: 12 }}>📱</Text>}
+        <Text style={[styles.num, { color: '#FFFFFF' }]}>{table.number}</Text>
         {table.status === 'libre' ? (
           <Text style={styles.status}>{hasAppOrder ? 'PEDIDO APP' : TABLE_STATUS_LABELS[table.status]}</Text>
         ) : occ && table.order ? (
@@ -60,10 +60,11 @@ export default function TableCard({ table, onPress, onLongPress, hasAppOrder }: 
 }
 
 const styles = StyleSheet.create({
-  box: { width: 80, height: 70, borderRadius: 10, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
-  num: { fontSize: 22, fontWeight: '800' },
-  status: { fontSize: 10, color: COLORS.textSecondary, textTransform: 'uppercase' },
-  total: { fontSize: 12, fontWeight: '700', color: COLORS.primary, textAlign: 'center' },
-  waiter: { fontSize: 9, color: COLORS.textSecondary, textAlign: 'center' },
-  cap: { position: 'absolute', bottom: 4, right: 6, fontSize: 9, color: COLORS.textMuted },
+  // Fudo: large rounded squares, solid colored
+  box: { width: 100, height: 90, borderRadius: 12, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  num: { fontSize: 28, fontWeight: '800' },
+  status: { fontSize: 9, color: 'rgba(255,255,255,0.8)', textTransform: 'uppercase', fontWeight: '600' },
+  total: { fontSize: 12, fontWeight: '700', color: '#FFFFFF', textAlign: 'center' },
+  waiter: { fontSize: 9, color: 'rgba(255,255,255,0.7)', textAlign: 'center' },
+  cap: { position: 'absolute', bottom: 4, right: 6, fontSize: 9, color: 'rgba(255,255,255,0.6)' },
 });
