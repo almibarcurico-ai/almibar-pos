@@ -369,8 +369,7 @@ const cl = StyleSheet.create({
 function Menu({ onSelect, onOpenEditor }: { onSelect: (s: Sub) => void; onOpenEditor: () => void }) {
   const items: { key: Sub; icon: string; title: string; desc: string }[] = [
     { key: 'suppliers', icon: '🚚', title: 'Proveedores', desc: 'Contactos y datos' },
-    { key: 'purchases', icon: '🧾', title: 'Compras', desc: 'Facturas y stock' },
-    { key: 'scanner', icon: '📷', title: 'Escanear Factura', desc: 'OCR con IA' },
+    { key: 'purchases', icon: '🧾', title: 'Compras', desc: 'Escanear facturas + stock' },
     { key: 'financial', icon: '📈', title: 'Análisis Financiero', desc: 'P&L mensual' },
     { key: 'printers', icon: '🖨️', title: 'Impresoras', desc: 'Cocina, Barra, Caja' },
     { key: 'clients', icon: '🤝', title: 'Socios', desc: 'Club de Amigos' },

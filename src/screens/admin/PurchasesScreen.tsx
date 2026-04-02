@@ -1,135 +1,363 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert, ActivityIndicator } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { COLORS } from '../../theme';
 
-interface InvoiceItem { id:string; ingredient:any; quantity:string; unit_price:string; purchase_unit:string; }
+const SUPA_URL = 'https://czdnllosfvakyibdijmb.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN6ZG5sbG9zZnZha3lpYmRpam1iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyODE2OTYsImV4cCI6MjA4OTg1NzY5Nn0.Xjkpx2exJXmJb3yIv81uiwvlnNMvhd2gMRdPY4S4UJA';
 
-export default function PurchasesScreen({onBack}:{onBack?:()=>void}){
-  const {user}=useAuth();
-  const [invoices,setInvoices]=useState<any[]>([]);const [suppliers,setSuppliers]=useState<any[]>([]);const [ingredients,setIngredients]=useState<any[]>([]);
-  const [modal,setModal]=useState(false);const [supplierId,setSupplierId]=useState('');const [invoiceNum,setInvoiceNum]=useState('');
-  const [payMethod,setPayMethod]=useState('transferencia');const [items,setItems]=useState<InvoiceItem[]>([]);const [notes,setNotes]=useState('');
-  const [addItemModal,setAddItemModal]=useState(false);const [selIng,setSelIng]=useState<any>(null);const [iQty,setIQty]=useState('');const [iPrice,setIPrice]=useState('');const [iPUnit,setIPUnit]=useState('kg');const [iSearch,setISearch]=useState('');
-  const [detailModal,setDetailModal]=useState(false);const [detailInvoice,setDetailInvoice]=useState<any>(null);
+interface ScannedItem {
+  codigo: string; descripcion: string; cantidad: string; unidad: string;
+  precio_unitario: string; precio_total: string; categoria: string;
+  matched?: { id: string; name: string; unit: string; cost_per_unit: number; stock: number } | null;
+  is_new?: boolean; create_new?: boolean;
+}
 
-  useEffect(()=>{load()},[]);
-  const load=async()=>{
-    const{data:inv}=await supabase.from('purchase_invoices').select('*, supplier:supplier_id(name), items:purchase_items(*, ingredient:ingredient_id(name,unit))').order('created_at',{ascending:false});if(inv)setInvoices(inv);
-    const{data:sup}=await supabase.from('suppliers').select('*').eq('active',true).order('name');if(sup)setSuppliers(sup);
-    const{data:ing}=await supabase.from('ingredients').select('*').eq('active',true).order('name');if(ing)setIngredients(ing);
+export default function PurchasesScreen({ onBack }: { onBack?: () => void }) {
+  const { user } = useAuth();
+  const [invoices, setInvoices] = useState<any[]>([]);
+  const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [ingredients, setIngredients] = useState<any[]>([]);
+  const [detailInvoice, setDetailInvoice] = useState<any>(null);
+
+  // Scanner state
+  const [scanning, setScanning] = useState(false);
+  const [scannedData, setScannedData] = useState<any>(null);
+  const [scannedItems, setScannedItems] = useState<ScannedItem[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  // Edit invoice
+  const [editInvoice, setEditInvoice] = useState<any>(null);
+
+  useEffect(() => { load(); }, []);
+
+  const load = async () => {
+    const [{ data: inv }, { data: sup }, { data: ing }] = await Promise.all([
+      supabase.from('purchase_invoices').select('*, supplier:supplier_id(name), items:purchase_items(*, ingredient:ingredient_id(name,unit,cost_per_unit,stock))').order('created_at', { ascending: false }),
+      supabase.from('suppliers').select('*').eq('active', true).order('name'),
+      supabase.from('ingredients').select('*').eq('active', true).order('name'),
+    ]);
+    if (inv) setInvoices(inv);
+    if (sup) setSuppliers(sup);
+    if (ing) setIngredients(ing);
   };
 
-  const fmt=(p:number)=>'$'+Math.round(p).toLocaleString('es-CL');
-  const itemsTotal=items.reduce((s,i)=>{const q=parseFloat(i.quantity)||0;const p=parseFloat(i.unit_price)||0;return s+q*p},0);
-  const itemsIva=Math.round(itemsTotal*0.19);
+  const fmt = (p: number) => '$' + Math.round(p).toLocaleString('es-CL');
 
-  const addItem=()=>{
-    if(!selIng||!iQty||!iPrice){Alert.alert('Error','Completa todos los campos');return}
-    setItems(prev=>[...prev,{id:`i-${Date.now()}`,ingredient:selIng,quantity:iQty,unit_price:iPrice,purchase_unit:iPUnit}]);
-    setAddItemModal(false);setSelIng(null);setIQty('');setIPrice('');setISearch('');
+  // ═══ SCANNER ═══
+  const pickAndScan = async (fromCamera: boolean) => {
+    try {
+      if (fromCamera) {
+        const perm = await ImagePicker.requestCameraPermissionsAsync();
+        if (!perm.granted) { Alert.alert('Permiso requerido'); return; }
+      }
+      const result = fromCamera
+        ? await ImagePicker.launchCameraAsync({ base64: true, quality: 0.7 })
+        : await ImagePicker.launchImageLibraryAsync({ base64: true, quality: 0.7 });
+      if (result.canceled || !result.assets?.[0]?.base64) return;
+
+      setScanning(true);
+      const res = await fetch(`${SUPA_URL}/functions/v1/invoice-scan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPA_KEY}` },
+        body: JSON.stringify({ image_base64: result.assets[0].base64 }),
+      });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Error ' + res.status); }
+      const data = await res.json();
+      setScannedData(data);
+
+      // Match items with ingredients
+      const items: ScannedItem[] = (data.items || []).map((item: any) => {
+        const desc = (item.descripcion || '').toLowerCase().trim();
+        let match = ingredients.find(i => i.name.toLowerCase() === desc);
+        if (!match) match = ingredients.find(i => desc.includes(i.name.toLowerCase()) || i.name.toLowerCase().includes(desc));
+        if (!match) {
+          const words = desc.split(/\s+/);
+          match = ingredients.find(i => {
+            const iw = i.name.toLowerCase().split(/\s+/);
+            return words.filter((w: string) => w.length > 3 && iw.some((x: string) => x.includes(w) || w.includes(x))).length >= 1;
+          });
+        }
+        return { ...item, matched: match || null, is_new: !match, create_new: false };
+      });
+      setScannedItems(items);
+      setScanning(false);
+    } catch (e: any) {
+      setScanning(false);
+      Alert.alert('Error', e.message);
+    }
   };
 
-  const removeItem=(id:string)=>setItems(prev=>prev.filter(i=>i.id!==id));
-
-  const saveInvoice=async()=>{
-    if(!user)return;if(items.length===0){Alert.alert('Error','Agrega al menos un item');return}
-    try{
-      const subtotal=itemsTotal;const iva=itemsIva;const total=subtotal+iva;
-      const invoiceData:any={invoice_number:invoiceNum||null,date:new Date().toISOString().split('T')[0],payment_method:payMethod,subtotal,iva,total,notes:notes||null,created_by:user.id};
-      if(supplierId){invoiceData.supplier_id=supplierId}
-      const{data:inv,error:e1}=await supabase.from('purchase_invoices').insert(invoiceData).select().single();
-      if(e1){console.error('Invoice error:',e1);throw e1}
-      const purchaseItems=items.map(i=>({invoice_id:inv.id,ingredient_id:i.ingredient.id,quantity:parseFloat(i.quantity)||0,unit_price:parseFloat(i.unit_price)||0,purchase_unit:i.purchase_unit,total_price:Math.round((parseFloat(i.quantity)||0)*(parseFloat(i.unit_price)||0))}));
-      const{error:e2}=await supabase.from('purchase_items').insert(purchaseItems);if(e2){console.error('Items error:',e2);throw e2}
-      setModal(false);setItems([]);setSupplierId('');setInvoiceNum('');setNotes('');
-      Alert.alert('✅ Factura registrada',`Total: ${fmt(total)}\nStock actualizado automáticamente`);await load();
-    }catch(e:any){Alert.alert('Error al guardar',e.message||JSON.stringify(e))}
+  const updateScannedItem = (idx: number, field: string, value: any) => {
+    setScannedItems(prev => prev.map((item, i) => i === idx ? { ...item, [field]: value } : item));
   };
 
-  return(<View style={s.c}>
-    <View style={s.hdr}><TouchableOpacity onPress={onBack}><Text style={s.back}>← Admin</Text></TouchableOpacity><Text style={s.hdrT}>🧾 Compras</Text><TouchableOpacity style={s.addBtn} onPress={()=>{setItems([]);setSupplierId('');setInvoiceNum('');setNotes('');setPayMethod('transferencia');setModal(true)}}><Text style={s.addBtnT}>+ Factura</Text></TouchableOpacity></View>
-    <ScrollView style={{flex:1}} contentContainerStyle={{padding:16,paddingBottom:100}}>
-      <Text style={s.cnt}>{invoices.length} facturas registradas</Text>
-      {invoices.map(inv=>(<TouchableOpacity key={inv.id} style={s.row} onPress={()=>{setDetailInvoice(inv);setDetailModal(true)}}>
-        <View style={{flex:1}}><Text style={s.rn}>{inv.supplier?.name||'Sin proveedor'} — {inv.invoice_number||'S/N'}</Text>
-        <Text style={s.rs}>{new Date(inv.created_at).toLocaleDateString('es-CL')} • {inv.payment_method} • {inv.items?.length||0} items</Text></View>
-        <Text style={{fontSize:15,fontWeight:'700',color:COLORS.primary}}>{fmt(inv.total)}</Text>
-      </TouchableOpacity>))}
-      {invoices.length===0&&<View style={{alignItems:'center',paddingTop:60}}><Text style={{fontSize:40}}>🧾</Text><Text style={{color:COLORS.textMuted,marginTop:8}}>Sin facturas. Registra la primera.</Text></View>}
-    </ScrollView>
+  const assignIngredient = (idx: number, ing: any) => {
+    setScannedItems(prev => prev.map((item, i) => i === idx ? { ...item, matched: ing, is_new: false, create_new: false } : item));
+  };
 
-    {/* NEW INVOICE MODAL */}
-    <Modal visible={modal} animationType="slide"><View style={s.c}>
-      <View style={s.hdr}><TouchableOpacity onPress={()=>setModal(false)}><Text style={{color:COLORS.error,fontSize:15,fontWeight:'600'}}>✕ Cancelar</Text></TouchableOpacity><Text style={{fontSize:16,fontWeight:'700',color:COLORS.text}}>Nueva Factura</Text><View style={{width:70}}/></View>
-      <ScrollView style={{flex:1}} contentContainerStyle={{padding:16,paddingBottom:200}}>
-        <Text style={s.lb}>Proveedor</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{maxHeight:42}}>
-          {suppliers.map(sup=>(<TouchableOpacity key={sup.id} onPress={()=>setSupplierId(sup.id)} style={{paddingHorizontal:14,paddingVertical:8,borderRadius:14,backgroundColor:supplierId===sup.id?COLORS.primary:COLORS.card,borderWidth:1,borderColor:supplierId===sup.id?COLORS.primary:COLORS.border,marginRight:6}}><Text style={{fontSize:12,fontWeight:'600',color:supplierId===sup.id?'#fff':COLORS.textSecondary}}>{sup.name}</Text></TouchableOpacity>))}
-        </ScrollView>
-        <Text style={s.lb}>N° Factura</Text><TextInput style={s.inp} value={invoiceNum} onChangeText={setInvoiceNum} placeholder="Ej: F-001234" placeholderTextColor={COLORS.textMuted}/>
-        <Text style={s.lb}>Método de pago</Text>
-        <View style={{flexDirection:'row',gap:6}}>
-          {['efectivo','transferencia','credito','debito'].map(m=>(<TouchableOpacity key={m} onPress={()=>setPayMethod(m)} style={{paddingHorizontal:12,paddingVertical:8,borderRadius:14,backgroundColor:payMethod===m?COLORS.primary:COLORS.card,borderWidth:1,borderColor:payMethod===m?COLORS.primary:COLORS.border}}><Text style={{fontSize:12,fontWeight:'600',color:payMethod===m?'#fff':COLORS.textSecondary}}>{m.charAt(0).toUpperCase()+m.slice(1)}</Text></TouchableOpacity>))}
-        </View>
+  const saveScannedInvoice = async () => {
+    if (!user || !scannedData) return;
+    setSaving(true);
+    try {
+      // Find or create supplier
+      let suppId = null;
+      if (scannedData.proveedor) {
+        const sup = suppliers.find(s => s.name.toLowerCase().includes(scannedData.proveedor.toLowerCase().slice(0, 10)));
+        suppId = sup?.id || null;
+      }
 
-        <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center',marginTop:20}}>
-          <Text style={{fontSize:14,fontWeight:'700',color:COLORS.textSecondary,textTransform:'uppercase'}}>Items ({items.length})</Text>
-          <TouchableOpacity style={s.addBtn} onPress={()=>{setISearch('');setSelIng(null);setIQty('');setIPrice('');setIPUnit('kg');setAddItemModal(true)}}><Text style={s.addBtnT}>+ Item</Text></TouchableOpacity>
-        </View>
+      // Create invoice
+      const { data: inv, error: ie } = await supabase.from('purchase_invoices').insert({
+        supplier_id: suppId,
+        invoice_number: scannedData.numero_documento || null,
+        date: scannedData.fecha || new Date().toISOString().split('T')[0],
+        subtotal: parseInt(scannedData.subtotal) || 0,
+        iva: parseInt(scannedData.iva) || 0,
+        total: parseInt(scannedData.total) || 0,
+        payment_method: 'efectivo',
+        notes: `Escaneada por IA · Proveedor: ${scannedData.proveedor || 'N/A'}`,
+        created_by: user.id,
+      }).select('id').single();
+      if (ie) throw ie;
 
-        {items.map(i=>{const tot=Math.round((parseFloat(i.quantity)||0)*(parseFloat(i.unit_price)||0));return(
-          <View key={i.id} style={s.row}><View style={{flex:1}}><Text style={s.rn}>{i.ingredient.name}</Text><Text style={s.rs}>{i.quantity} {i.purchase_unit} × {fmt(parseFloat(i.unit_price)||0)} = {fmt(tot)}</Text></View>
-          <TouchableOpacity onPress={()=>removeItem(i.id)}><Text>🗑</Text></TouchableOpacity></View>
-        )})}
+      // Process items
+      const priceChanges: string[] = [];
+      for (const item of scannedItems) {
+        let ingredientId = item.matched?.id || null;
+        const qty = parseFloat(item.cantidad) || 0;
+        const unitPrice = parseFloat(item.precio_unitario) || 0;
+        const totalPrice = parseFloat(item.precio_total) || 0;
 
-        {items.length>0&&<View style={{marginTop:16,backgroundColor:COLORS.card,borderRadius:12,padding:16,borderWidth:1,borderColor:COLORS.border}}>
-          <View style={{flexDirection:'row',justifyContent:'space-between',paddingVertical:3}}><Text style={{color:COLORS.textSecondary}}>Subtotal</Text><Text style={{fontWeight:'600',color:COLORS.text}}>{fmt(itemsTotal)}</Text></View>
-          <View style={{flexDirection:'row',justifyContent:'space-between',paddingVertical:3}}><Text style={{color:COLORS.textSecondary}}>IVA 19%</Text><Text style={{fontWeight:'600',color:COLORS.text}}>{fmt(itemsIva)}</Text></View>
-          <View style={{flexDirection:'row',justifyContent:'space-between',paddingVertical:6,borderTopWidth:2,borderTopColor:COLORS.primary,marginTop:4}}><Text style={{fontSize:16,fontWeight:'800',color:COLORS.text}}>TOTAL</Text><Text style={{fontSize:16,fontWeight:'800',color:COLORS.primary}}>{fmt(itemsTotal+itemsIva)}</Text></View>
-        </View>}
+        // Create new ingredient if flagged
+        if (item.is_new && item.create_new && !ingredientId) {
+          const { data: newIng } = await supabase.from('ingredients').insert({
+            name: item.descripcion, unit: item.unidad || 'un',
+            stock: 0, alert_stock: 0, cost_per_unit: unitPrice, active: true,
+          }).select('id').single();
+          if (newIng) ingredientId = newIng.id;
+        }
 
-        <Text style={s.lb}>Notas</Text><TextInput style={s.inp} value={notes} onChangeText={setNotes} placeholder="Observaciones" placeholderTextColor={COLORS.textMuted}/>
-      </ScrollView>
-      {items.length>0&&<View style={{position:'absolute',bottom:0,left:0,right:0,padding:16,backgroundColor:COLORS.card,borderTopWidth:1,borderTopColor:COLORS.border,paddingBottom:30}}>
-        <TouchableOpacity style={{backgroundColor:COLORS.success,borderRadius:12,paddingVertical:16,alignItems:'center'}} onPress={saveInvoice}>
-          <Text style={{color:'#fff',fontSize:16,fontWeight:'700'}}>💾 Registrar Factura — {fmt(itemsTotal+itemsIva)}</Text>
-        </TouchableOpacity>
-      </View>}
-    </View></Modal>
+        // Insert purchase item
+        await supabase.from('purchase_items').insert({
+          invoice_id: inv.id, ingredient_id: ingredientId,
+          quantity: qty, unit_price: unitPrice, purchase_unit: item.unidad || '',
+          total_price: totalPrice, descripcion: item.descripcion, categoria: item.categoria || '',
+        });
 
-    {/* ADD ITEM MODAL */}
-    <Modal visible={addItemModal} transparent animationType="fade"><View style={s.ov}><ScrollView contentContainerStyle={{flexGrow:1,justifyContent:'center',alignItems:'center',padding:16}}><View style={[s.md,{maxWidth:480}]}>
-      <Text style={s.mdT}>Agregar Item</Text>
-      <TextInput style={s.si} placeholder="🔍 Buscar ingrediente..." placeholderTextColor={COLORS.textMuted} value={iSearch} onChangeText={setISearch}/>
-      <ScrollView style={{maxHeight:180,marginTop:8}}>
-        {ingredients.filter(i=>!iSearch||i.name.toLowerCase().includes(iSearch.toLowerCase())).map(i=>(
-          <TouchableOpacity key={i.id} style={[{padding:10,borderRadius:8,marginVertical:2},selIng?.id===i.id?{backgroundColor:COLORS.primary+'25',borderWidth:1,borderColor:COLORS.primary}:{backgroundColor:COLORS.background}]} onPress={()=>setSelIng(i)}>
-            <Text style={{fontSize:14,color:COLORS.text,fontWeight:selIng?.id===i.id?'700':'400'}}>{i.name} ({i.category})</Text>
+        // Update ingredient stock + detect price change
+        if (ingredientId && qty > 0) {
+          const ing = item.matched;
+          if (ing) {
+            const newStock = (ing.stock || 0) + qty;
+            const oldCost = ing.cost_per_unit || 0;
+            if (oldCost > 0 && unitPrice > 0 && Math.abs(unitPrice - oldCost) / oldCost > 0.05) {
+              const pctChange = Math.round((unitPrice - oldCost) / oldCost * 100);
+              priceChanges.push(`${ing.name}: ${fmt(oldCost)} → ${fmt(unitPrice)} (${pctChange > 0 ? '+' : ''}${pctChange}%)`);
+            }
+            await supabase.from('ingredients').update({ stock: newStock, cost_per_unit: unitPrice }).eq('id', ingredientId);
+          }
+        }
+      }
+
+      let msg = `${scannedItems.length} ítems procesados`;
+      if (priceChanges.length > 0) msg += `\n\n⚠️ Cambios de precio:\n${priceChanges.join('\n')}`;
+      Alert.alert('✅ Factura guardada', msg);
+
+      setScannedData(null);
+      setScannedItems([]);
+      await load();
+    } catch (e: any) { Alert.alert('Error', e.message); }
+    setSaving(false);
+  };
+
+  // ═══ DELETE INVOICE ═══
+  const deleteInvoice = async (inv: any) => {
+    const ok = typeof window !== 'undefined' ? window.confirm(`¿Eliminar factura ${inv.invoice_number || 'S/N'}?`) : true;
+    if (!ok) return;
+    await supabase.from('purchase_items').delete().eq('invoice_id', inv.id);
+    await supabase.from('purchase_invoices').delete().eq('id', inv.id);
+    setDetailInvoice(null);
+    await load();
+  };
+
+  // ═══ RENDER ═══
+  return (
+    <View style={s.c}>
+      {/* Header */}
+      <View style={s.hdr}>
+        <Text style={s.hdrT}>🧾 Compras</Text>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <TouchableOpacity style={[s.btn, { backgroundColor: COLORS.primary }]} onPress={() => pickAndScan(true)}>
+            <Text style={s.btnT}>📸 Escanear</Text>
           </TouchableOpacity>
-        ))}
-      </ScrollView>
-      {selIng&&<><Text style={s.lb}>Unidad de compra</Text>
-        <View style={{flexDirection:'row',gap:6}}>{['kg','lt','unidad','caja','bolsa'].map(u=><TouchableOpacity key={u} onPress={()=>setIPUnit(u)} style={{paddingHorizontal:12,paddingVertical:6,borderRadius:12,backgroundColor:iPUnit===u?COLORS.primary:COLORS.card,borderWidth:1,borderColor:iPUnit===u?COLORS.primary:COLORS.border}}><Text style={{fontSize:12,fontWeight:'600',color:iPUnit===u?'#fff':COLORS.textSecondary}}>{u}</Text></TouchableOpacity>)}</View>
-        <Text style={s.lb}>Cantidad</Text><TextInput style={s.inp} value={iQty} onChangeText={setIQty} keyboardType="decimal-pad" placeholder="Ej: 5" placeholderTextColor={COLORS.textMuted}/>
-        <Text style={s.lb}>Precio unitario (neto)</Text><TextInput style={s.inp} value={iPrice} onChangeText={setIPrice} keyboardType="number-pad" placeholder="Ej: 8500" placeholderTextColor={COLORS.textMuted}/>
-        {iQty&&iPrice&&<Text style={{fontSize:14,color:COLORS.primary,textAlign:'center',marginTop:8,fontWeight:'700'}}>Total: {fmt(Math.round((parseFloat(iQty)||0)*(parseFloat(iPrice)||0)))}</Text>}
-      </>}
-      <View style={s.mBs}><TouchableOpacity style={s.bC} onPress={()=>setAddItemModal(false)}><Text style={s.bCT}>Cancelar</Text></TouchableOpacity><TouchableOpacity style={s.bOk} onPress={addItem}><Text style={s.bOkT}>Agregar</Text></TouchableOpacity></View>
-    </View></ScrollView></View></Modal>
+          <TouchableOpacity style={[s.btn, { backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border }]} onPress={() => pickAndScan(false)}>
+            <Text style={[s.btnT, { color: COLORS.textSecondary }]}>🖼 Galería</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
 
-    {/* DETAIL MODAL */}
-    <Modal visible={detailModal} transparent animationType="fade"><View style={s.ov}><ScrollView contentContainerStyle={{flexGrow:1,justifyContent:'center',alignItems:'center',padding:16}}><View style={[s.md,{maxWidth:500}]}>
-      <Text style={s.mdT}>🧾 Detalle Factura</Text>
-      {detailInvoice&&<><Text style={{textAlign:'center',color:COLORS.textSecondary,fontSize:13}}>{detailInvoice.supplier?.name} — {detailInvoice.invoice_number||'S/N'}</Text>
-        <Text style={{textAlign:'center',color:COLORS.textMuted,fontSize:12,marginTop:4}}>{new Date(detailInvoice.created_at).toLocaleDateString('es-CL')} • {detailInvoice.payment_method}</Text>
-        <View style={{height:1,backgroundColor:COLORS.border,marginVertical:12}}/>
-        {detailInvoice.items?.map((i:any)=>(<View key={i.id} style={{flexDirection:'row',paddingVertical:4}}><Text style={{flex:1,fontSize:13,color:COLORS.text}}>{i.ingredient?.name}</Text><Text style={{fontSize:12,color:COLORS.textSecondary}}>{i.quantity} {i.purchase_unit}</Text><Text style={{fontSize:13,fontWeight:'600',color:COLORS.text,marginLeft:12}}>{fmt(i.total_price)}</Text></View>))}
-        <View style={{height:1,backgroundColor:COLORS.border,marginVertical:12}}/>
-        <View style={{flexDirection:'row',justifyContent:'space-between'}}><Text style={{fontWeight:'800',color:COLORS.text}}>TOTAL</Text><Text style={{fontWeight:'800',color:COLORS.primary}}>{fmt(detailInvoice.total)}</Text></View>
-      </>}
-      <TouchableOpacity style={[s.bOk,{marginTop:20}]} onPress={()=>setDetailModal(false)}><Text style={s.bOkT}>Cerrar</Text></TouchableOpacity>
-    </View></ScrollView></View></Modal>
-  </View>)}
-const s=StyleSheet.create({c:{flex:1,backgroundColor:COLORS.background},hdr:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',paddingHorizontal:16,paddingTop:50,paddingBottom:12,backgroundColor:COLORS.card,borderBottomWidth:1,borderBottomColor:COLORS.border},back:{color:COLORS.primary,fontSize:15,fontWeight:'600'},hdrT:{fontSize:18,fontWeight:'700',color:COLORS.text},addBtn:{paddingHorizontal:14,paddingVertical:8,borderRadius:8,backgroundColor:COLORS.primary},addBtnT:{color:'#fff',fontWeight:'700',fontSize:13},cnt:{fontSize:12,color:COLORS.textMuted,marginBottom:8},row:{flexDirection:'row',alignItems:'center',backgroundColor:COLORS.card,borderRadius:10,padding:14,marginVertical:3,borderWidth:1,borderColor:COLORS.border},rn:{fontSize:14,fontWeight:'600',color:COLORS.text},rs:{fontSize:11,color:COLORS.textMuted,marginTop:2},si:{backgroundColor:COLORS.card,borderRadius:10,borderWidth:1,borderColor:COLORS.border,paddingHorizontal:14,paddingVertical:10,fontSize:14,color:COLORS.text},ov:{flex:1,backgroundColor:COLORS.overlay},md:{width:'92%' as any,maxWidth:450,backgroundColor:COLORS.card,borderRadius:16,padding:24,borderWidth:1,borderColor:COLORS.border},mdT:{fontSize:20,fontWeight:'700',color:COLORS.text,textAlign:'center',marginBottom:8},lb:{fontSize:13,color:COLORS.textSecondary,marginBottom:6,marginTop:14},inp:{backgroundColor:COLORS.background,borderRadius:10,borderWidth:1,borderColor:COLORS.border,paddingHorizontal:14,paddingVertical:12,fontSize:15,color:COLORS.text},mBs:{flexDirection:'row',gap:12,marginTop:20},bC:{flex:1,paddingVertical:14,borderRadius:10,borderWidth:1,borderColor:COLORS.border,alignItems:'center'},bCT:{color:COLORS.textSecondary,fontWeight:'600',fontSize:15},bOk:{flex:1,paddingVertical:14,borderRadius:10,backgroundColor:COLORS.primary,alignItems:'center'},bOkT:{color:'#fff',fontWeight:'700',fontSize:15}});
+      {/* Scanning indicator */}
+      {scanning && (
+        <View style={{ padding: 20, alignItems: 'center', backgroundColor: COLORS.primary + '10' }}>
+          <ActivityIndicator color={COLORS.primary} size="large" />
+          <Text style={{ color: COLORS.primary, fontWeight: '600', marginTop: 8 }}>Analizando factura con IA...</Text>
+        </View>
+      )}
+
+      {/* Scanned invoice review */}
+      {scannedData && !scanning && (
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 100 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: COLORS.text }}>Revisar Factura</Text>
+            <TouchableOpacity onPress={() => { setScannedData(null); setScannedItems([]); }}>
+              <Text style={{ color: COLORS.error, fontWeight: '600' }}>✕ Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Invoice header */}
+          <View style={s.card}>
+            <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.text }}>{scannedData.proveedor || 'Sin proveedor'}</Text>
+            <Text style={{ fontSize: 11, color: COLORS.textMuted }}>N° {scannedData.numero_documento || 'S/N'} · {scannedData.fecha || '-'}</Text>
+            <View style={{ flexDirection: 'row', gap: 16, marginTop: 8 }}>
+              <Text style={{ fontSize: 12, color: COLORS.textSecondary }}>Neto: {fmt(parseInt(scannedData.subtotal) || 0)}</Text>
+              <Text style={{ fontSize: 12, color: COLORS.textSecondary }}>IVA: {fmt(parseInt(scannedData.iva) || 0)}</Text>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.primary }}>Total: {fmt(parseInt(scannedData.total) || 0)}</Text>
+            </View>
+          </View>
+
+          {/* Items */}
+          {scannedItems.map((item, idx) => {
+            const priceChanged = item.matched && item.matched.cost_per_unit > 0 && parseFloat(item.precio_unitario) > 0 && Math.abs(parseFloat(item.precio_unitario) - item.matched.cost_per_unit) / item.matched.cost_per_unit > 0.05;
+            const pctChange = priceChanged && item.matched ? Math.round((parseFloat(item.precio_unitario) - item.matched.cost_per_unit) / item.matched.cost_per_unit * 100) : 0;
+            return (
+              <View key={idx} style={[s.card, { borderLeftWidth: 3, borderLeftColor: item.matched ? COLORS.success : COLORS.warning }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                  <TextInput style={[s.inp, { flex: 1, fontWeight: '600', fontSize: 14 }]} value={item.descripcion} onChangeText={v => updateScannedItem(idx, 'descripcion', v)} />
+                  {item.matched && <View style={{ backgroundColor: COLORS.success + '20', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}><Text style={{ fontSize: 9, fontWeight: '700', color: COLORS.success }}>✓ {item.matched.name}</Text></View>}
+                  {item.is_new && <View style={{ backgroundColor: COLORS.warning + '20', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}><Text style={{ fontSize: 9, fontWeight: '700', color: COLORS.warning }}>Nuevo</Text></View>}
+                </View>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <View style={{ flex: 1 }}><Text style={s.lb}>Cant.</Text><TextInput style={s.inp} value={item.cantidad} onChangeText={v => updateScannedItem(idx, 'cantidad', v)} keyboardType="numeric" /></View>
+                  <View style={{ flex: 1 }}><Text style={s.lb}>Unidad</Text><TextInput style={s.inp} value={item.unidad} onChangeText={v => updateScannedItem(idx, 'unidad', v)} /></View>
+                  <View style={{ flex: 1 }}><Text style={s.lb}>P.Unit</Text><TextInput style={s.inp} value={item.precio_unitario} onChangeText={v => updateScannedItem(idx, 'precio_unitario', v)} keyboardType="numeric" /></View>
+                  <View style={{ flex: 1 }}><Text style={s.lb}>Total</Text><TextInput style={s.inp} value={item.precio_total} onChangeText={v => updateScannedItem(idx, 'precio_total', v)} keyboardType="numeric" /></View>
+                </View>
+                {/* Price change alert */}
+                {priceChanged && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6, backgroundColor: pctChange! > 0 ? '#EF444415' : '#10B98115', borderRadius: 6, padding: 6, gap: 4 }}>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: pctChange! > 0 ? COLORS.error : COLORS.success }}>
+                      {pctChange! > 0 ? '📈' : '📉'} Precio {pctChange! > 0 ? 'subió' : 'bajó'} {Math.abs(pctChange!)}%: {fmt(item.matched!.cost_per_unit)} → {fmt(parseFloat(item.precio_unitario))}
+                    </Text>
+                  </View>
+                )}
+                {/* Stock info */}
+                {item.matched && (
+                  <Text style={{ fontSize: 10, color: COLORS.textMuted, marginTop: 4 }}>Stock actual: {item.matched.stock} {item.matched.unit} → después: {(item.matched.stock + (parseFloat(item.cantidad) || 0)).toFixed(1)} {item.matched.unit}</Text>
+                )}
+                {/* Assign / create */}
+                {item.is_new && (
+                  <View style={{ flexDirection: 'row', gap: 6, marginTop: 6, alignItems: 'center' }}>
+                    <TouchableOpacity style={{ backgroundColor: item.create_new ? COLORS.primary : COLORS.card, borderWidth: 1, borderColor: item.create_new ? COLORS.primary : COLORS.border, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 }} onPress={() => updateScannedItem(idx, 'create_new', !item.create_new)}>
+                      <Text style={{ fontSize: 10, fontWeight: '600', color: item.create_new ? '#fff' : COLORS.text }}>+ Crear</Text>
+                    </TouchableOpacity>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
+                      <View style={{ flexDirection: 'row', gap: 4 }}>
+                        {ingredients.filter(i => item.descripcion.toLowerCase().split(' ').some((w: string) => w.length > 3 && i.name.toLowerCase().includes(w))).slice(0, 5).map(i => (
+                          <TouchableOpacity key={i.id} style={{ backgroundColor: COLORS.info + '15', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 3 }} onPress={() => assignIngredient(idx, i)}>
+                            <Text style={{ fontSize: 9, color: COLORS.info, fontWeight: '600' }}>{i.name}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </ScrollView>
+                  </View>
+                )}
+              </View>
+            );
+          })}
+
+          {/* Save button */}
+          <TouchableOpacity style={[s.btn, { backgroundColor: COLORS.primary, paddingVertical: 16, marginTop: 12, opacity: saving ? 0.5 : 1 }]} onPress={saveScannedInvoice} disabled={saving}>
+            <Text style={[s.btnT, { fontSize: 15 }]}>{saving ? 'Guardando...' : `✅ Guardar factura (${scannedItems.length} ítems)`}</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      )}
+
+      {/* Invoice list */}
+      {!scannedData && !scanning && (
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+          <Text style={{ fontSize: 12, color: COLORS.textMuted, marginBottom: 8 }}>{invoices.length} facturas registradas</Text>
+          {invoices.map(inv => (
+            <TouchableOpacity key={inv.id} style={s.row} onPress={() => setDetailInvoice(inv)}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: COLORS.text }}>{inv.supplier?.name || inv.notes?.split('·')[0]?.replace('Escaneada por IA ', '').trim() || 'Sin proveedor'}</Text>
+                <Text style={{ fontSize: 11, color: COLORS.textMuted }}>{inv.invoice_number || 'S/N'} · {new Date(inv.created_at).toLocaleDateString('es-CL')} · {inv.items?.length || 0} items</Text>
+              </View>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: COLORS.primary }}>{fmt(inv.total)}</Text>
+            </TouchableOpacity>
+          ))}
+          {invoices.length === 0 && (
+            <View style={{ alignItems: 'center', paddingTop: 60 }}>
+              <Text style={{ fontSize: 40 }}>📸</Text>
+              <Text style={{ color: COLORS.textMuted, marginTop: 8 }}>Escanea tu primera factura con el botón de arriba</Text>
+            </View>
+          )}
+        </ScrollView>
+      )}
+
+      {/* Detail Modal */}
+      <Modal visible={!!detailInvoice} transparent animationType="fade">
+        <View style={s.ov}><ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 16 }}>
+          <View style={[s.md, { maxWidth: 500 }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.text }}>🧾 Detalle</Text>
+              <TouchableOpacity onPress={() => setDetailInvoice(null)}><Text style={{ fontSize: 18, color: COLORS.textMuted }}>✕</Text></TouchableOpacity>
+            </View>
+            {detailInvoice && (<>
+              <Text style={{ fontSize: 14, fontWeight: '600', color: COLORS.text }}>{detailInvoice.supplier?.name || 'Proveedor'}</Text>
+              <Text style={{ fontSize: 12, color: COLORS.textMuted }}>{detailInvoice.invoice_number || 'S/N'} · {new Date(detailInvoice.created_at).toLocaleDateString('es-CL')}</Text>
+              <View style={{ height: 1, backgroundColor: COLORS.border, marginVertical: 12 }} />
+              {detailInvoice.items?.map((i: any) => (
+                <View key={i.id} style={{ flexDirection: 'row', paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: COLORS.border }}>
+                  <Text style={{ flex: 1, fontSize: 13, color: COLORS.text }}>{i.ingredient?.name || i.descripcion || '?'}</Text>
+                  <Text style={{ fontSize: 12, color: COLORS.textSecondary, width: 60 }}>{i.quantity} {i.purchase_unit}</Text>
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.text, width: 80, textAlign: 'right' }}>{fmt(i.total_price)}</Text>
+                </View>
+              ))}
+              <View style={{ height: 1, backgroundColor: COLORS.border, marginVertical: 12 }} />
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <Text style={{ fontWeight: '800', color: COLORS.text }}>TOTAL</Text>
+                <Text style={{ fontWeight: '800', color: COLORS.primary }}>{fmt(detailInvoice.total)}</Text>
+              </View>
+              {detailInvoice.notes && <Text style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 8 }}>{detailInvoice.notes}</Text>}
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+                <TouchableOpacity style={{ flex: 1, paddingVertical: 12, borderRadius: 8, backgroundColor: COLORS.error + '15', alignItems: 'center' }} onPress={() => deleteInvoice(detailInvoice)}>
+                  <Text style={{ color: COLORS.error, fontWeight: '600', fontSize: 13 }}>🗑 Eliminar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={{ flex: 1, paddingVertical: 12, borderRadius: 8, backgroundColor: COLORS.primary, alignItems: 'center' }} onPress={() => setDetailInvoice(null)}>
+                  <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>Cerrar</Text>
+                </TouchableOpacity>
+              </View>
+            </>)}
+          </View>
+        </ScrollView></View>
+      </Modal>
+    </View>
+  );
+}
+
+const s = StyleSheet.create({
+  c: { flex: 1, backgroundColor: COLORS.background },
+  hdr: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  hdrT: { fontSize: 16, fontWeight: '700', color: COLORS.text },
+  btn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, alignItems: 'center' },
+  btnT: { color: '#fff', fontWeight: '700', fontSize: 12 },
+  card: { backgroundColor: COLORS.card, borderRadius: 10, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: COLORS.border },
+  row: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: 10, padding: 14, marginVertical: 3, borderWidth: 1, borderColor: COLORS.border },
+  lb: { fontSize: 10, color: COLORS.textMuted, marginBottom: 2, fontWeight: '600' },
+  inp: { backgroundColor: COLORS.background, borderRadius: 6, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 8, paddingVertical: 6, fontSize: 12, color: COLORS.text },
+  ov: { flex: 1, backgroundColor: COLORS.overlay },
+  md: { width: '92%' as any, maxWidth: 450, backgroundColor: COLORS.card, borderRadius: 12, padding: 20 },
+});
