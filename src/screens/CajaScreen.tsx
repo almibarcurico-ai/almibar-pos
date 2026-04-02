@@ -1127,7 +1127,7 @@ function ArqueosTab() {
 
             {/* DIFERENCIA */}
             {(() => {
-              const sysTotal = totalIngresos + totals.ingresos - totals.gastos;
+              const sysTotal = saldoActual + totalTarjetas - (cashRegister?.opening_amount || 0);
               const userTotal = (parseInt(cEfectivo)||0) + (parseInt(cDebito)||0) + (parseInt(cCredito)||0) + (parseInt(cTransferencia)||0);
               const diff = userTotal - sysTotal;
               const hasInput = cEfectivo || cDebito || cCredito || cTransferencia;
@@ -1143,10 +1143,10 @@ function ArqueosTab() {
                   {diff !== 0 && (
                     <View style={{ marginTop: 8 }}>
                       {(() => {
-                        const dEf = (parseInt(cEfectivo)||0) - (totals.efectivo + (cashRegister?.opening_amount||0) + totals.ingresos - totals.gastos);
-                        const dDe = (parseInt(cDebito)||0) - totals.debito;
-                        const dCr = (parseInt(cCredito)||0) - totals.credito;
-                        const dTr = (parseInt(cTransferencia)||0) - totals.transferencia;
+                        const dEf = (parseInt(cEfectivo)||0) - saldoActual;
+                        const dDe = (parseInt(cDebito)||0) - (payByMethod.debito + tipsByMethodOrder.debito);
+                        const dCr = (parseInt(cCredito)||0) - (payByMethod.credito + tipsByMethodOrder.credito);
+                        const dTr = (parseInt(cTransferencia)||0) - (payByMethod.transferencia + tipsByMethodOrder.transferencia);
                         return <>
                           {dEf !== 0 && <Text style={{ fontSize: 11, color: COLORS.textSecondary }}>Efectivo: {dEf > 0 ? '+' : ''}{fmt(dEf)}</Text>}
                           {dDe !== 0 && <Text style={{ fontSize: 11, color: COLORS.textSecondary }}>Débito: {dDe > 0 ? '+' : ''}{fmt(dDe)}</Text>}
