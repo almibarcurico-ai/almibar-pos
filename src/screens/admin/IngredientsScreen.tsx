@@ -252,47 +252,67 @@ export default function IngredientsScreen() {
         </View>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 38, marginBottom: 6 }} contentContainerStyle={{ paddingHorizontal: 12, gap: 4 }}>
-        <Chip label="Todos" active={filterCat === 'all'} count={items.length} onPress={() => setFilterCat('all')} />
-        {CATS.map(c => {
-          const n = items.filter(i => i.category === c).length;
-          return n > 0 ? <Chip key={c} label={c} count={n} active={filterCat === c} onPress={() => setFilterCat(c)} /> : null;
-        })}
-      </ScrollView>
+      <View style={{ flex: 1, flexDirection: 'row' }}>
+        {/* Sidebar categorías */}
+        <View style={{ width: 200, backgroundColor: '#3C3C3C' }}>
+          <TouchableOpacity style={[s.sideItem, filterCat === 'all' && s.sideItemA]} onPress={() => setFilterCat('all')}>
+            <Text style={[s.sideItemT, filterCat === 'all' && s.sideItemTA]}>Todos</Text>
+            <Text style={s.sideCount}>{items.length}</Text>
+          </TouchableOpacity>
+          <ScrollView>
+            {CATS.map(c => {
+              const n = items.filter(i => i.category === c).length;
+              if (n === 0) return null;
+              const isActive = filterCat === c;
+              return (
+                <TouchableOpacity key={c} style={[s.sideItem, isActive && s.sideItemA]} onPress={() => setFilterCat(isActive ? 'all' : c)}>
+                  <Text style={[s.sideItemT, isActive && s.sideItemTA]}>{c}</Text>
+                  <Text style={s.sideCount}>{n}</Text>
+                </TouchableOpacity>
+              );
+            })}
+            {/* Producción */}
+            {items.filter(i => i.is_production).length > 0 && (
+              <TouchableOpacity style={[s.sideItem, filterCat === 'Producción' && s.sideItemA]} onPress={() => setFilterCat(filterCat === 'Producción' ? 'all' : 'Producción')}>
+                <Text style={[s.sideItemT, filterCat === 'Producción' && s.sideItemTA]}>🏭 Producción</Text>
+                <Text style={s.sideCount}>{items.filter(i => i.is_production).length}</Text>
+              </TouchableOpacity>
+            )}
+          </ScrollView>
+        </View>
 
-      {/* Table header */}
-      <View style={s.tHead}>
-        <Text style={[s.th, { flex: 1 }]}>Ingrediente</Text>
-        <Text style={[s.th, { width: 80 }]}>Categoría</Text>
-        <Text style={[s.th, { width: 60, textAlign: 'center' }]}>Unidad</Text>
-        <Text style={[s.th, { width: 80, textAlign: 'right' }]}>Stock</Text>
-        <Text style={[s.th, { width: 80, textAlign: 'right' }]}>Costo</Text>
-        <Text style={[s.th, { width: 70 }]}></Text>
+        {/* Tabla */}
+        <View style={{ flex: 1 }}>
+          <View style={s.tHead}>
+            <Text style={[s.th, { flex: 1 }]}>Ingrediente</Text>
+            <Text style={[s.th, { width: 60, textAlign: 'center' }]}>Unidad</Text>
+            <Text style={[s.th, { width: 80, textAlign: 'right' }]}>Stock</Text>
+            <Text style={[s.th, { width: 80, textAlign: 'right' }]}>Costo</Text>
+            <Text style={[s.th, { width: 50 }]}></Text>
+          </View>
+          <ScrollView>
+            {filtered.map((i, idx) => {
+              const isLow = i.stock_current <= i.stock_min && i.stock_min > 0;
+              return (
+                <TouchableOpacity key={i.id} style={[s.tRow, idx % 2 === 0 && s.tRowAlt]} onPress={() => openEdit(i)}>
+                  <Text style={[s.td, { flex: 1, fontWeight: '600' }]}>{i.name}</Text>
+                  <Text style={[s.td, { width: 60, textAlign: 'center', fontSize: 11, color: COLORS.textSecondary }]}>{i.unit}</Text>
+                  <Text style={[s.td, { width: 80, textAlign: 'right', fontWeight: '600', color: isLow ? '#E53935' : COLORS.text }]}>
+                    {Math.round(i.stock_current)} {i.unit}
+                  </Text>
+                  <Text style={[s.td, { width: 80, textAlign: 'right', fontWeight: '700', color: COLORS.primary }]}>
+                    {fmt(i.cost_per_unit)}
+                  </Text>
+                  <View style={{ width: 50, flexDirection: 'row', justifyContent: 'flex-end', gap: 6 }}>
+                    <TouchableOpacity onPress={() => showHistory(i)}><Text style={{ fontSize: 12 }}>📊</Text></TouchableOpacity>
+                    <TouchableOpacity onPress={() => del(i)}><Text style={{ fontSize: 12 }}>🗑️</Text></TouchableOpacity>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
       </View>
-
-      {/* Table body */}
-      <ScrollView>
-        {filtered.map((i, idx) => {
-          const isLow = i.stock_current <= i.stock_min && i.stock_min > 0;
-          return (
-            <TouchableOpacity key={i.id} style={[s.tRow, idx % 2 === 0 && s.tRowAlt]} onPress={() => openEdit(i)}>
-              <Text style={[s.td, { flex: 1, fontWeight: '600' }]}>{i.name}</Text>
-              <Text style={[s.td, { width: 80, fontSize: 11, color: COLORS.textSecondary }]}>{i.category}</Text>
-              <Text style={[s.td, { width: 60, textAlign: 'center', fontSize: 11 }]}>{i.unit}</Text>
-              <Text style={[s.td, { width: 80, textAlign: 'right', fontWeight: '600', color: isLow ? '#E53935' : COLORS.text }]}>
-                {Math.round(i.stock_current)} {i.unit}
-              </Text>
-              <Text style={[s.td, { width: 80, textAlign: 'right', fontWeight: '700', color: COLORS.primary }]}>
-                {fmt(i.cost_per_unit)}
-              </Text>
-              <View style={{ width: 70, flexDirection: 'row', justifyContent: 'flex-end', gap: 8 }}>
-                <TouchableOpacity onPress={() => showHistory(i)}><Text style={{ fontSize: 13 }}>📊</Text></TouchableOpacity>
-                <TouchableOpacity onPress={() => del(i)}><Text style={{ fontSize: 13 }}>🗑️</Text></TouchableOpacity>
-              </View>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
 
       {/* EDIT MODAL */}
       <Modal visible={modal} transparent animationType="fade">
@@ -479,4 +499,9 @@ const s = StyleSheet.create({
   bCancelT: { color: COLORS.textSecondary, fontWeight: '600', fontSize: 14 },
   bSave: { flex: 1, paddingVertical: 14, borderRadius: 10, backgroundColor: COLORS.primary, alignItems: 'center' },
   bSaveT: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  sideItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: '#4A4A4A' },
+  sideItemA: { backgroundColor: COLORS.primary },
+  sideItemT: { fontSize: 13, color: '#CCC' },
+  sideItemTA: { color: '#fff', fontWeight: '700' },
+  sideCount: { fontSize: 10, color: '#999', backgroundColor: '#4A4A4A', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10, overflow: 'hidden' as any, minWidth: 22, textAlign: 'center' as any },
 });
