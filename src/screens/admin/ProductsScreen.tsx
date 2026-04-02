@@ -112,7 +112,21 @@ export default function ProductsScreen() {
     setSelectedProduct(null); await load();
   };
 
-  // Recipe helpers
+  // Recipe state + helpers (declared before usage)
+  const [localRecipeQty, setLocalRecipeQty] = useState<Record<string, string>>({});
+  const [localRecipeUnit, setLocalRecipeUnit] = useState<Record<string, string>>({});
+
+  const calcIngCost = (ing: any, qty: number, recipeUnit?: string) => {
+    const cpu = ing?.cost_per_unit || 0;
+    const iu = (ing?.unit || '').toLowerCase();
+    const ru = (recipeUnit || iu).toLowerCase();
+    if (iu === 'kg' && ru === 'g') return cpu * qty / 1000;
+    if (iu === 'lt' && ru === 'ml') return cpu * qty / 1000;
+    if (iu === 'g' && ru === 'kg') return cpu * qty * 1000;
+    if (iu === 'ml' && ru === 'lt') return cpu * qty * 1000;
+    return cpu * qty;
+  };
+
   const productRecipe = selectedProduct?.id ? recipes.find(r => r.product_id === selectedProduct.id) : null;
   const productRecipeItems = productRecipe ? recipeItems.filter(ri => ri.recipe_id === productRecipe.id) : [];
   const recipeCost = productRecipeItems.reduce((s, ri) => {
@@ -135,9 +149,6 @@ export default function ProductsScreen() {
     setShowIngSearch(false); setIngSearch(''); await load();
   };
 
-  const [localRecipeQty, setLocalRecipeQty] = useState<Record<string, string>>({});
-  const [localRecipeUnit, setLocalRecipeUnit] = useState<Record<string, string>>({});
-
   const saveRecipeItem2 = async (riId: string) => {
     const update: any = {};
     const qtyVal = localRecipeQty[riId];
@@ -148,17 +159,6 @@ export default function ProductsScreen() {
       await supabase.from('recipe_items').update(update).eq('id', riId);
       await load();
     }
-  };
-
-  const calcIngCost = (ing: any, qty: number, recipeUnit?: string) => {
-    const cpu = ing?.cost_per_unit || 0;
-    const iu = (ing?.unit || '').toLowerCase();
-    const ru = (recipeUnit || iu).toLowerCase();
-    if (iu === 'kg' && ru === 'g') return cpu * qty / 1000;
-    if (iu === 'lt' && ru === 'ml') return cpu * qty / 1000;
-    if (iu === 'g' && ru === 'kg') return cpu * qty * 1000;
-    if (iu === 'ml' && ru === 'lt') return cpu * qty * 1000;
-    return cpu * qty;
   };
 
   const removeRecipeItem = async (riId: string) => {
