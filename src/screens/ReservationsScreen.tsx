@@ -106,8 +106,8 @@ export default function ReservationsScreen() {
       <View style={{ flex: 1, flexDirection: 'row' }}>
         {/* Main list */}
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
-          {/* Todas las reservas en una sola lista */}
-          {reservations.map(r => <ReservaCard key={r.id} r={r} selected={selected} onSelect={setSelected} fmt={fmt} today={today} onAssignMesa={assignMesa} />)}
+          {/* Solo pendientes y confirmadas — completadas/no_show quedan en historial del cliente */}
+          {reservations.filter(r => r.status === 'pendiente' || r.status === 'confirmada').map(r => <ReservaCard key={r.id} r={r} selected={selected} onSelect={setSelected} fmt={fmt} today={today} onAssignMesa={assignMesa} />)}
 
           {reservations.length === 0 && !loading && (
             <View style={{ alignItems: 'center', paddingTop: 80 }}>
