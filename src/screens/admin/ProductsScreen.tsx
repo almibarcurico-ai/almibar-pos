@@ -132,9 +132,15 @@ export default function ProductsScreen() {
     setShowIngSearch(false); setIngSearch(''); await load();
   };
 
-  const updateRecipeQty = async (riId: string, qty: number) => {
-    if (qty <= 0) { await supabase.from('recipe_items').delete().eq('id', riId); }
-    else { await supabase.from('recipe_items').update({ quantity: qty }).eq('id', riId); }
+  const [localRecipeQty, setLocalRecipeQty] = useState<Record<string, string>>({});
+
+  const saveRecipeQty = async (riId: string) => {
+    const val = localRecipeQty[riId];
+    if (val === undefined) return;
+    const qty = parseFloat(val) || 0;
+    if (qty > 0) {
+      await supabase.from('recipe_items').update({ quantity: qty }).eq('id', riId);
+    }
     await load();
   };
 
@@ -304,8 +310,9 @@ export default function ProductsScreen() {
                     <Text style={{ flex: 1, fontSize: 12, color: COLORS.text }}>{ing.name}</Text>
                     <TextInput
                       style={{ width: 70, fontSize: 12, color: COLORS.text, backgroundColor: COLORS.card, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2, textAlign: 'center', borderWidth: 1, borderColor: COLORS.border }}
-                      value={String(ri.quantity)}
-                      onChangeText={t => updateRecipeQty(ri.id, parseFloat(t) || 0)}
+                      value={localRecipeQty[ri.id] !== undefined ? localRecipeQty[ri.id] : String(ri.quantity)}
+                      onChangeText={t => setLocalRecipeQty(prev => ({ ...prev, [ri.id]: t }))}
+                      onBlur={() => saveRecipeQty(ri.id)}
                       keyboardType="decimal-pad"
                     />
                     <Text style={{ width: 50, fontSize: 11, color: COLORS.textSecondary, textAlign: 'center' }}>{ing.unit}</Text>
