@@ -1193,41 +1193,89 @@ function ArqueosTab() {
 
       {/* MODAL: Editar Arqueo */}
       <Modal visible={editModal} transparent animationType="fade">
-        <View style={s.ov}><View style={s.md}>
-          <Text style={[s.mdT, { color: COLORS.info }]}>✏️ EDITAR ARQUEO</Text>
-          <Text style={s.lb}>Fecha apertura</Text>
-          <TextInput style={s.inp} value={editFecha} onChangeText={setEditFecha} placeholder="2026-04-01" placeholderTextColor={COLORS.textMuted} />
-          <Text style={s.lb}>Hora apertura</Text>
-          <TextInput style={s.inp} value={editHora} onChangeText={setEditHora} placeholder="17:00" placeholderTextColor={COLORS.textMuted} />
-          <Text style={s.lb}>Monto inicial</Text>
-          <TextInput style={s.inp} value={editMonto} onChangeText={setEditMonto} placeholder="0" placeholderTextColor={COLORS.textMuted} keyboardType="number-pad" />
-          {editArqueo?.closed_at && (<>
-            <View style={{ borderTopWidth: 1, borderTopColor: COLORS.border, marginVertical: 10, paddingTop: 10 }}>
-              <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 6 }}>DATOS DE CIERRE</Text>
+        <View style={s.ov}><ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 16 }}>
+          <View style={[s.md, { maxWidth: 560 }]}>
+            <Text style={[s.mdT, { color: COLORS.info }]}>✏️ EDITAR ARQUEO</Text>
+
+            {/* APERTURA */}
+            <View style={{ backgroundColor: COLORS.cardHover, borderRadius: 10, padding: 14, marginBottom: 14 }}>
+              <Text style={{ fontSize: 12, fontWeight: '800', color: '#fff', marginBottom: 10, backgroundColor: COLORS.textMuted, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 4, overflow: 'hidden' }}>APERTURA</Text>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <View style={{ flex: 1 }}><Text style={s.lb}>Fecha</Text><TextInput style={s.inp} value={editFecha} onChangeText={setEditFecha} placeholder="2026-04-01" placeholderTextColor={COLORS.textMuted} /></View>
+                <View style={{ flex: 1 }}><Text style={s.lb}>Hora</Text><TextInput style={s.inp} value={editHora} onChangeText={setEditHora} placeholder="17:00" placeholderTextColor={COLORS.textMuted} /></View>
+              </View>
+              <Text style={s.lb}>Monto inicial (efectivo)</Text>
+              <TextInput style={[s.inp, { fontSize: 18, fontWeight: '700' }]} value={editMonto} onChangeText={setEditMonto} placeholder="0" placeholderTextColor={COLORS.textMuted} keyboardType="number-pad" />
             </View>
-            <Text style={s.lb}>Fecha cierre</Text>
-            <TextInput style={s.inp} value={editCloseFecha} onChangeText={setEditCloseFecha} placeholder="2026-04-01" placeholderTextColor={COLORS.textMuted} />
-            <Text style={s.lb}>Hora cierre</Text>
-            <TextInput style={s.inp} value={editCloseHora} onChangeText={setEditCloseHora} placeholder="23:00" placeholderTextColor={COLORS.textMuted} />
-            <View style={{ borderTopWidth: 1, borderTopColor: COLORS.border, marginVertical: 8, paddingTop: 8 }}>
-              <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 6 }}>CONTEO USUARIO</Text>
+
+            {editArqueo?.closed_at && (<>
+              {/* CIERRE */}
+              <View style={{ backgroundColor: COLORS.cardHover, borderRadius: 10, padding: 14, marginBottom: 14 }}>
+                <Text style={{ fontSize: 12, fontWeight: '800', color: '#fff', marginBottom: 10, backgroundColor: COLORS.textMuted, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 4, overflow: 'hidden' }}>CIERRE</Text>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <View style={{ flex: 1 }}><Text style={s.lb}>Fecha</Text><TextInput style={s.inp} value={editCloseFecha} onChangeText={setEditCloseFecha} placeholder="2026-04-01" placeholderTextColor={COLORS.textMuted} /></View>
+                  <View style={{ flex: 1 }}><Text style={s.lb}>Hora</Text><TextInput style={s.inp} value={editCloseHora} onChangeText={setEditCloseHora} placeholder="23:00" placeholderTextColor={COLORS.textMuted} /></View>
+                </View>
+              </View>
+
+              {/* SEGÚN SISTEMA (datos guardados) */}
+              <View style={{ backgroundColor: COLORS.cardHover, borderRadius: 10, padding: 14, marginBottom: 14 }}>
+                <Text style={{ fontSize: 12, fontWeight: '800', color: '#fff', marginBottom: 10, backgroundColor: COLORS.textMuted, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 4, overflow: 'hidden' }}>SEGÚN SISTEMA</Text>
+                <ARQ label="Efectivo (ventas+propinas)" val={fmt(editArqueo?.total_cash || 0)} />
+                <ARQ label="Tarj. Débito" val={fmt(editArqueo?.total_debit || 0)} />
+                <ARQ label="Tarj. Crédito" val={fmt(editArqueo?.total_credit || 0)} />
+                <ARQ label="Transferencia" val={fmt(editArqueo?.total_transfer || 0)} />
+                <View style={{ borderTopWidth: 1, borderTopColor: COLORS.border, marginTop: 6, paddingTop: 6 }}>
+                  <ARQ label="Total ventas" val={fmt(editArqueo?.total_sales || 0)} />
+                  <ARQ label="Total propinas" val={fmt(editArqueo?.total_tips || 0)} />
+                  {(editArqueo?.total_expenses || 0) > 0 && <ARQ label="Egresos" val={'-' + fmt(editArqueo.total_expenses)} />}
+                  {(editArqueo?.total_cash_in || 0) > 0 && <ARQ label="Ingresos" val={'+' + fmt(editArqueo.total_cash_in)} />}
+                </View>
+              </View>
+
+              {/* SEGÚN USUARIO */}
+              <View style={{ backgroundColor: COLORS.cardHover, borderRadius: 10, padding: 14, marginBottom: 14 }}>
+                <Text style={{ fontSize: 12, fontWeight: '800', color: '#fff', marginBottom: 10, backgroundColor: COLORS.textMuted, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 4, overflow: 'hidden' }}>SEGÚN USUARIO</Text>
+                <Text style={{ fontSize: 11, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 4 }}>Efectivo contado</Text>
+                <TextInput style={[s.inp, { fontSize: 18, fontWeight: '700', marginBottom: 8 }]} value={editUserEfectivo} onChangeText={setEditUserEfectivo} placeholder="$0" placeholderTextColor={COLORS.textMuted} keyboardType="number-pad" />
+                <Text style={{ fontSize: 11, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 4 }}>Tarj. Débito</Text>
+                <TextInput style={[s.inp, { fontSize: 18, fontWeight: '700', marginBottom: 8 }]} value={editUserDebito} onChangeText={setEditUserDebito} placeholder="$0" placeholderTextColor={COLORS.textMuted} keyboardType="number-pad" />
+                <Text style={{ fontSize: 11, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 4 }}>Tarj. Crédito</Text>
+                <TextInput style={[s.inp, { fontSize: 18, fontWeight: '700', marginBottom: 8 }]} value={editUserCredito} onChangeText={setEditUserCredito} placeholder="$0" placeholderTextColor={COLORS.textMuted} keyboardType="number-pad" />
+                <Text style={{ fontSize: 11, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 4 }}>Transferencia</Text>
+                <TextInput style={[s.inp, { fontSize: 18, fontWeight: '700', marginBottom: 8 }]} value={editUserTransfer} onChangeText={setEditUserTransfer} placeholder="$0" placeholderTextColor={COLORS.textMuted} keyboardType="number-pad" />
+                <View style={{ borderTopWidth: 2, borderTopColor: COLORS.primary, marginTop: 4, paddingTop: 8 }}>
+                  <ARQ label="Total usuario" val={fmt((parseInt(editUserEfectivo)||0) + (parseInt(editUserDebito)||0) + (parseInt(editUserCredito)||0) + (parseInt(editUserTransfer)||0))} bold />
+                </View>
+              </View>
+
+              {/* DIFERENCIA */}
+              {(() => {
+                const sysT = (editArqueo?.total_cash||0) + (editArqueo?.total_debit||0) + (editArqueo?.total_credit||0) + (editArqueo?.total_transfer||0);
+                const userT = (parseInt(editUserEfectivo)||0) + (parseInt(editUserDebito)||0) + (parseInt(editUserCredito)||0) + (parseInt(editUserTransfer)||0);
+                const diff = userT - sysT;
+                if (!editUserEfectivo && !editUserDebito && !editUserCredito && !editUserTransfer) return null;
+                return (
+                  <View style={{ backgroundColor: (diff === 0 ? COLORS.success : COLORS.error) + '20', borderRadius: 10, padding: 14, marginBottom: 14, borderWidth: 1, borderColor: (diff === 0 ? COLORS.success : COLORS.error) + '40' }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Text style={{ fontSize: 14, fontWeight: '800', color: diff === 0 ? COLORS.success : COLORS.error }}>Diferencia</Text>
+                      <Text style={{ fontSize: 24, fontWeight: '800', color: diff === 0 ? COLORS.success : diff > 0 ? '#8BC34A' : COLORS.error }}>
+                        {diff === 0 ? '✅ $0' : (diff > 0 ? '+' : '') + fmt(diff)}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })()}
+            </>)}
+
+            <Text style={s.lb}>Notas</Text>
+            <TextInput style={[s.inp, { minHeight: 50 }]} value={editNotas} onChangeText={setEditNotas} placeholder="Notas opcionales..." placeholderTextColor={COLORS.textMuted} multiline />
+            <View style={s.mBs}>
+              <TouchableOpacity style={s.bC} onPress={() => { setEditModal(false); setEditArqueo(null); }}><Text style={s.bCT}>Cancelar</Text></TouchableOpacity>
+              <TouchableOpacity style={[s.bOk, { backgroundColor: COLORS.info }]} onPress={saveEditArqueo}><Text style={s.bOkT}>Guardar cambios</Text></TouchableOpacity>
             </View>
-            <Text style={s.lb}>Efectivo contado</Text>
-            <TextInput style={s.inp} value={editUserEfectivo} onChangeText={setEditUserEfectivo} placeholder="0" placeholderTextColor={COLORS.textMuted} keyboardType="number-pad" />
-            <Text style={s.lb}>Débito contado</Text>
-            <TextInput style={s.inp} value={editUserDebito} onChangeText={setEditUserDebito} placeholder="0" placeholderTextColor={COLORS.textMuted} keyboardType="number-pad" />
-            <Text style={s.lb}>Crédito contado</Text>
-            <TextInput style={s.inp} value={editUserCredito} onChangeText={setEditUserCredito} placeholder="0" placeholderTextColor={COLORS.textMuted} keyboardType="number-pad" />
-            <Text style={s.lb}>Transferencia contado</Text>
-            <TextInput style={s.inp} value={editUserTransfer} onChangeText={setEditUserTransfer} placeholder="0" placeholderTextColor={COLORS.textMuted} keyboardType="number-pad" />
-          </>)}
-          <Text style={s.lb}>Notas</Text>
-          <TextInput style={[s.inp, { minHeight: 50 }]} value={editNotas} onChangeText={setEditNotas} placeholder="Notas opcionales..." placeholderTextColor={COLORS.textMuted} multiline />
-          <View style={s.mBs}>
-            <TouchableOpacity style={s.bC} onPress={() => { setEditModal(false); setEditArqueo(null); }}><Text style={s.bCT}>Cancelar</Text></TouchableOpacity>
-            <TouchableOpacity style={[s.bOk, { backgroundColor: COLORS.info }]} onPress={saveEditArqueo}><Text style={s.bOkT}>Guardar cambios</Text></TouchableOpacity>
           </View>
-        </View></View>
+        </ScrollView></View>
       </Modal>
 
       {/* MODAL: Detalle Arqueo Cerrado */}
