@@ -747,14 +747,6 @@ function ArqueosTab() {
     transferencia: todayOrders.filter(o => o.payment_method === 'transferencia').reduce((a: number, o: any) => a + (o.total || 0), 0),
   };
 
-  // Propinas por método: usar payments con tip_amount > 0
-  const allTipPayments = [...shiftPayments.filter((p: any) => (p.tip_amount || 0) > 0), ...shiftDelivPayments.filter((p: any) => !!p.is_tip || (p.tip_amount || 0) > 0)];
-  const tipsByMethod = {
-    efectivo: allTipPayments.filter((p: any) => p.method === 'efectivo').reduce((a: number, p: any) => a + (p.tip_amount || 0), 0),
-    debito: allTipPayments.filter((p: any) => p.method === 'debito').reduce((a: number, p: any) => a + (p.tip_amount || 0), 0),
-    credito: allTipPayments.filter((p: any) => p.method === 'credito').reduce((a: number, p: any) => a + (p.tip_amount || 0), 0),
-    transferencia: allTipPayments.filter((p: any) => p.method === 'transferencia').reduce((a: number, p: any) => a + (p.tip_amount || 0), 0),
-  };
   const totals = {
     ventas: todayOrders.reduce((a, o) => a + (o.total || 0), 0),
     propinas: todayOrders.reduce((a, o) => a + (o.tip_amount || 0), 0),
