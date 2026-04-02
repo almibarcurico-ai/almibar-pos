@@ -743,29 +743,23 @@ function ArqueosTab() {
 
   const fmt = (p: number) => '$' + Math.round(p).toLocaleString('es-CL');
 
-  // Ventas por método: usar orders.total agrupado por payment_method (fuente real de venta)
-  const payByMethod = {
-    efectivo: todayOrders.filter(o => o.payment_method === 'efectivo').reduce((a: number, o: any) => a + (o.total || 0), 0),
-    debito: todayOrders.filter(o => o.payment_method === 'debito').reduce((a: number, o: any) => a + (o.total || 0), 0),
-    credito: todayOrders.filter(o => o.payment_method === 'credito').reduce((a: number, o: any) => a + (o.total || 0), 0),
-    transferencia: todayOrders.filter(o => o.payment_method === 'transferencia').reduce((a: number, o: any) => a + (o.total || 0), 0),
+  // === FUENTE ÚNICA: payments.amount (propina ya está incluida en amount) ===
+  const sumByMethod = (method: string) => shiftPayments.filter((p: any) => p.method === method).reduce((a: number, p: any) => a + (p.amount || 0), 0);
+  const totalByMethod = {
+    efectivo: sumByMethod('efectivo'),
+    debito: sumByMethod('debito'),
+    credito: sumByMethod('credito'),
+    transferencia: sumByMethod('transferencia'),
   };
-
+  const totalPropinas = shiftPayments.reduce((a: number, p: any) => a + (p.tip_amount || 0), 0);
   const totals = {
-    ventas: todayOrders.reduce((a, o) => a + (o.total || 0), 0),
-    propinas: todayOrders.reduce((a, o) => a + (o.tip_amount || 0), 0),
+    ventas: totalByMethod.efectivo + totalByMethod.debito + totalByMethod.credito + totalByMethod.transferencia,
+    propinas: totalPropinas,
     gastos: movements.filter(m => m.type === 'gasto').reduce((a, m) => a + m.amount, 0),
     ingresos: movements.filter(m => m.type === 'ingreso').reduce((a, m) => a + m.amount, 0),
   };
-  // Propinas por método desde orders.tip_amount (no payments)
-  const tipsByMethodOrder = {
-    efectivo: todayOrders.filter(o => o.payment_method === 'efectivo').reduce((a: number, o: any) => a + (o.tip_amount || 0), 0),
-    debito: todayOrders.filter(o => o.payment_method === 'debito').reduce((a: number, o: any) => a + (o.tip_amount || 0), 0),
-    credito: todayOrders.filter(o => o.payment_method === 'credito').reduce((a: number, o: any) => a + (o.tip_amount || 0), 0),
-    transferencia: todayOrders.filter(o => o.payment_method === 'transferencia').reduce((a: number, o: any) => a + (o.tip_amount || 0), 0),
-  };
-  const saldoActual = (cashRegister?.opening_amount || 0) + payByMethod.efectivo + tipsByMethodOrder.efectivo + totals.ingresos - totals.gastos;
-  const totalTarjetas = payByMethod.debito + tipsByMethodOrder.debito + payByMethod.credito + tipsByMethodOrder.credito + payByMethod.transferencia + tipsByMethodOrder.transferencia;
+  const saldoActual = (cashRegister?.opening_amount || 0) + totalByMethod.efectivo + totals.ingresos - totals.gastos;
+  const totalTarjetas = totalByMethod.debito + totalByMethod.credito + totalByMethod.transferencia;
 
   const handleOpen = async () => {
     if (!user) return;
@@ -795,10 +789,10 @@ function ArqueosTab() {
     await supabase.from('cash_registers').update({
       closed_at: new Date().toISOString(), closed_by: user.id,
       closing_amount: userTotal,
-      total_cash: payByMethod.efectivo + tipsByMethodOrder.efectivo,
-      total_debit: payByMethod.debito + tipsByMethodOrder.debito,
-      total_credit: payByMethod.credito + tipsByMethodOrder.credito,
-      total_transfer: payByMethod.transferencia + tipsByMethodOrder.transferencia,
+      total_cash: totalByMethod.efectivo,
+      total_debit: totalByMethod.debito,
+      total_credit: totalByMethod.credito,
+      total_transfer: totalByMethod.transferencia,
       total_sales: totals.ventas,
       total_tips: totals.propinas,
       total_orders: todayOrders.length, total_expenses: totals.gastos, total_cash_in: totals.ingresos,
@@ -1089,23 +1083,15 @@ function ArqueosTab() {
 
               <View style={{ borderTopWidth: 1, borderTopColor: COLORS.border, marginTop: 6, paddingTop: 6 }}>
                 <Text style={{ fontSize: 11, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 4 }}>VENTAS POR MÉTODO</Text>
-                <ARQ label="    Efectivo" val={fmt(payByMethod.efectivo)} />
-                <ARQ label="    Tarj. Débito" val={fmt(payByMethod.debito)} />
-                <ARQ label="    Tarj. Crédito" val={fmt(payByMethod.credito)} />
-                <ARQ label="    Transferencia" val={fmt(payByMethod.transferencia)} />
-                <ARQ label="TOTAL VENTAS" val={fmt(payByMethod.efectivo + payByMethod.debito + payByMethod.credito + payByMethod.transferencia)} bold />
+                <ARQ label="    Efectivo" val={fmt(totalByMethod.efectivo)} />
+                <ARQ label="    Tarj. Débito" val={fmt(totalByMethod.debito)} />
+                <ARQ label="    Tarj. Crédito" val={fmt(totalByMethod.credito)} />
+                <ARQ label="    Transferencia" val={fmt(totalByMethod.transferencia)} />
               </View>
-
-              {totals.propinas > 0 && (
-                <View style={{ borderTopWidth: 1, borderTopColor: COLORS.border, marginTop: 6, paddingTop: 6 }}>
-                  <Text style={{ fontSize: 11, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 4 }}>PROPINAS POR MÉTODO</Text>
-                  {tipsByMethodOrder.efectivo > 0 && <ARQ label="    Efectivo" val={fmt(tipsByMethodOrder.efectivo)} />}
-                  {tipsByMethodOrder.debito > 0 && <ARQ label="    Tarj. Débito" val={fmt(tipsByMethodOrder.debito)} />}
-                  {tipsByMethodOrder.credito > 0 && <ARQ label="    Tarj. Crédito" val={fmt(tipsByMethodOrder.credito)} />}
-                  {tipsByMethodOrder.transferencia > 0 && <ARQ label="    Transferencia" val={fmt(tipsByMethodOrder.transferencia)} />}
-                  <ARQ label="TOTAL PROPINAS" val={fmt(totals.propinas)} bold />
-                </View>
-              )}
+              <View style={{ borderTopWidth: 1, borderTopColor: COLORS.border, marginTop: 6, paddingTop: 6 }}>
+                <ARQ label="Total ventas" val={fmt(totals.ventas)} />
+                <ARQ label="Total propinas" val={fmt(totals.propinas)} />
+              </View>
 
               {(totals.ingresos > 0 || totals.gastos > 0) && (
                 <View style={{ borderTopWidth: 1, borderTopColor: COLORS.border, marginTop: 6, paddingTop: 6 }}>
@@ -1118,7 +1104,7 @@ function ArqueosTab() {
               <View style={{ borderTopWidth: 2, borderTopColor: COLORS.primary, marginTop: 8, paddingTop: 8 }}>
                 <ARQ label="EFECTIVO EN CAJA" val={fmt(saldoActual)} bold />
                 <Text style={{ fontSize: 10, color: COLORS.textMuted, marginTop: 2 }}>
-                  Inicial ({fmt(cashRegister?.opening_amount || 0)}) + Ventas efvo. ({fmt(payByMethod.efectivo)}) + Propinas efvo. ({fmt(tipsByMethodOrder.efectivo)}) + Ingresos ({fmt(totals.ingresos)}) - Egresos ({fmt(totals.gastos)})
+                  Inicial ({fmt(cashRegister?.opening_amount || 0)}) + Efectivo ({fmt(totalByMethod.efectivo)}) + Ingresos ({fmt(totals.ingresos)}) - Egresos ({fmt(totals.gastos)})
                 </Text>
               </View>
               <View style={{ marginTop: 6 }}>
@@ -1169,9 +1155,9 @@ function ArqueosTab() {
                     <View style={{ marginTop: 8 }}>
                       {(() => {
                         const dEf = (parseInt(cEfectivo)||0) - saldoActual;
-                        const dDe = (parseInt(cDebito)||0) - (payByMethod.debito + tipsByMethodOrder.debito);
-                        const dCr = (parseInt(cCredito)||0) - (payByMethod.credito + tipsByMethodOrder.credito);
-                        const dTr = (parseInt(cTransferencia)||0) - (payByMethod.transferencia + tipsByMethodOrder.transferencia);
+                        const dDe = (parseInt(cDebito)||0) - totalByMethod.debito;
+                        const dCr = (parseInt(cCredito)||0) - totalByMethod.credito;
+                        const dTr = (parseInt(cTransferencia)||0) - totalByMethod.transferencia;
                         return <>
                           {dEf !== 0 && <Text style={{ fontSize: 11, color: COLORS.textSecondary }}>Efectivo: {dEf > 0 ? '+' : ''}{fmt(dEf)}</Text>}
                           {dDe !== 0 && <Text style={{ fontSize: 11, color: COLORS.textSecondary }}>Débito: {dDe > 0 ? '+' : ''}{fmt(dDe)}</Text>}
