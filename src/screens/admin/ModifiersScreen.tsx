@@ -27,17 +27,21 @@ export default function ModifiersScreen() {
   // Add option
   const [oName, setOName] = useState('');
   const [oPrice, setOPrice] = useState('0');
+  const [ingredients, setIngredients] = useState<any[]>([]);
+  const [ingSearch, setIngSearch] = useState('');
 
   const load = useCallback(async () => {
-    const [gR, oR, pR, lR] = await Promise.all([
+    const [gR, oR, pR, lR, iR] = await Promise.all([
       supabase.from('modifier_groups').select('*').order('sort_order'),
-      supabase.from('modifier_options').select('*').order('sort_order'),
+      supabase.from('modifier_options').select('*, ingredient:ingredient_id(name, unit, cost_per_unit)').order('sort_order'),
       supabase.from('products').select('id, name').eq('active', true).order('name'),
       supabase.from('product_modifier_groups').select('*'),
+      supabase.from('ingredients').select('id, name, unit, cost_per_unit').eq('active', true).order('name'),
     ]);
     if (gR.data) setGroups(gR.data);
     if (oR.data) setOptions(oR.data);
     if (pR.data) setProducts(pR.data);
+    if (iR.data) setIngredients(iR.data);
     if (lR.data) {
       const map: Record<string, string[]> = {};
       lR.data.forEach((l: any) => { if (!map[l.group_id]) map[l.group_id] = []; map[l.group_id].push(l.product_id); });
@@ -69,13 +73,29 @@ export default function ModifiersScreen() {
     await load();
   };
 
-  const addOption = async () => {
+  const addOptionFromIngredient = async (ing: any) => {
+    if (!selected) return;
+    await supabase.from('modifier_options').insert({
+      group_id: selected.id, name: ing.name,
+      ingredient_id: ing.id, quantity: 1, unit: ing.unit,
+      price_adjust: parseInt(oPrice) || 0, sort_order: groupOptions.length + 1,
+    });
+    setIngSearch(''); setOPrice('0');
+    await load();
+  };
+
+  const addOptionManual = async () => {
     if (!oName.trim() || !selected) return;
     await supabase.from('modifier_options').insert({
       group_id: selected.id, name: oName.trim(),
       price_adjust: parseInt(oPrice) || 0, sort_order: groupOptions.length + 1,
     });
     setOName(''); setOPrice('0');
+    await load();
+  };
+
+  const updateOptionField = async (optId: string, field: string, value: any) => {
+    await supabase.from('modifier_options').update({ [field]: value }).eq('id', optId);
     await load();
   };
 
@@ -154,27 +174,67 @@ export default function ModifiersScreen() {
 
             {/* Options */}
             <Text style={st.sectionTitle}>OPCIONES ({groupOptions.length})</Text>
-            {groupOptions.map(o => (
-              <View key={o.id} style={st.optionRow}>
-                <Text style={{ flex: 1, fontSize: 13, fontWeight: '600', color: COLORS.text }}>{o.name}</Text>
-                {o.price_adjust !== 0 && <Text style={{ fontSize: 12, fontWeight: '700', color: o.price_adjust > 0 ? COLORS.warning : COLORS.success }}>{fmt(o.price_adjust)}</Text>}
-                <TouchableOpacity onPress={() => deleteOption(o)} style={{ marginLeft: 8 }}><Text style={{ color: COLORS.error, fontSize: 14 }}>✕</Text></TouchableOpacity>
-              </View>
-            ))}
+            {/* Table header */}
+            <View style={{ flexDirection: 'row', paddingVertical: 6, borderBottomWidth: 2, borderBottomColor: COLORS.border }}>
+              <Text style={{ flex: 1, fontSize: 10, fontWeight: '700', color: COLORS.textMuted }}>OPCIÓN</Text>
+              <Text style={{ width: 50, fontSize: 10, fontWeight: '700', color: COLORS.textMuted, textAlign: 'center' }}>CANT.</Text>
+              <Text style={{ width: 50, fontSize: 10, fontWeight: '700', color: COLORS.textMuted, textAlign: 'center' }}>UNID.</Text>
+              <Text style={{ width: 70, fontSize: 10, fontWeight: '700', color: COLORS.textMuted, textAlign: 'right' }}>COSTO</Text>
+              <Text style={{ width: 60, fontSize: 10, fontWeight: '700', color: COLORS.textMuted, textAlign: 'right' }}>PRECIO</Text>
+              <View style={{ width: 24 }} />
+            </View>
+            {groupOptions.map((o: any) => {
+              const ingCost = o.ingredient ? (o.unit === 'ml' && o.ingredient.unit === 'lt' ? o.ingredient.cost_per_unit * (o.quantity || 1) / 1000 : o.unit === 'g' && o.ingredient.unit === 'kg' ? o.ingredient.cost_per_unit * (o.quantity || 1) / 1000 : o.ingredient.cost_per_unit * (o.quantity || 1)) : 0;
+              return (
+                <View key={o.id} style={st.optionRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.text }}>{o.name}</Text>
+                    {o.ingredient && <Text style={{ fontSize: 9, color: COLORS.success }}>🔗 {o.ingredient.name}</Text>}
+                    {!o.ingredient_id && <Text style={{ fontSize: 9, color: COLORS.warning }}>⚠ Sin ingrediente</Text>}
+                  </View>
+                  <TextInput style={{ width: 50, fontSize: 12, textAlign: 'center', backgroundColor: COLORS.background, borderRadius: 4, borderWidth: 1, borderColor: COLORS.border, paddingVertical: 2, color: COLORS.text }} value={String(o.quantity || 1)} onChangeText={v => updateOptionField(o.id, 'quantity', parseFloat(v) || 1)} keyboardType="decimal-pad" />
+                  <View style={{ width: 50, flexDirection: 'row', gap: 1, justifyContent: 'center' }}>
+                    {(o.ingredient?.unit === 'lt' ? ['ml', 'lt'] : o.ingredient?.unit === 'kg' ? ['g', 'kg'] : ['unid']).map((u: string) => (
+                      <TouchableOpacity key={u} onPress={() => updateOptionField(o.id, 'unit', u)} style={{ paddingHorizontal: 4, paddingVertical: 2, borderRadius: 3, backgroundColor: (o.unit || o.ingredient?.unit) === u ? COLORS.primary : COLORS.background, borderWidth: 1, borderColor: (o.unit || o.ingredient?.unit) === u ? COLORS.primary : COLORS.border }}>
+                        <Text style={{ fontSize: 8, fontWeight: '600', color: (o.unit || o.ingredient?.unit) === u ? '#fff' : COLORS.textMuted }}>{u}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <Text style={{ width: 70, fontSize: 11, color: COLORS.textSecondary, textAlign: 'right' }}>{ingCost > 0 ? '$' + Math.round(ingCost).toLocaleString('es-CL') : '-'}</Text>
+                  <Text style={{ width: 60, fontSize: 11, fontWeight: '700', color: o.price_adjust > 0 ? COLORS.warning : o.price_adjust < 0 ? COLORS.success : COLORS.textMuted, textAlign: 'right' }}>{o.price_adjust !== 0 ? fmt(o.price_adjust) : '$0'}</Text>
+                  <TouchableOpacity onPress={() => deleteOption(o)} style={{ width: 24, alignItems: 'center' }}><Text style={{ color: COLORS.error, fontSize: 14 }}>✕</Text></TouchableOpacity>
+                </View>
+              );
+            })}
 
-            {/* Add option inline */}
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 8, alignItems: 'flex-end' }}>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 2 }}>Nombre</Text>
-                <TextInput style={st.input} placeholder="Ej: Maracuyá" placeholderTextColor={COLORS.textMuted} value={oName} onChangeText={setOName} />
+            {/* Add option from ingredient */}
+            <View style={{ marginTop: 12 }}>
+              <Text style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 4 }}>Agregar opción desde ingrediente:</Text>
+              <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                <TextInput style={[st.input, { flex: 1 }]} placeholder="🔍 Buscar ingrediente..." placeholderTextColor={COLORS.textMuted} value={ingSearch} onChangeText={setIngSearch} />
+                <View style={{ width: 80 }}>
+                  <TextInput style={st.input} value={oPrice} onChangeText={setOPrice} keyboardType="number-pad" placeholder="+$0" placeholderTextColor={COLORS.textMuted} />
+                </View>
               </View>
-              <View style={{ width: 80 }}>
-                <Text style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 2 }}>Precio +/-</Text>
-                <TextInput style={st.input} value={oPrice} onChangeText={setOPrice} keyboardType="number-pad" />
+              {ingSearch.length >= 2 && (
+                <View style={{ backgroundColor: COLORS.card, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, maxHeight: 120, marginTop: 4 }}>
+                  <ScrollView nestedScrollEnabled>
+                    {ingredients.filter(i => i.name.toLowerCase().includes(ingSearch.toLowerCase())).slice(0, 10).map(i => (
+                      <TouchableOpacity key={i.id} style={{ padding: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border, flexDirection: 'row', justifyContent: 'space-between' }} onPress={() => addOptionFromIngredient(i)}>
+                        <Text style={{ fontSize: 12, color: COLORS.text }}>{i.name}</Text>
+                        <Text style={{ fontSize: 10, color: COLORS.textMuted }}>{i.unit} · ${i.cost_per_unit}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+              {/* Or manual */}
+              <View style={{ flexDirection: 'row', gap: 8, marginTop: 8, alignItems: 'center' }}>
+                <TextInput style={[st.input, { flex: 1 }]} placeholder="O escribir nombre manual..." placeholderTextColor={COLORS.textMuted} value={oName} onChangeText={setOName} />
+                <TouchableOpacity style={[st.newBtn, { paddingVertical: 8 }]} onPress={addOptionManual}>
+                  <Text style={{ color: '#fff', fontWeight: '700', fontSize: 11 }}>+ Manual</Text>
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity style={[st.newBtn, { paddingVertical: 10 }]} onPress={addOption}>
-                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>+ Agregar</Text>
-              </TouchableOpacity>
             </View>
 
             {/* Linked Products */}
