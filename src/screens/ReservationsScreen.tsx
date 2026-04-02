@@ -1,8 +1,28 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Alert, Modal, StyleSheet } from 'react-native';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Alert, Modal, StyleSheet, Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { COLORS } from '../theme';
+
+// Sonido de notificación para nuevas reservas
+const playNotifSound = () => {
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      // Melodía corta: ding-dong
+      const play = (freq: number, start: number, dur: number) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.frequency.value = freq; osc.type = 'sine';
+        gain.gain.setValueAtTime(0.3, ctx.currentTime + start);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + start + dur);
+        osc.start(ctx.currentTime + start); osc.stop(ctx.currentTime + start + dur);
+      };
+      play(880, 0, 0.15); play(1100, 0.15, 0.2); play(1320, 0.3, 0.3);
+    } catch (e) {}
+  }
+};
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: string }> = {
   pendiente: { label: 'Pendiente', color: '#F5A623', icon: '⏳' },
@@ -31,6 +51,8 @@ export default function ReservationsScreen() {
   const [rNotas, setRNotas] = useState('');
   const [rMesa, setRMesa] = useState('');
 
+  const prevCountRef = useRef(0);
+
   const load = useCallback(async () => {
     setLoading(true);
     const now = new Date();
@@ -45,7 +67,14 @@ export default function ReservationsScreen() {
     else if (filter === 'semana') query = query.gte('fecha', today).lte('fecha', weekEnd);
 
     const { data } = await query;
-    setReservations(data || []);
+    const newData = data || [];
+    // Detectar nuevas reservas pendientes → sonar
+    const newPendientes = newData.filter((r: any) => r.status === 'pendiente').length;
+    if (prevCountRef.current > 0 && newPendientes > prevCountRef.current) {
+      playNotifSound();
+    }
+    prevCountRef.current = newPendientes;
+    setReservations(newData);
     setLoading(false);
   }, [filter]);
 
