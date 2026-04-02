@@ -298,66 +298,68 @@ export default function TableMapScreen({ onOpenOrder, onOpenEditor }: Props) {
         <View style={s.overlay}>
           <View style={s.modal}>
             <Text style={s.modalTitle}>Abrir Mesa {selectedTable?.number}</Text>
-            <Text style={s.label}>Nombre del cliente (opcional)</Text>
-            <TextInput style={s.input} placeholder="Buscar socio o escribir nombre..." placeholderTextColor={COLORS.textMuted} value={customerName} onChangeText={searchClients} />
-            {clientSuggestions.length > 0 && (
-              <View style={{ backgroundColor: COLORS.card, borderRadius: 8, marginBottom: 8, borderWidth: 1, borderColor: COLORS.border, maxHeight: 150 }}>
-                <ScrollView nestedScrollEnabled>
-                  {clientSuggestions.map((c: any) => (
-                    <TouchableOpacity key={c.id} style={{ padding: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }} onPress={() => pickClient(c)}>
-                      <View>
-                        <Text style={{ color: COLORS.text, fontSize: 14, fontWeight: '600' }}>{c.name}</Text>
-                        <Text style={{ color: COLORS.textMuted, fontSize: 11 }}>{c.phone || ''} · Socio #{c.member_number}</Text>
-                      </View>
-                      <Text style={{ color: COLORS.primary, fontSize: 11, fontWeight: '600' }}>{c.total_visits} visitas</Text>
+
+            {!showRegister ? (
+              <>
+                {/* ── Buscar socio ── */}
+                <Text style={s.label}>Buscar socio</Text>
+                <TextInput style={s.input} placeholder="Nombre, teléfono o RUT..." placeholderTextColor={COLORS.textMuted} value={customerName} onChangeText={searchClients} />
+                {clientSuggestions.length > 0 && (
+                  <View style={{ backgroundColor: COLORS.card, borderRadius: 8, marginBottom: 8, borderWidth: 1, borderColor: COLORS.border, maxHeight: 150 }}>
+                    <ScrollView nestedScrollEnabled>
+                      {clientSuggestions.map((c: any) => (
+                        <TouchableOpacity key={c.id} style={{ padding: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }} onPress={() => pickClient(c)}>
+                          <View>
+                            <Text style={{ color: COLORS.text, fontSize: 14, fontWeight: '600' }}>{c.name}</Text>
+                            <Text style={{ color: COLORS.textMuted, fontSize: 11 }}>{c.phone || ''} · Socio #{c.member_number}</Text>
+                          </View>
+                          <Text style={{ color: COLORS.primary, fontSize: 11, fontWeight: '600' }}>{c.total_visits} visitas</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+                {selectedClient && (
+                  <View style={{ backgroundColor: COLORS.primary + '15', borderRadius: 8, padding: 8, marginBottom: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={{ color: COLORS.primary, fontSize: 12, fontWeight: '600' }}>✅ Socio: {selectedClient.name} (#{selectedClient.member_number})</Text>
+                    <TouchableOpacity onPress={() => { setSelectedClient(null); setCustomerName(''); }}><Text style={{ color: COLORS.error, fontSize: 12 }}>✕</Text></TouchableOpacity>
+                  </View>
+                )}
+                {/* ── Botón "No está inscrito" ── */}
+                <TouchableOpacity style={{ borderWidth: 1, borderColor: COLORS.warning, borderRadius: 8, padding: 10, marginBottom: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: COLORS.warning + '10' }} onPress={openRegisterForm}>
+                  <Text style={{ fontSize: 14 }}>👤</Text>
+                  <Text style={{ color: COLORS.warning, fontSize: 13, fontWeight: '700' }}>No está inscrito — Registrar socio</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                {/* ── Formulario de registro ── */}
+                <View style={{ backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.primary + '40', borderRadius: 10, padding: 12, marginBottom: 8, gap: 10 }}>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.primary }}>📋 Registrar nuevo socio</Text>
+                  <View>
+                    <Text style={{ fontSize: 11, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 3 }}>Nombre *</Text>
+                    <TextInput style={s.input} value={regName} onChangeText={setRegName} placeholder="Nombre completo" placeholderTextColor={COLORS.textMuted} autoFocus />
+                  </View>
+                  <View>
+                    <Text style={{ fontSize: 11, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 3 }}>RUT *</Text>
+                    <TextInput style={s.input} value={regRut} onChangeText={(t) => setRegRut(formatRut(t))} placeholder="12.345.678-9" placeholderTextColor={COLORS.textMuted} />
+                  </View>
+                  <View>
+                    <Text style={{ fontSize: 11, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 3 }}>Celular *</Text>
+                    <TextInput style={s.input} value={regPhone} onChangeText={setRegPhone} placeholder="+56 9 1234 5678" placeholderTextColor={COLORS.textMuted} keyboardType="phone-pad" />
+                  </View>
+                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
+                    <TouchableOpacity style={{ flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center' }} onPress={() => setShowRegister(false)}>
+                      <Text style={{ color: COLORS.textSecondary, fontSize: 13, fontWeight: '600' }}>Volver a buscar</Text>
                     </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
+                    <TouchableOpacity style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: COLORS.primary, alignItems: 'center', opacity: regSaving ? 0.5 : 1 }} onPress={registerClient} disabled={regSaving}>
+                      <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>{regSaving ? 'Guardando...' : 'Registrar socio'}</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </>
             )}
-            {selectedClient && (
-              <View style={{ backgroundColor: COLORS.primary + '15', borderRadius: 8, padding: 8, marginBottom: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Text style={{ color: COLORS.primary, fontSize: 12, fontWeight: '600' }}>✅ Socio: {selectedClient.name} (#{selectedClient.member_number})</Text>
-                <TouchableOpacity onPress={() => { setSelectedClient(null); setCustomerName(''); setShowRegister(false); }}><Text style={{ color: COLORS.error, fontSize: 12 }}>✕</Text></TouchableOpacity>
-              </View>
-            )}
-            {/* Botón registrar socio: aparece cuando hay nombre escrito, sin coincidencias, sin socio seleccionado */}
-            {!selectedClient && !showRegister && customerName.length >= 2 && clientSuggestions.length === 0 && (
-              <TouchableOpacity style={{ backgroundColor: COLORS.info + '15', borderWidth: 1, borderColor: COLORS.info + '40', borderRadius: 8, padding: 10, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }} onPress={openRegisterForm}>
-                <Text style={{ fontSize: 18 }}>👤</Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: COLORS.info, fontSize: 13, fontWeight: '700' }}>Registrar como socio</Text>
-                  <Text style={{ color: COLORS.textMuted, fontSize: 11 }}>"{customerName}" no está registrado</Text>
-                </View>
-                <Text style={{ color: COLORS.info, fontSize: 16 }}>+</Text>
-              </TouchableOpacity>
-            )}
-            {/* Formulario de registro rápido */}
-            {showRegister && !selectedClient && (
-              <View style={{ backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.primary + '40', borderRadius: 10, padding: 12, marginBottom: 8, gap: 8 }}>
-                <Text style={{ fontSize: 13, fontWeight: '700', color: COLORS.primary }}>📋 Registro rápido de socio</Text>
-                <View>
-                  <Text style={{ fontSize: 11, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 3 }}>Nombre *</Text>
-                  <TextInput style={s.input} value={regName} onChangeText={setRegName} placeholder="Nombre completo" placeholderTextColor={COLORS.textMuted} />
-                </View>
-                <View>
-                  <Text style={{ fontSize: 11, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 3 }}>RUT *</Text>
-                  <TextInput style={s.input} value={regRut} onChangeText={(t) => setRegRut(formatRut(t))} placeholder="12.345.678-9" placeholderTextColor={COLORS.textMuted} />
-                </View>
-                <View>
-                  <Text style={{ fontSize: 11, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 3 }}>Celular *</Text>
-                  <TextInput style={s.input} value={regPhone} onChangeText={setRegPhone} placeholder="+56 9 1234 5678" placeholderTextColor={COLORS.textMuted} keyboardType="phone-pad" />
-                </View>
-                <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
-                  <TouchableOpacity style={{ flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center' }} onPress={() => setShowRegister(false)}>
-                    <Text style={{ color: COLORS.textSecondary, fontSize: 13, fontWeight: '600' }}>Cancelar</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: COLORS.primary, alignItems: 'center', opacity: regSaving ? 0.5 : 1 }} onPress={registerClient} disabled={regSaving}>
-                    <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>{regSaving ? 'Guardando...' : 'Registrar'}</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
+
             <Text style={s.label}>Cantidad de personas</Text>
             <TextInput style={s.input} placeholder="2" placeholderTextColor={COLORS.textMuted} keyboardType="number-pad" value={customerCount} onChangeText={setCustomerCount} />
             <View style={s.mBtns}>
