@@ -33,6 +33,15 @@ export default function PurchasesScreen({ onBack }: { onBack?: () => void }) {
 
   // Edit invoice
   const [editInvoice, setEditInvoice] = useState<any>(null);
+
+  // Manual purchase
+  const [manualModal, setManualModal] = useState(false);
+  const [manualSupplier, setManualSupplier] = useState('');
+  const [manualInvoiceNum, setManualInvoiceNum] = useState('');
+  const [manualPayMethod, setManualPayMethod] = useState<'efectivo' | 'transferencia' | 'debito' | 'credito_proveedor'>('efectivo');
+  const [manualItems, setManualItems] = useState<{ ingredient: any; qty: string; price: string; unit: string }[]>([]);
+  const [manualSearch, setManualSearch] = useState('');
+  const [manualNotes, setManualNotes] = useState('');
   const [searchIdx, setSearchIdx] = useState<number | null>(null);
   const [searchText, setSearchText] = useState('');
 
@@ -198,6 +207,68 @@ export default function PurchasesScreen({ onBack }: { onBack?: () => void }) {
     setSaving(false);
   };
 
+  // ═══ MANUAL PURCHASE ═══
+  const addManualItem = (ing: any) => {
+    if (manualItems.find(i => i.ingredient.id === ing.id)) return;
+    setManualItems(prev => [...prev, { ingredient: ing, qty: '', price: String(ing.cost_per_unit || 0), unit: ing.unit || 'kg' }]);
+    setManualSearch('');
+  };
+
+  const saveManualPurchase = async () => {
+    if (!user || manualItems.length === 0) { Alert.alert('', 'Agrega al menos un ítem'); return; }
+    setSaving(true);
+    try {
+      const subtotal = manualItems.reduce((a, i) => a + (parseFloat(i.qty) || 0) * (parseFloat(i.price) || 0), 0);
+      const iva = Math.round(subtotal * 0.19);
+      const total = subtotal + iva;
+      const suppObj = suppliers.find(s => s.id === manualSupplier);
+
+      const { data: inv, error: ie } = await supabase.from('purchase_invoices').insert({
+        supplier_id: manualSupplier || null,
+        invoice_number: manualInvoiceNum || null,
+        date: new Date().toLocaleDateString('en-CA'),
+        subtotal, iva, total,
+        payment_method: manualPayMethod,
+        notes: manualNotes || null,
+        created_by: user.id,
+      }).select('id').single();
+      if (ie) throw ie;
+
+      // Egreso en arqueo si efectivo
+      if (manualPayMethod === 'efectivo' && currentArqueo && total > 0) {
+        await supabase.from('cash_movements').insert({
+          cash_register_id: currentArqueo.id, type: 'gasto', amount: total,
+          description: `Compra: ${suppObj?.name || 'Proveedor'} #${manualInvoiceNum || 'S/N'}`,
+          created_by: user.id,
+        });
+      }
+
+      for (const item of manualItems) {
+        const qty = parseFloat(item.qty) || 0;
+        const unitPrice = parseFloat(item.price) || 0;
+        await supabase.from('purchase_items').insert({
+          invoice_id: inv.id, ingredient_id: item.ingredient.id,
+          quantity: qty, unit_price: unitPrice, purchase_unit: item.unit,
+          total_price: Math.round(qty * unitPrice), descripcion: item.ingredient.name,
+        });
+        // Actualizar stock
+        if (qty > 0) {
+          const { data: cur } = await supabase.from('ingredients').select('stock').eq('id', item.ingredient.id).single();
+          if (cur) {
+            const upd: any = { stock: (cur.stock || 0) + qty };
+            if (unitPrice > 0) upd.cost_per_unit = unitPrice;
+            await supabase.from('ingredients').update(upd).eq('id', item.ingredient.id);
+          }
+        }
+      }
+
+      Alert.alert('✅ Compra registrada', `${manualItems.length} ítems · ${fmt(total)}`);
+      setManualModal(false); setManualItems([]); setManualSupplier(''); setManualInvoiceNum(''); setManualNotes('');
+      await load();
+    } catch (e: any) { Alert.alert('Error', e.message); }
+    setSaving(false);
+  };
+
   // ═══ DELETE INVOICE ═══
   const deleteInvoice = async (inv: any) => {
     const ok = typeof window !== 'undefined' ? window.confirm(`¿Eliminar factura ${inv.invoice_number || 'S/N'}?`) : true;
@@ -214,12 +285,15 @@ export default function PurchasesScreen({ onBack }: { onBack?: () => void }) {
       {/* Header */}
       <View style={s.hdr}>
         <Text style={s.hdrT}>🧾 Compras</Text>
-        <View style={{ flexDirection: 'row', gap: 8 }}>
+        <View style={{ flexDirection: 'row', gap: 6 }}>
           <TouchableOpacity style={[s.btn, { backgroundColor: COLORS.primary }]} onPress={() => pickAndScan(true)}>
             <Text style={s.btnT}>📸 Escanear</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[s.btn, { backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border }]} onPress={() => pickAndScan(false)}>
             <Text style={[s.btnT, { color: COLORS.textSecondary }]}>🖼 Galería</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[s.btn, { backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.primary }]} onPress={() => { setManualItems([]); setManualSupplier(''); setManualInvoiceNum(''); setManualNotes(''); setManualPayMethod('efectivo'); setManualModal(true); }}>
+            <Text style={[s.btnT, { color: COLORS.primary }]}>✏️ Manual</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -363,20 +437,52 @@ export default function PurchasesScreen({ onBack }: { onBack?: () => void }) {
       {/* Invoice list */}
       {!scannedData && !scanning && (
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
-          <Text style={{ fontSize: 12, color: COLORS.textMuted, marginBottom: 8 }}>{invoices.length} facturas registradas</Text>
-          {invoices.map(inv => (
-            <TouchableOpacity key={inv.id} style={s.row} onPress={() => setDetailInvoice(inv)}>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 14, fontWeight: '600', color: COLORS.text }}>{inv.supplier?.name || inv.notes?.split('·')[0]?.replace('Escaneada por IA ', '').trim() || 'Sin proveedor'}</Text>
-                <Text style={{ fontSize: 11, color: COLORS.textMuted }}>{inv.invoice_number || 'S/N'} · {new Date(inv.created_at).toLocaleDateString('es-CL')} · {inv.items?.length || 0} items</Text>
+          {/* Stats */}
+          {invoices.length > 0 && (
+            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 12 }}>
+              <View style={[s.card, { flex: 1, alignItems: 'center' }]}>
+                <Text style={{ fontSize: 20, fontWeight: '800', color: COLORS.primary }}>{invoices.length}</Text>
+                <Text style={{ fontSize: 10, color: COLORS.textMuted }}>Facturas</Text>
               </View>
-              <Text style={{ fontSize: 15, fontWeight: '700', color: COLORS.primary }}>{fmt(inv.total)}</Text>
-            </TouchableOpacity>
-          ))}
+              <View style={[s.card, { flex: 1, alignItems: 'center' }]}>
+                <Text style={{ fontSize: 20, fontWeight: '800', color: COLORS.text }}>{fmt(invoices.reduce((a, i) => a + (i.total || 0), 0))}</Text>
+                <Text style={{ fontSize: 10, color: COLORS.textMuted }}>Total compras</Text>
+              </View>
+              <View style={[s.card, { flex: 1, alignItems: 'center' }]}>
+                <Text style={{ fontSize: 20, fontWeight: '800', color: COLORS.text }}>{invoices.reduce((a, i) => a + (i.items?.length || 0), 0)}</Text>
+                <Text style={{ fontSize: 10, color: COLORS.textMuted }}>Items</Text>
+              </View>
+            </View>
+          )}
+          {/* Table header */}
+          {invoices.length > 0 && (
+            <View style={{ flexDirection: 'row', paddingHorizontal: 14, paddingVertical: 8, borderBottomWidth: 2, borderBottomColor: COLORS.border }}>
+              <Text style={{ flex: 1, fontSize: 10, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 0.5 }}>PROVEEDOR</Text>
+              <Text style={{ width: 80, fontSize: 10, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 0.5 }}>FECHA</Text>
+              <Text style={{ width: 50, fontSize: 10, fontWeight: '700', color: COLORS.textMuted, textAlign: 'center' }}>ITEMS</Text>
+              <Text style={{ width: 60, fontSize: 10, fontWeight: '700', color: COLORS.textMuted, textAlign: 'center' }}>PAGO</Text>
+              <Text style={{ width: 90, fontSize: 10, fontWeight: '700', color: COLORS.textMuted, textAlign: 'right' }}>TOTAL</Text>
+            </View>
+          )}
+          {invoices.map((inv, i) => {
+            const provName = inv.supplier?.name || inv.notes?.match(/Proveedor:\s*([^·|]+)/)?.[1]?.trim() || 'Sin proveedor';
+            return (
+              <TouchableOpacity key={inv.id} style={[s.row, { borderRadius: 0, borderWidth: 0, borderBottomWidth: 1, borderBottomColor: COLORS.border, marginVertical: 0, backgroundColor: i % 2 === 0 ? COLORS.card : COLORS.background }]} onPress={() => setDetailInvoice(inv)}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.text }} numberOfLines={1}>{provName}</Text>
+                  <Text style={{ fontSize: 10, color: COLORS.textMuted }}>{inv.invoice_number || 'S/N'}</Text>
+                </View>
+                <Text style={{ width: 80, fontSize: 11, color: COLORS.textSecondary }}>{new Date(inv.created_at).toLocaleDateString('es-CL')}</Text>
+                <Text style={{ width: 50, fontSize: 12, color: COLORS.textSecondary, textAlign: 'center' }}>{inv.items?.length || 0}</Text>
+                <Text style={{ width: 60, fontSize: 10, color: COLORS.textMuted, textAlign: 'center' }}>{(inv.payment_method || '').slice(0, 6)}</Text>
+                <Text style={{ width: 90, fontSize: 13, fontWeight: '700', color: COLORS.primary, textAlign: 'right' }}>{fmt(inv.total)}</Text>
+              </TouchableOpacity>
+            );
+          })}
           {invoices.length === 0 && (
             <View style={{ alignItems: 'center', paddingTop: 60 }}>
               <Text style={{ fontSize: 40 }}>📸</Text>
-              <Text style={{ color: COLORS.textMuted, marginTop: 8 }}>Escanea tu primera factura con el botón de arriba</Text>
+              <Text style={{ color: COLORS.textMuted, marginTop: 8, textAlign: 'center' }}>Escanea una factura, sube de galería{'\n'}o ingresa manualmente</Text>
             </View>
           )}
         </ScrollView>
@@ -419,6 +525,89 @@ export default function PurchasesScreen({ onBack }: { onBack?: () => void }) {
           </View>
         </ScrollView></View>
       </Modal>
+      {/* Manual purchase modal */}
+      <Modal visible={manualModal} animationType="slide"><View style={s.c}>
+        <View style={s.hdr}>
+          <TouchableOpacity onPress={() => setManualModal(false)}><Text style={{ color: COLORS.error, fontWeight: '600' }}>✕ Cancelar</Text></TouchableOpacity>
+          <Text style={{ fontSize: 15, fontWeight: '700', color: COLORS.text }}>Compra Manual</Text>
+          <View style={{ width: 60 }} />
+        </View>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 120 }}>
+          {/* Proveedor */}
+          <Text style={s.lb}>Proveedor</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 38, marginBottom: 8 }}>
+            {suppliers.map(sup => (
+              <TouchableOpacity key={sup.id} onPress={() => setManualSupplier(sup.id)}
+                style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, backgroundColor: manualSupplier === sup.id ? COLORS.primary : COLORS.card, borderWidth: 1, borderColor: manualSupplier === sup.id ? COLORS.primary : COLORS.border, marginRight: 6 }}>
+                <Text style={{ fontSize: 11, fontWeight: '600', color: manualSupplier === sup.id ? '#fff' : COLORS.textSecondary }}>{sup.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+          <Text style={s.lb}>N° Factura</Text>
+          <TextInput style={s.inp} value={manualInvoiceNum} onChangeText={setManualInvoiceNum} placeholder="Ej: F-001234" placeholderTextColor={COLORS.textMuted} />
+          <Text style={s.lb}>Método de pago</Text>
+          <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+            {([['efectivo', '💵 Efectivo'], ['transferencia', '📱 Transfer'], ['debito', '💳 Débito'], ['credito_proveedor', '📋 Crédito']] as const).map(([k, l]) => (
+              <TouchableOpacity key={k} onPress={() => setManualPayMethod(k)}
+                style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, backgroundColor: manualPayMethod === k ? COLORS.primary : COLORS.card, borderWidth: 1, borderColor: manualPayMethod === k ? COLORS.primary : COLORS.border }}>
+                <Text style={{ fontSize: 11, fontWeight: '600', color: manualPayMethod === k ? '#fff' : COLORS.textSecondary }}>{l}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Buscar ingrediente */}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: COLORS.textSecondary }}>ITEMS ({manualItems.length})</Text>
+          </View>
+          <TextInput style={[s.inp, { marginTop: 6, marginBottom: 4 }]} value={manualSearch} onChangeText={setManualSearch} placeholder="🔍 Buscar ingrediente para agregar..." placeholderTextColor={COLORS.textMuted} />
+          {manualSearch.length >= 2 && (
+            <View style={{ backgroundColor: COLORS.card, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, maxHeight: 120, marginBottom: 8 }}>
+              <ScrollView nestedScrollEnabled>
+                {ingredients.filter(i => i.name.toLowerCase().includes(manualSearch.toLowerCase())).slice(0, 10).map(i => (
+                  <TouchableOpacity key={i.id} style={{ padding: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border, flexDirection: 'row', justifyContent: 'space-between' }} onPress={() => addManualItem(i)}>
+                    <Text style={{ fontSize: 13, color: COLORS.text }}>{i.name}</Text>
+                    <Text style={{ fontSize: 11, color: COLORS.textMuted }}>{i.unit} · ${i.cost_per_unit || 0}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
+
+          {/* Items list */}
+          {manualItems.map((item, idx) => (
+            <View key={item.ingredient.id} style={[s.card, { borderLeftWidth: 3, borderLeftColor: COLORS.success }]}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.text }}>{item.ingredient.name}</Text>
+                <TouchableOpacity onPress={() => setManualItems(prev => prev.filter((_, i) => i !== idx))}><Text style={{ color: COLORS.error }}>✕</Text></TouchableOpacity>
+              </View>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <View style={{ flex: 1 }}><Text style={s.lb}>Cantidad</Text><TextInput style={s.inp} value={item.qty} onChangeText={v => setManualItems(prev => prev.map((x, i) => i === idx ? { ...x, qty: v } : x))} keyboardType="decimal-pad" placeholder="0" placeholderTextColor={COLORS.textMuted} /></View>
+                <View style={{ flex: 1 }}><Text style={s.lb}>Unidad</Text><TextInput style={s.inp} value={item.unit} onChangeText={v => setManualItems(prev => prev.map((x, i) => i === idx ? { ...x, unit: v } : x))} /></View>
+                <View style={{ flex: 1 }}><Text style={s.lb}>P.Unit (neto)</Text><TextInput style={s.inp} value={item.price} onChangeText={v => setManualItems(prev => prev.map((x, i) => i === idx ? { ...x, price: v } : x))} keyboardType="number-pad" /></View>
+                <View style={{ flex: 1, justifyContent: 'flex-end' }}><Text style={{ fontSize: 13, fontWeight: '700', color: COLORS.primary, textAlign: 'right' }}>{fmt(Math.round((parseFloat(item.qty) || 0) * (parseFloat(item.price) || 0)))}</Text></View>
+              </View>
+            </View>
+          ))}
+
+          {manualItems.length > 0 && (
+            <View style={[s.card, { marginTop: 8 }]}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 }}><Text style={{ color: COLORS.textSecondary }}>Subtotal</Text><Text style={{ fontWeight: '600' }}>{fmt(manualItems.reduce((a, i) => a + (parseFloat(i.qty) || 0) * (parseFloat(i.price) || 0), 0))}</Text></View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 }}><Text style={{ color: COLORS.textSecondary }}>IVA 19%</Text><Text style={{ fontWeight: '600' }}>{fmt(Math.round(manualItems.reduce((a, i) => a + (parseFloat(i.qty) || 0) * (parseFloat(i.price) || 0), 0) * 0.19))}</Text></View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, borderTopWidth: 2, borderTopColor: COLORS.primary, marginTop: 4 }}><Text style={{ fontSize: 16, fontWeight: '800' }}>TOTAL</Text><Text style={{ fontSize: 16, fontWeight: '800', color: COLORS.primary }}>{fmt(Math.round(manualItems.reduce((a, i) => a + (parseFloat(i.qty) || 0) * (parseFloat(i.price) || 0), 0) * 1.19))}</Text></View>
+            </View>
+          )}
+
+          <Text style={s.lb}>Notas</Text>
+          <TextInput style={s.inp} value={manualNotes} onChangeText={setManualNotes} placeholder="Observaciones" placeholderTextColor={COLORS.textMuted} />
+        </ScrollView>
+        {manualItems.length > 0 && (
+          <View style={{ padding: 16, backgroundColor: COLORS.card, borderTopWidth: 1, borderTopColor: COLORS.border }}>
+            <TouchableOpacity style={[s.btn, { backgroundColor: COLORS.primary, paddingVertical: 16, opacity: saving ? 0.5 : 1 }]} onPress={saveManualPurchase} disabled={saving}>
+              <Text style={[s.btnT, { fontSize: 15 }]}>{saving ? 'Guardando...' : `💾 Registrar (${manualItems.length} ítems)`}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View></Modal>
     </View>
   );
 }
