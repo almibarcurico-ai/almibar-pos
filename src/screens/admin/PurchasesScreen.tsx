@@ -84,17 +84,26 @@ export default function PurchasesScreen({ onBack }: { onBack?: () => void }) {
       const data = await res.json();
       setScannedData(data);
 
-      // Match items with ingredients
+      // Match items with ingredients (priorizar coincidencia de nombre + unidad)
       const items: ScannedItem[] = (data.items || []).map((item: any) => {
         const desc = (item.descripcion || '').toLowerCase().trim();
+        const itemUnit = (item.unidad || '').toLowerCase();
+        // 1. Exact name match
         let match = ingredients.find(i => i.name.toLowerCase() === desc);
-        if (!match) match = ingredients.find(i => desc.includes(i.name.toLowerCase()) || i.name.toLowerCase().includes(desc));
+        // 2. Contains match — prefer same unit
         if (!match) {
-          const words = desc.split(/\s+/);
-          match = ingredients.find(i => {
+          const candidates = ingredients.filter(i => desc.includes(i.name.toLowerCase()) || i.name.toLowerCase().includes(desc));
+          match = candidates.find(c => c.unit?.toLowerCase() === itemUnit) || candidates[0];
+        }
+        // 3. Word match — prefer same unit, require 2+ common words
+        if (!match) {
+          const words = desc.split(/\s+/).filter((w: string) => w.length > 3);
+          const candidates = ingredients.filter(i => {
             const iw = i.name.toLowerCase().split(/\s+/);
-            return words.filter((w: string) => w.length > 3 && iw.some((x: string) => x.includes(w) || w.includes(x))).length >= 1;
+            const common = words.filter((w: string) => iw.some((x: string) => x.includes(w) || w.includes(x)));
+            return common.length >= 2;
           });
+          match = candidates.find(c => c.unit?.toLowerCase() === itemUnit) || candidates[0];
         }
         return { ...item, matched: match || null, is_new: !match, create_new: false };
       });
