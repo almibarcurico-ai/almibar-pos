@@ -663,10 +663,19 @@ function ArqueosTab() {
   // Modals
   const [openModal, setOpenModal] = useState(false);
   const [openingAmount, setOpeningAmount] = useState('');
-  const [openFecha, setOpenFecha] = useState(new Date().toISOString().split('T')[0]);
+  const [openFecha, setOpenFecha] = useState(new Date().toLocaleDateString('en-CA'));
   const [openHora, setOpenHora] = useState(new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false }));
   const [closeModal, setCloseModal] = useState(false);
   const [movModal, setMovModal] = useState(false);
+  const [editModal, setEditModal] = useState(false);
+  const [editArqueo, setEditArqueo] = useState<any>(null);
+  const [editFecha, setEditFecha] = useState('');
+  const [editHora, setEditHora] = useState('');
+  const [editMonto, setEditMonto] = useState('');
+  const [editCloseFecha, setEditCloseFecha] = useState('');
+  const [editCloseHora, setEditCloseHora] = useState('');
+  const [editCloseMonto, setEditCloseMonto] = useState('');
+  const [editNotas, setEditNotas] = useState('');
   const [detailArqueo, setDetailArqueo] = useState<any>(null);
   const [detailOrders, setDetailOrders] = useState<any[]>([]);
   const [detailMovs, setDetailMovs] = useState<any[]>([]);
@@ -833,6 +842,44 @@ function ArqueosTab() {
 
   const delMov = (id: string) => Alert.alert('Eliminar', '¿Seguro?', [{ text: 'No' }, { text: 'Sí', style: 'destructive', onPress: async () => { await supabase.from('cash_movements').delete().eq('id', id); await loadData(); } }]);
 
+  const openEditArqueo = (arqueo: any) => {
+    setEditArqueo(arqueo);
+    const oa = new Date(arqueo.opened_at);
+    setEditFecha(oa.toLocaleDateString('en-CA'));
+    setEditHora(oa.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false }));
+    setEditMonto(String(arqueo.opening_amount || 0));
+    if (arqueo.closed_at) {
+      const ca = new Date(arqueo.closed_at);
+      setEditCloseFecha(ca.toLocaleDateString('en-CA'));
+      setEditCloseHora(ca.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false }));
+      setEditCloseMonto(String(arqueo.closing_amount || 0));
+    } else {
+      setEditCloseFecha(''); setEditCloseHora(''); setEditCloseMonto('');
+    }
+    setEditNotas(arqueo.notes || '');
+    setEditModal(true);
+  };
+
+  const saveEditArqueo = async () => {
+    if (!editArqueo) return;
+    const openDT = new Date(editFecha + 'T' + editHora + ':00');
+    const update: any = {
+      opened_at: openDT.toISOString(),
+      opening_amount: parseInt(editMonto) || 0,
+      notes: editNotas.trim() || null,
+    };
+    if (editArqueo.closed_at && editCloseFecha && editCloseHora) {
+      const closeDT = new Date(editCloseFecha + 'T' + editCloseHora + ':00');
+      update.closed_at = closeDT.toISOString();
+      update.closing_amount = parseInt(editCloseMonto) || 0;
+    }
+    const { error } = await supabase.from('cash_registers').update(update).eq('id', editArqueo.id);
+    if (error) { Alert.alert('Error', error.message); return; }
+    setEditModal(false); setEditArqueo(null);
+    Alert.alert('✅ Arqueo actualizado');
+    await loadData();
+  };
+
   if (loading) return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: COLORS.textMuted }}>Cargando...</Text></View>;
 
   return (
@@ -846,6 +893,9 @@ function ArqueosTab() {
           </TouchableOpacity>
         ) : (
           <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TouchableOpacity style={[s.fChip, { backgroundColor: COLORS.info + '15', borderColor: COLORS.info + '40' }]} onPress={() => openEditArqueo(cashRegister)}>
+              <Text style={{ fontSize: 12, fontWeight: '600', color: COLORS.info }}>✏️ Editar</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={[s.fChip, s.fChipA]} onPress={() => { setMovType('gasto'); setMovAmount(''); setMovDesc(''); setMovModal(true); }}>
               <Text style={s.fChipTA}>📤 Egreso</Text>
             </TouchableOpacity>
@@ -927,7 +977,8 @@ function ArqueosTab() {
                     </View>
                   )}
                 </View>
-                <Text style={[s.tblC, { width: 70, fontSize: 11 }]}>Ver →</Text>
+                <TouchableOpacity onPress={(e) => { e.stopPropagation(); openEditArqueo(h); }} style={{ width: 35, alignItems: 'center' }}><Text style={{ fontSize: 14 }}>✏️</Text></TouchableOpacity>
+                <Text style={[s.tblC, { width: 35, fontSize: 11 }]}>→</Text>
               </TouchableOpacity>
             );
           })}
@@ -1123,6 +1174,36 @@ function ArqueosTab() {
             </View>
           </View>
         </ScrollView></View>
+      </Modal>
+
+      {/* MODAL: Editar Arqueo */}
+      <Modal visible={editModal} transparent animationType="fade">
+        <View style={s.ov}><View style={s.md}>
+          <Text style={[s.mdT, { color: COLORS.info }]}>✏️ EDITAR ARQUEO</Text>
+          <Text style={s.lb}>Fecha apertura</Text>
+          <TextInput style={s.inp} value={editFecha} onChangeText={setEditFecha} placeholder="2026-04-01" placeholderTextColor={COLORS.textMuted} />
+          <Text style={s.lb}>Hora apertura</Text>
+          <TextInput style={s.inp} value={editHora} onChangeText={setEditHora} placeholder="17:00" placeholderTextColor={COLORS.textMuted} />
+          <Text style={s.lb}>Monto inicial</Text>
+          <TextInput style={s.inp} value={editMonto} onChangeText={setEditMonto} placeholder="0" placeholderTextColor={COLORS.textMuted} keyboardType="number-pad" />
+          {editArqueo?.closed_at && (<>
+            <View style={{ borderTopWidth: 1, borderTopColor: COLORS.border, marginVertical: 10, paddingTop: 10 }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 6 }}>DATOS DE CIERRE</Text>
+            </View>
+            <Text style={s.lb}>Fecha cierre</Text>
+            <TextInput style={s.inp} value={editCloseFecha} onChangeText={setEditCloseFecha} placeholder="2026-04-01" placeholderTextColor={COLORS.textMuted} />
+            <Text style={s.lb}>Hora cierre</Text>
+            <TextInput style={s.inp} value={editCloseHora} onChangeText={setEditCloseHora} placeholder="23:00" placeholderTextColor={COLORS.textMuted} />
+            <Text style={s.lb}>Monto cierre (usuario)</Text>
+            <TextInput style={s.inp} value={editCloseMonto} onChangeText={setEditCloseMonto} placeholder="0" placeholderTextColor={COLORS.textMuted} keyboardType="number-pad" />
+          </>)}
+          <Text style={s.lb}>Notas</Text>
+          <TextInput style={[s.inp, { minHeight: 50 }]} value={editNotas} onChangeText={setEditNotas} placeholder="Notas opcionales..." placeholderTextColor={COLORS.textMuted} multiline />
+          <View style={s.mBs}>
+            <TouchableOpacity style={s.bC} onPress={() => { setEditModal(false); setEditArqueo(null); }}><Text style={s.bCT}>Cancelar</Text></TouchableOpacity>
+            <TouchableOpacity style={[s.bOk, { backgroundColor: COLORS.info }]} onPress={saveEditArqueo}><Text style={s.bOkT}>Guardar cambios</Text></TouchableOpacity>
+          </View>
+        </View></View>
       </Modal>
 
       {/* MODAL: Detalle Arqueo Cerrado */}
