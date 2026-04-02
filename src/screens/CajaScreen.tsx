@@ -1288,7 +1288,12 @@ function ArqueosTab() {
         <View style={s.ov}><ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 16 }}><View style={[s.md, { maxWidth: 700, width: '95%', maxHeight: '90%' }]}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <Text style={s.mdT}>Detalle Arqueo</Text>
-            <TouchableOpacity onPress={() => setDetailArqueo(null)}><Text style={{ fontSize: 20, color: COLORS.textMuted }}>✕</Text></TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+              <TouchableOpacity style={{ backgroundColor: COLORS.info + '15', borderWidth: 1, borderColor: COLORS.info + '40', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 }} onPress={() => { const a = detailArqueo; setDetailArqueo(null); openEditArqueo(a); }}>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.info }}>✏️ Editar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setDetailArqueo(null)}><Text style={{ fontSize: 20, color: COLORS.textMuted }}>✕</Text></TouchableOpacity>
+            </View>
           </View>
 
           {detailArqueo && (<>
