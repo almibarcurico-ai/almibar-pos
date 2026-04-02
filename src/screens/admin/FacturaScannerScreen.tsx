@@ -61,7 +61,7 @@ export default function FacturaScannerScreen() {
   const scanInvoice = async (base64: string) => {
     setStep('scanning'); setError(null);
     try {
-      const res = await fetch(`${SUPA_URL}/functions/v1/scan-invoice`, {
+      const res = await fetch(`${SUPA_URL}/functions/v1/invoice-scan`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPA_KEY}` },
         body: JSON.stringify({ image_base64: base64 }),
