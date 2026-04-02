@@ -52,7 +52,7 @@ export default function ProductionScreen() {
   };
 
   // Calculate cost from recipe
-  const recipeCost = recipeItems.reduce((a, ri) => a + (ri.ingredient?.cost_per_unit || 0) * (ri.quantity || 0), 0);
+  const recipeCost = recipeItems.reduce((a, ri) => a + (ri.ingredient?.cost_per_unit || 0) * (parseFloat(ri.quantity) || 0), 0);
 
   // Add ingredient to recipe
   const addToRecipe = async (ing: any) => {
@@ -67,17 +67,20 @@ export default function ProductionScreen() {
     setRecipeItems(updRecs);
   };
 
-  const updateRecipeQty = async (recipeId: string, qty: number) => {
-    if (qty <= 0) {
-      await supabase.from('production_recipes').delete().eq('id', recipeId);
-    } else {
-      await supabase.from('production_recipes').update({ quantity: qty }).eq('id', recipeId);
-    }
+  const updateRecipeField = (recipeId: string, field: string, value: any) => {
+    setRecipeItems(prev => prev.map(ri => ri.id === recipeId ? { ...ri, [field]: value } : ri));
+  };
+
+  const saveRecipeItem = async (recipeId: string) => {
+    const ri = recipeItems.find(r => r.id === recipeId);
+    if (!ri) return;
+    await supabase.from('production_recipes').update({ quantity: parseFloat(ri.quantity) || 0, unit: ri.unit || 'g' }).eq('id', recipeId);
+  };
+
+  const deleteRecipeItem = async (recipeId: string) => {
+    await supabase.from('production_recipes').delete().eq('id', recipeId);
+    setRecipeItems(prev => prev.filter(ri => ri.id !== recipeId));
     await load();
-    if (selected) {
-      const updRecs = (await supabase.from('production_recipes').select('*, ingredient:ingredient_id(name, unit, cost_per_unit)').eq('production_ingredient_id', selected.id)).data || [];
-      setRecipeItems(updRecs);
-    }
   };
 
   // Produce: deduct ingredients, add to production stock
@@ -183,10 +186,10 @@ export default function ProductionScreen() {
             {recipeItems.map(ri => (
               <View key={ri.id} style={st.recipeRow}>
                 <Text style={{ flex: 1, fontSize: 13, fontWeight: '600', color: COLORS.text }}>{ri.ingredient?.name}</Text>
-                <TextInput style={[st.qtyInput, { width: 60 }]} value={String(ri.quantity)} onChangeText={v => updateRecipeQty(ri.id, parseFloat(v) || 0)} keyboardType="decimal-pad" />
-                <Text style={{ fontSize: 11, color: COLORS.textMuted, width: 40 }}>{ri.ingredient?.unit}</Text>
-                <Text style={{ fontSize: 12, fontWeight: '600', color: COLORS.text, width: 70, textAlign: 'right' }}>{fmt((ri.ingredient?.cost_per_unit || 0) * ri.quantity)}</Text>
-                <TouchableOpacity onPress={() => updateRecipeQty(ri.id, 0)} style={{ marginLeft: 8 }}><Text style={{ color: COLORS.error }}>✕</Text></TouchableOpacity>
+                <TextInput style={[st.qtyInput, { width: 70 }]} value={String(ri.quantity)} onChangeText={v => updateRecipeField(ri.id, 'quantity', v)} onBlur={() => saveRecipeItem(ri.id)} keyboardType="decimal-pad" />
+                <TextInput style={[st.qtyInput, { width: 50 }]} value={ri.unit || ri.ingredient?.unit || 'g'} onChangeText={v => updateRecipeField(ri.id, 'unit', v)} onBlur={() => saveRecipeItem(ri.id)} />
+                <Text style={{ fontSize: 12, fontWeight: '600', color: COLORS.text, width: 80, textAlign: 'right' }}>{fmt((ri.ingredient?.cost_per_unit || 0) * (parseFloat(ri.quantity) || 0))}</Text>
+                <TouchableOpacity onPress={() => deleteRecipeItem(ri.id)} style={{ marginLeft: 8 }}><Text style={{ color: COLORS.error, fontSize: 16 }}>✕</Text></TouchableOpacity>
               </View>
             ))}
             {recipeItems.length > 0 && (
