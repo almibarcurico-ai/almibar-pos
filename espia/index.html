@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inteligencia Competitiva — Almíbar & Pangoa</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',sans-serif;background:#0f0f13;color:#e0e0e0;min-height:100vh}
+  .topbar{background:#18181f;border-bottom:1px solid #2a2a35;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+  .topbar h1{font-size:18px;font-weight:800;color:#fff;letter-spacing:1px}
+  .topbar .badge{background:#c8952a;color:#000;font-size:10px;font-weight:800;padding:3px 8px;border-radius:4px;letter-spacing:1px}
+  .tabs{display:flex;gap:0;background:#18181f;border-bottom:1px solid #2a2a35;padding:0 24px;position:sticky;top:57px;z-index:99}
+  .tab{padding:12px 20px;font-size:13px;font-weight:600;color:#666;cursor:pointer;border-bottom:2px solid transparent;transition:all .2s}
+  .tab:hover{color:#aaa}
+  .tab.active{color:#c8952a;border-bottom-color:#c8952a}
+  .content{padding:24px;max-width:1400px;margin:0 auto}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:16px;margin-bottom:24px}
+  .card{background:#18181f;border:1px solid #2a2a35;border-radius:12px;padding:18px;transition:border-color .2s}
+  .card:hover{border-color:#c8952a40}
+  .card-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
+  .card-name{font-size:16px;font-weight:700;color:#fff}
+  .card-type{font-size:11px;color:#888;margin-top:2px}
+  .card-rating{background:#c8952a20;color:#c8952a;font-size:12px;font-weight:700;padding:4px 8px;border-radius:6px;white-space:nowrap}
+  .card-links{display:flex;gap:8px;margin:10px 0;flex-wrap:wrap}
+  .card-links a{font-size:11px;text-decoration:none;padding:4px 10px;border-radius:6px;border:1px solid;transition:all .2s}
+  .card-links a.ig{color:#e05a9f;background:#e05a9f10;border-color:#e05a9f30}
+  .card-links a.web{color:#4caf7d;background:#4caf7d10;border-color:#4caf7d30}
+  .card-links a.fb{color:#5a9fe0;background:#5a9fe010;border-color:#5a9fe030}
+  .card-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+  .tag{font-size:10px;font-weight:600;padding:3px 8px;border-radius:4px;background:#ffffff08;color:#aaa;border:1px solid #ffffff10}
+  .tag.yes{background:#4caf7d15;color:#4caf7d;border-color:#4caf7d30}
+  .tag.price{background:#c8952a15;color:#c8952a;border-color:#c8952a30}
+  .tag.followers{background:#e05a9f15;color:#e05a9f;border-color:#e05a9f30}
+  .tag.threat{background:#ef444415;color:#ef4444;border-color:#ef444430}
+  .tag.reviews{background:#5a9fe015;color:#5a9fe0;border-color:#5a9fe030}
+  .card-insight{font-size:12px;color:#999;margin-top:10px;line-height:1.6;border-top:1px solid #ffffff08;padding-top:10px}
+  .section-title{font-size:18px;font-weight:800;color:#fff;margin:24px 0 16px;display:flex;align-items:center;gap:10px}
+  .section-title span{font-size:11px;font-weight:600;color:#888;background:#ffffff08;padding:4px 10px;border-radius:6px}
+  .stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:24px}
+  .stat{background:#18181f;border:1px solid #2a2a35;border-radius:10px;padding:16px;text-align:center}
+  .stat-value{font-size:26px;font-weight:900;color:#c8952a}
+  .stat-label{font-size:10px;color:#888;margin-top:4px;font-weight:600;text-transform:uppercase;letter-spacing:1px}
+  .cmp-table{width:100%;border-collapse:collapse;margin:16px 0}
+  .cmp-table th{text-align:left;font-size:11px;font-weight:700;color:#888;padding:8px 12px;border-bottom:2px solid #2a2a35;text-transform:uppercase;letter-spacing:1px}
+  .cmp-table td{font-size:13px;padding:10px 12px;border-bottom:1px solid #1f1f28;color:#ccc}
+  .cmp-table tr:hover td{background:#ffffff05}
+  .check{color:#4caf7d;font-weight:600}.cross{color:#333}
+  .updated{font-size:11px;color:#555;text-align:center;padding:24px;border-top:1px solid #1a1a22;margin-top:32px}
+  ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:#0f0f13}::-webkit-scrollbar-thumb{background:#c8952a40;border-radius:3px}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>🔍 INTELIGENCIA COMPETITIVA</h1>
+  <div class="badge">REPORTE 01/04/2026</div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="showTab('curico',this)">🍣 Curicó — Almíbar</div>
+  <div class="tab" onclick="showTab('talca',this)">🇵🇪 Talca — Pangoa</div>
+  <div class="tab" onclick="showTab('compare',this)">📊 Comparativa</div>
+  <div class="tab" onclick="showTab('instagram',this)">📸 Instagram Deep</div>
+  <div class="tab" onclick="showTab('reviews',this)">💬 Reseñas Clientes</div>
+</div>
+
+<!-- ══════════ CURICÓ ══════════ -->
+<div id="curico" class="content">
+  <div class="stats">
+    <div class="stat"><div class="stat-value">6</div><div class="stat-label">Competidores directos</div></div>
+    <div class="stat"><div class="stat-value">20K</div><div class="stat-label">Máx seguidores (Novu)</div></div>
+    <div class="stat"><div class="stat-value">4.5⭐</div><div class="stat-label">Mejor rating (Ando)</div></div>
+    <div class="stat"><div class="stat-value">955</div><div class="stat-label">Máx reseñas (San Pancho)</div></div>
+  </div>
+
+  <div class="section-title">Competidores Directos <span>Seleccionados por Almíbar</span></div>
+  <div class="grid">
+
+    <!-- NOVU -->
+    <div class="card">
+      <div class="card-header">
+        <div><div class="card-name">Novu Restobar</div><div class="card-type">Restobar — Carrera 301, Plaza San Francisco</div></div>
+        <div class="card-rating">—</div>
+      </div>
+      <div class="card-links">
+        <a href="https://www.instagram.com/novu_cl/" target="_blank" class="ig">📸 @novu_cl</a>
+        <a href="https://www.novu.cl/" target="_blank" class="web">🌐 novu.cl</a>
+        <a href="https://www.facebook.com/p/Novu-100064762789638/" target="_blank" class="fb">📘 Facebook</a>
+      </div>
+      <div class="card-tags">
+        <div class="tag followers">20K seguidores</div>
+        <div class="tag yes">Producto fresco</div><div class="tag yes">Terraza</div><div class="tag yes">Bar</div>
+        <div class="tag price">$$-$$$</div><div class="tag threat">⚠ Líder digital</div>
+      </div>
+      <div class="card-insight">Mayor presencia IG de Curicó (20K). Menú variable con producto de mercado. 2 locales (Curicó + Santa Cruz). Abierto desde mediodía. Beneficio Itaú Martes Gourmet. Delivery por Rappi. 938 visitas en Facebook.</div>
+    </div>
+
+    <!-- SAN PANCHO -->
+    <div class="card">
+      <div class="card-header">
+        <div><div class="card-name">San Pancho Bar</div><div class="card-type">Bar & Grill — Francisco Moreno 456</div></div>
+        <div class="card-rating">4.3 ⭐</div>
+      </div>
+      <div class="card-links">
+        <a href="https://www.instagram.com/sanpancho.cl/" target="_blank" class="ig">📸 @sanpancho.cl</a>
+      </div>
+      <div class="card-tags">
+        <div class="tag followers">12K seguidores</div><div class="tag reviews">955 reseñas Google</div>
+        <div class="tag yes">Parrilla</div><div class="tag yes">Sushi</div><div class="tag yes">Cocktails</div>
+        <div class="tag price">$$</div><div class="tag threat">⚠ Más reseñas</div>
+      </div>
+      <div class="card-insight">955 reseñas en Google — el más reseñado. Misma calle que Almíbar (Fco. Moreno 456 vs 418). Lun-Jue 17-02:00, Vie-Sáb hasta 04:00. Delivery por Rappi. Sushi + parrilla + bar.</div>
+    </div>
+
+    <!-- ALBAR -->
+    <div class="card">
+      <div class="card-header">
+        <div><div class="card-name">Albar Pizzería y Bar</div><div class="card-type">Pizzería / Bar — Carrera 255</div></div>
+        <div class="card-rating">—</div>
+      </div>
+      <div class="card-links">
+        <a href="https://www.instagram.com/albarcurico/" target="_blank" class="ig">📸 @albarcurico</a>
+      </div>
+      <div class="card-tags">
+        <div class="tag followers">11K seguidores</div>
+        <div class="tag yes">Pizza</div><div class="tag yes">Bar</div><div class="tag yes">Compartir</div>
+        <div class="tag price">$$</div>
+      </div>
+      <div class="card-insight">Pizza + tragos en Plaza San Francisco. Lun-Jue 18-00:00, Vie-Sáb hasta 01:00. 264 posts en IG — contenido frecuente. Competencia directa en pizza y bar nocturno.</div>
+    </div>
+
+    <!-- ANDO -->
+    <div class="card">
+      <div class="card-header">
+        <div><div class="card-name">Ando Nikkei + Chifa</div><div class="card-type">Restaurante Nikkei — Francisco Moreno 470</div></div>
+        <div class="card-rating">4.5 ⭐</div>
+      </div>
+      <div class="card-links">
+        <a href="https://www.instagram.com/andonikkeichifa/" target="_blank" class="ig">📸 @andonikkeichifa</a>
+        <a href="https://www.facebook.com/ando.nikkeichifa/" target="_blank" class="fb">📘 6.5K likes</a>
+        <a href="https://ando-nikkei.qrfour.com/app/menu/MTYw" target="_blank" class="web">📋 Menú QR</a>
+      </div>
+      <div class="card-tags">
+        <div class="tag reviews">416+ reseñas · 91/100 Sluurpy</div>
+        <div class="tag yes">Nikkei</div><div class="tag yes">Sushi</div><div class="tag yes">Ceviches</div><div class="tag yes">Chifa</div>
+        <div class="tag price">$$-$$$</div><div class="tag threat">⚠ Mismo concepto</div>
+      </div>
+      <div class="card-insight">A 50m de Almíbar (Fco. Moreno 470 vs 418). #4 en TripAdvisor Curicó. Mismo concepto Nikkei. Pulpo al olivo, causas, lomo saltado. Mejor rating de todos (4.5). Platos abundantes, precios razonables.</div>
+    </div>
+
+    <!-- MAMBA -->
+    <div class="card">
+      <div class="card-header">
+        <div><div class="card-name">Mamba Bar</div><div class="card-type">Bar / Coctelería — Av. España 14</div></div>
+        <div class="card-rating">3.7 ⭐</div>
+      </div>
+      <div class="card-links">
+        <a href="https://www.instagram.com/mambabar.cl/" target="_blank" class="ig">📸 @mambabar.cl</a>
+        <a href="https://www.mamba-bar.cl/" target="_blank" class="web">🌐 mamba-bar.cl</a>
+      </div>
+      <div class="card-tags">
+        <div class="tag yes">Coctelería</div><div class="tag yes">Tragos</div>
+        <div class="tag price">$$</div>
+      </div>
+      <div class="card-insight">Bar puro (coctelería), no restaurante completo. Rating bajo (3.7) con pocas reseñas. Desde las 16:00. Publica micheladas en IG. Av. España (diferente zona).</div>
+    </div>
+
+    <!-- 470 -->
+    <div class="card">
+      <div class="card-header">
+        <div><div class="card-name">470 Social Bar</div><div class="card-type">Bar social — Padre Hurtado 470</div></div>
+        <div class="card-rating">5.0 ⭐ (1)</div>
+      </div>
+      <div class="card-links">
+        <a href="https://www.instagram.com/470socialbar/" target="_blank" class="ig">📸 @470socialbar</a>
+      </div>
+      <div class="card-tags">
+        <div class="tag yes">Fiestas</div><div class="tag yes">Mixología</div>
+        <div class="tag price">$$</div>
+      </div>
+      <div class="card-insight">Bar social/de fiesta, no restaurante. Parece nuevo (1 sola reseña). Publica reels de eventos. "Ven a vivir la experiencia 470". Competencia en la noche.</div>
+    </div>
+
+  </div>
+
+  <div class="section-title">📍 Mapa Competitivo</div>
+  <table class="cmp-table">
+    <tr><th>Local</th><th>IG</th><th>Rating</th><th>Reseñas</th><th>Sushi</th><th>Pizza</th><th>Cocktails</th><th>Parrilla</th><th>Nikkei</th><th>Horario</th></tr>
+    <tr><td style="font-weight:700;color:#c8952a">Almíbar</td><td>—</td><td>—</td><td>—</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="cross">—</td><td class="check">✓</td><td>17:00+</td></tr>
+    <tr><td style="font-weight:600;color:#fff">Novu</td><td style="color:#e05a9f">20K</td><td>—</td><td>—</td><td class="cross">—</td><td class="cross">—</td><td class="check">✓</td><td class="cross">—</td><td class="cross">—</td><td>12:30-00:00</td></tr>
+    <tr><td style="font-weight:600;color:#fff">San Pancho</td><td style="color:#e05a9f">12K</td><td>4.3</td><td style="color:#5a9fe0">955</td><td class="check">✓</td><td class="cross">—</td><td class="check">✓</td><td class="check">✓</td><td class="cross">—</td><td>17-02/04:00</td></tr>
+    <tr><td style="font-weight:600;color:#fff">Albar</td><td style="color:#e05a9f">11K</td><td>—</td><td>—</td><td class="cross">—</td><td class="check">✓</td><td class="check">✓</td><td class="cross">—</td><td class="cross">—</td><td>18-00/01:00</td></tr>
+    <tr><td style="font-weight:600;color:#fff">Ando</td><td>—</td><td style="color:#4caf7d">4.5</td><td style="color:#5a9fe0">416+</td><td class="check">✓</td><td class="cross">—</td><td class="cross">—</td><td class="cross">—</td><td class="check">✓</td><td>Almuerzo+Cena</td></tr>
+    <tr><td style="font-weight:600;color:#fff">Mamba</td><td>—</td><td style="color:#ef4444">3.7</td><td>3</td><td class="cross">—</td><td class="cross">—</td><td class="check">✓</td><td class="cross">—</td><td class="cross">—</td><td>16:00+</td></tr>
+    <tr><td style="font-weight:600;color:#fff">470</td><td>—</td><td>5.0</td><td>1</td><td class="cross">—</td><td class="cross">—</td><td class="check">✓</td><td class="cross">—</td><td class="cross">—</td><td>Noche</td></tr>
+  </table>
+</div>
+
+<!-- ══════════ TALCA ══════════ -->
+<div id="talca" class="content" style="display:none">
+  <div class="stats">
+    <div class="stat"><div class="stat-value">8</div><div class="stat-label">Competidores peruanos</div></div>
+    <div class="stat"><div class="stat-value">9.7K</div><div class="stat-label">Líder IG (Pisco Lima)</div></div>
+    <div class="stat"><div class="stat-value">4.5⭐</div><div class="stat-label">Mejor rating (Don Ambrosio)</div></div>
+    <div class="stat"><div class="stat-value">596</div><div class="stat-label">Máx reseñas (Tierra Norteña)</div></div>
+  </div>
+
+  <div class="section-title">🔴 Competidores Principales <span>Restaurantes peruanos establecidos</span></div>
+  <div class="grid">
+
+    <!-- PISCO LIMA -->
+    <div class="card">
+      <div class="card-header">
+        <div><div class="card-name">Pisco Lima</div><div class="card-type">Peruana de autor — 4 Norte 460</div></div>
+        <div class="card-rating">4.5 ⭐</div>
+      </div>
+      <div class="card-links">
+        <a href="https://www.instagram.com/piscolima.talca/" target="_blank" class="ig">📸 @piscolima.talca</a>
+        <a href="https://piscolima.cl/" target="_blank" class="web">🌐 piscolima.cl</a>
+        <a href="https://www.instagram.com/piscolima.lasrastras/" target="_blank" class="ig">📸 Las Rastras</a>
+      </div>
+      <div class="card-tags">
+        <div class="tag followers">9.7K seguidores</div><div class="tag reviews">295 reseñas Sluurpy</div>
+        <div class="tag yes">Ceviche</div><div class="tag yes">Pisco sour</div><div class="tag yes">Lomo saltado</div>
+        <div class="tag price">$$-$$$</div><div class="tag threat">⚠ Líder</div>
+      </div>
+      <div class="card-insight">3 sucursales (Centro Talca, Las Rastras, Constitución). Cocina peruana "con identidad y carácter". Fundada por 4 emprendedores con 10+ años experiencia. Lun-Sáb 12:30-00:00, Dom hasta 18:00. El competidor más fuerte.</div>
+    </div>
+
+    <!-- EL PERUANITO -->
+    <div class="card">
+      <div class="card-header">
+        <div><div class="card-name">El Peruanito</div><div class="card-type">Peruana — 5 Oriente 897 + 3 sucursales</div></div>
+        <div class="card-rating">4.3 ⭐</div>
+      </div>
+      <div class="card-links">
+        <a href="https://www.instagram.com/elperuanitotalca/" target="_blank" class="ig">📸 @elperuanitotalca</a>
+        <a href="https://www.elperuanitotalca.com/" target="_blank" class="web">🌐 elperuanitotalca.com</a>
+        <a href="https://www.facebook.com/ElperuanitoTalca/" target="_blank" class="fb">📘 Facebook</a>
+      </div>
+      <div class="card-tags">
+        <div class="tag followers">8K seguidores</div>
+        <div class="tag yes">Mariscos marinados</div><div class="tag yes">Ceviche</div><div class="tag yes">Arroz mariscos</div>
+        <div class="tag price">$$</div><div class="tag threat">⚠ Más sucursales</div>
+      </div>
+      <div class="card-insight">4+ sucursales en Talca (Centro, Isidoro del Solar, La Florida, Las Rastras). Mayor cobertura territorial. Uber Eats + PedidosYa. Lun-Sáb 12-23:00, Dom hasta 17:00.</div>
+    </div>
+
+    <!-- DON AMBROSIO -->
+    <div class="card">
+      <div class="card-header">
+        <div><div class="card-name">Don Ambrosio</div><div class="card-type">Peruana — 7 Norte 1238, Plaza Las Heras</div></div>
+        <div class="card-rating">4.5 ⭐</div>
+      </div>
+      <div class="card-links">
+        <a href="https://www.instagram.com/ambrosio_restaurante/" target="_blank" class="ig">📸 @ambrosio_restaurante</a>
+        <a href="https://www.facebook.com/donambrosiorestaurante/" target="_blank" class="fb">📘 Facebook</a>
+      </div>
+      <div class="card-tags">
+        <div class="tag followers">2K seguidores</div><div class="tag reviews">166 reseñas Google · 90/100 Sluurpy</div>
+        <div class="tag yes">Mariscos frescos</div><div class="tag yes">Degustación ceviches</div>
+        <div class="tag price">$$-$$$</div>
+      </div>
+      <div class="card-insight">Mejor rating Google (4.5) y Sluurpy (90/100). Plaza Las Heras centro. Menú digital QR. Reservas por WhatsApp. Precios "accesibles" según reseñas. 1.098 posts — muy activo.</div>
+    </div>
+
+    <!-- TIERRA NORTEÑA -->
+    <div class="card">
+      <div class="card-header">
+        <div><div class="card-name">Tierra Norteña</div><div class="card-type">Peruana — 4 Norte 1684, La Alameda</div></div>
+        <div class="card-rating">4.4 ⭐</div>
+      </div>
+      <div class="card-links">
+        <a href="https://www.facebook.com/tierranortenatalca/" target="_blank" class="fb">📘 Facebook</a>
+      </div>
+      <div class="card-tags">
+        <div class="tag reviews">596 reseñas Google</div>
+        <div class="tag yes">Ceviches</div><div class="tag yes">Anticuchos</div><div class="tag yes">Pisco sour</div>
+        <div class="tag price">$$$</div>
+      </div>
+      <div class="card-insight">Cadena nacional (Santiago, Concepción, Rancagua). 596 reseñas — el más reseñado. Fundada por hermanos peruanos hace 9+ años. Sin IG propio en Talca. TripAdvisor 3.3 (dividido).</div>
+    </div>
+  </div>
+
+  <div class="section-title">🟡 Competidores Secundarios <span>Menor presencia pero activos</span></div>
+  <div class="grid">
+
+    <!-- AJICITO -->
+    <div class="card">
+      <div class="card-header">
+        <div><div class="card-name">Ajicito</div><div class="card-type">Peruana — 8 Oriente 1295</div></div>
+        <div class="card-rating">4.1 ⭐</div>
+      </div>
+      <div class="card-links">
+        <a href="https://www.facebook.com/p/Restaurante-Peruano-Ajicito-100067332841750/" target="_blank" class="fb">📘 Facebook</a>
+      </div>
+      <div class="card-tags">
+        <div class="tag reviews">153 reseñas Google</div>
+        <div class="tag yes">Ceviche</div><div class="tag yes">Lomo saltado</div>
+        <div class="tag price">$$</div>
+      </div>
+      <div class="card-insight">Cocina peruana tradicional. Lun-Dom 12:30-21:00. Sin presencia IG real (21 seguidores). Local modesto pero con clientela.</div>
+    </div>
+
+    <!-- SABOR PERUANO -->
+    <div class="card">
+      <div class="card-header">
+        <div><div class="card-name">Sabor/Sazón Peruano Diagonal</div><div class="card-type">Peruana — Isidoro del Solar 67</div></div>
+        <div class="card-rating">2.9 ⭐</div>
+      </div>
+      <div class="card-links">
+        <a href="https://saborperuanodiagonal.cl/" target="_blank" class="web">🌐 saborperuanodiagonal.cl</a>
+      </div>
+      <div class="card-tags">
+        <div class="tag yes">Delivery</div><div class="tag yes">Regiones del Perú</div>
+        <div class="tag price">$$</div>
+      </div>
+      <div class="card-insight">Negocio familiar. Rating bajo TripAdvisor (2.9). Lun-Sáb almuerzo y cena, Dom hasta 18:00. Delivery online.</div>
+    </div>
+
+    <!-- LA RIVERA -->
+    <div class="card">
+      <div class="card-header">
+        <div><div class="card-name">La Rivera Peruana</div><div class="card-type">Peruana / Delivery — Pje. 22 Norte</div></div>
+      </div>
+      <div class="card-links">
+        <a href="https://www.instagram.com/lariveraperuana/" target="_blank" class="ig">📸 @lariveraperuana</a>
+      </div>
+      <div class="card-tags">
+        <div class="tag yes">Ceviches</div><div class="tag yes">Mariscos</div><div class="tag yes">Leche de tigre</div>
+        <div class="tag price">$$</div>
+      </div>
+      <div class="card-insight">Enfocado en delivery (Rappi, Uber Eats). Sector norte, fuera del centro.</div>
+    </div>
+
+    <!-- MIKHUNA -->
+    <div class="card">
+      <div class="card-header">
+        <div><div class="card-name">Mikhuna</div><div class="card-type">Peruana / Dark Kitchen</div></div>
+        <div class="card-rating">4.4 ⭐ Uber</div>
+      </div>
+      <div class="card-links">
+        <a href="https://www.instagram.com/mikhuna_gastronomia_peruana/" target="_blank" class="ig">📸 @mikhuna_gastronomia</a>
+      </div>
+      <div class="card-tags">
+        <div class="tag yes">Delivery</div>
+        <div class="tag price">$$</div>
+      </div>
+      <div class="card-insight">Dark kitchen enfocada en delivery. Uber Eats 4.4 estrellas, entrega en 18 min. Local pequeño.</div>
+    </div>
+  </div>
+
+  <div class="section-title">📍 Ranking Competitivo</div>
+  <table class="cmp-table">
+    <tr><th>Local</th><th>IG</th><th>Rating</th><th>Reseñas</th><th>Sucursales</th><th>Delivery</th><th>Amenaza</th></tr>
+    <tr><td style="font-weight:700;color:#ef4444">Pisco Lima</td><td style="color:#e05a9f">9.7K</td><td style="color:#4caf7d">4.5</td><td>295</td><td style="color:#c8952a;font-weight:700">3</td><td class="check">✓</td><td style="color:#ef4444;font-weight:700">ALTA</td></tr>
+    <tr><td style="font-weight:600;color:#fff">El Peruanito</td><td style="color:#e05a9f">8K</td><td>4.3</td><td>—</td><td style="color:#c8952a;font-weight:700">4+</td><td class="check">✓</td><td style="color:#ef4444;font-weight:700">ALTA</td></tr>
+    <tr><td style="font-weight:600;color:#fff">Don Ambrosio</td><td>2K</td><td style="color:#4caf7d">4.5</td><td>166</td><td>1</td><td class="cross">—</td><td style="color:#c8952a">MEDIA</td></tr>
+    <tr><td style="font-weight:600;color:#fff">Tierra Norteña</td><td>—</td><td>4.4</td><td style="color:#5a9fe0">596</td><td>Nacional</td><td class="cross">—</td><td style="color:#c8952a">MEDIA</td></tr>
+    <tr><td style="font-weight:600;color:#fff">Ajicito</td><td>21</td><td>4.1</td><td>153</td><td>1</td><td class="cross">—</td><td>BAJA</td></tr>
+    <tr><td style="font-weight:600;color:#fff">Sabor Peruano</td><td>~1.3K</td><td style="color:#ef4444">2.9</td><td>—</td><td>1</td><td class="check">✓</td><td>BAJA</td></tr>
+    <tr><td style="font-weight:600;color:#fff">La Rivera</td><td>—</td><td>—</td><td>—</td><td>1</td><td class="check">✓</td><td>BAJA</td></tr>
+    <tr><td style="font-weight:600;color:#fff">Mikhuna</td><td>—</td><td>4.4</td><td>—</td><td>Dark kitchen</td><td class="check">✓</td><td>BAJA</td></tr>
+  </table>
+</div>
+
+<!-- ══════════ COMPARATIVA ══════════ -->
+<div id="compare" class="content" style="display:none">
+  <div class="section-title">📊 Curicó vs Talca — Vista General</div>
+  <div class="stats">
+    <div class="stat"><div class="stat-value" style="font-size:18px">Curicó</div><div class="stat-label">6 competidores · bar/restobar</div></div>
+    <div class="stat"><div class="stat-value" style="font-size:18px">Talca</div><div class="stat-label">8 competidores · peruanos</div></div>
+  </div>
+
+  <div class="section-title">Presencia Digital — Top 5 cada ciudad</div>
+  <table class="cmp-table">
+    <tr><th>#</th><th>Curicó</th><th>IG</th><th>Rating</th><th>Talca</th><th>IG</th><th>Rating</th></tr>
+    <tr><td>1</td><td style="font-weight:600;color:#fff">Novu</td><td style="color:#e05a9f">20K</td><td>—</td><td style="font-weight:600;color:#fff">Pisco Lima</td><td style="color:#e05a9f">9.7K</td><td>4.5</td></tr>
+    <tr><td>2</td><td style="font-weight:600;color:#fff">San Pancho</td><td style="color:#e05a9f">12K</td><td>4.3</td><td style="font-weight:600;color:#fff">El Peruanito</td><td style="color:#e05a9f">8K</td><td>4.3</td></tr>
+    <tr><td>3</td><td style="font-weight:600;color:#fff">Albar</td><td style="color:#e05a9f">11K</td><td>—</td><td style="font-weight:600;color:#fff">Don Ambrosio</td><td>2K</td><td>4.5</td></tr>
+    <tr><td>4</td><td style="font-weight:600;color:#fff">Ando</td><td>6.5K fb</td><td style="color:#4caf7d">4.5</td><td style="font-weight:600;color:#fff">Tierra Norteña</td><td>—</td><td>4.4</td></tr>
+    <tr><td>5</td><td style="font-weight:600;color:#fff">Mamba</td><td>—</td><td>3.7</td><td style="font-weight:600;color:#fff">Sabor Peruano</td><td>1.3K</td><td>2.9</td></tr>
+  </table>
+
+  <div class="section-title">💡 Insights Estratégicos</div>
+  <div class="grid">
+    <div class="card">
+      <div class="card-name" style="color:#4caf7d">✅ Almíbar — Ventajas</div>
+      <div class="card-insight" style="border:0;padding:0;margin-top:8px">
+        • Único que combina Nikkei + cocktails + pizza + burgers<br>
+        • App propia + club de socios = diferenciador tech<br>
+        • Mamba tiene rating bajo (3.7) — no es amenaza fuerte<br>
+        • 470 es muy nuevo y no tiene tracción<br>
+        • Novu no tiene sushi ni Nikkei
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-name" style="color:#ef4444">⚠️ Almíbar — Riesgos</div>
+      <div class="card-insight" style="border:0;padding:0;margin-top:8px">
+        • Ando Nikkei a 50m — mismo concepto, mejor rating (4.5 vs ?)<br>
+        • San Pancho en la misma calle con 955 reseñas y sushi<br>
+        • Novu lidera IG con 20K — necesitas crecer en redes<br>
+        • Falta presencia en Google Maps/TripAdvisor
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-name" style="color:#4caf7d">✅ Pangoa — Oportunidades</div>
+      <div class="card-insight" style="border:0;padding:0;margin-top:8px">
+        • Pisco Lima y El Peruanito lideran pero no son imbatibles<br>
+        • Don Ambrosio tiene calidad pero poca presencia digital<br>
+        • Sabor Peruano y Ajicito son débiles (rating bajo, sin IG)<br>
+        • Espacio para concepto peruano + diferenciador (terraza, autor, etc.)<br>
+        • Delivery es clave — 4 de 8 competidores lo ofrecen
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-name" style="color:#ef4444">⚠️ Pangoa — Desafíos</div>
+      <div class="card-insight" style="border:0;padding:0;margin-top:8px">
+        • Pisco Lima tiene 3 locales y está en expansión agresiva<br>
+        • El Peruanito cubre 4+ zonas de Talca<br>
+        • Mercado peruano saturado (8 competidores activos)<br>
+        • Necesita diferenciador claro vs la competencia<br>
+        • Presencia digital desde el día 1 es crítica (IG, Google Maps)
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title">🎯 Acciones Recomendadas</div>
+  <div class="grid">
+    <div class="card" style="border-color:#c8952a40">
+      <div class="card-name" style="color:#c8952a">Almíbar — Curicó</div>
+      <div class="card-insight" style="border:0;padding:0;margin-top:8px">
+        1. <b>Google Maps</b> — Conseguir reseñas (San Pancho tiene 955, tú necesitas al menos 100)<br>
+        2. <b>Instagram</b> — Meta: superar 12K (San Pancho) en 3 meses<br>
+        3. <b>Diferenciación</b> — Reforzar que eres el ÚNICO bar+nikkei+cocktails de autor<br>
+        4. <b>Delivery</b> — Rappi/Uber Eats si no estás (San Pancho ya lo tiene)<br>
+        5. <b>Happy Hour agresivo</b> — Competir con Mamba y 470 en la franja 17-20h
+      </div>
+    </div>
+    <div class="card" style="border-color:#c8952a40">
+      <div class="card-name" style="color:#c8952a">Pangoa — Talca</div>
+      <div class="card-insight" style="border:0;padding:0;margin-top:8px">
+        1. <b>Diferenciador</b> — No ser "otro peruano más". Concepto de autor, terraza, coctelería peruana<br>
+        2. <b>Instagram desde día 1</b> — Meta: 5K en 3 meses (Pisco Lima tiene 9.7K)<br>
+        3. <b>Google Maps</b> — Pedir reseñas a cada cliente desde el primer día<br>
+        4. <b>Delivery</b> — Uber Eats + PedidosYa desde la apertura<br>
+        5. <b>Ubicación</b> — Centro o Las Rastras son las zonas clave
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ INSTAGRAM DEEP ══════════ -->
+<div id="instagram" class="content" style="display:none">
+
+  <div class="section-title">📸 Análisis Instagram — Curicó</div>
+  <div class="grid">
+
+    <div class="card" style="border-color:#e05a9f40">
+      <div class="card-header">
+        <div><div class="card-name">@novu_cl</div><div class="card-type">Novu Restobar</div></div>
+        <div class="card-rating" style="background:#e05a9f20;color:#e05a9f">20K seg</div>
+      </div>
+      <div class="card-tags">
+        <div class="tag followers">214 posts</div><div class="tag">271 siguiendo</div><div class="tag">Ratio 74:1</div>
+        <div class="tag yes">Web propia</div><div class="tag yes">Reels</div><div class="tag yes">Rappi</div>
+      </div>
+      <div class="card-insight">
+        <b>Bio:</b> Restaurante, Bar y Terraza. Producto fresco de mercado.<br>
+        <b>Frecuencia:</b> ~1-2 posts/semana (214 posts en varios años = baja)<br>
+        <b>Contenido:</b> Fotos de platos, terraza, ambiente. Usa reels.<br>
+        <b>Fortaleza:</b> Más seguidores de Curicó. 2 locales (Curicó + Santa Cruz). Web + Rappi.<br>
+        <b style="color:#ef4444">Debilidad:</b> Solo 214 posts para 20K seg — ratio sospechoso. TripAdvisor #86 con 2 reseñas. Frecuencia de posteo muy baja. Posible crecimiento inorgánico.
+      </div>
+    </div>
+
+    <div class="card" style="border-color:#e05a9f40">
+      <div class="card-header">
+        <div><div class="card-name">@sanpancho.cl</div><div class="card-type">San Pancho Bar</div></div>
+        <div class="card-rating" style="background:#e05a9f20;color:#e05a9f">12K seg</div>
+      </div>
+      <div class="card-tags">
+        <div class="tag followers">81 posts</div><div class="tag reviews">955 reseñas Google</div>
+        <div class="tag yes">Twitter/X</div><div class="tag yes">Rappi</div>
+      </div>
+      <div class="card-insight">
+        <b>Bio:</b> Bar, Francisco Moreno 456. Lun-Jue 17-02:00 / Vie-Sáb hasta 04:00.<br>
+        <b>Frecuencia:</b> Muy baja — solo 81 posts total.<br>
+        <b>Contenido:</b> Experiencia nocturna, sushi, parrilla.<br>
+        <b>Fortaleza:</b> 12K con solo 81 posts = engagement orgánico altísimo. 955 reseñas Google (4.3). Presencia en X.<br>
+        <b style="color:#ef4444">Debilidad:</b> Contenido escaso. Reseñas critican que funciona más como disco que restaurante. Poco personal en horas punta.
+      </div>
+    </div>
+
+    <div class="card" style="border-color:#e05a9f40">
+      <div class="card-header">
+        <div><div class="card-name">@albarcurico</div><div class="card-type">Albar Pizzería y Bar</div></div>
+        <div class="card-rating" style="background:#e05a9f20;color:#e05a9f">11K seg</div>
+      </div>
+      <div class="card-tags">
+        <div class="tag followers">264 posts</div><div class="tag">457 siguiendo</div>
+      </div>
+      <div class="card-insight">
+        <b>Bio:</b> Pizzería y Bar. Carrera 255, Plaza San Francisco.<br>
+        <b>Frecuencia:</b> ~1 post cada 3-4 días (264 posts = más consistente que otros).<br>
+        <b>Contenido:</b> Pizzas, ambiente de bar, comida para compartir.<br>
+        <b>Fortaleza:</b> Nicho claro (pizza). "Mejor pizza de Curicó" en reseñas. Frecuencia aceptable.<br>
+        <b style="color:#ef4444">Debilidad:</b> Sin web propia, sin TripAdvisor visible. Solo Instagram.
+      </div>
+    </div>
+
+    <div class="card" style="border-color:#e05a9f40">
+      <div class="card-header">
+        <div><div class="card-name">@andonikkeichifa</div><div class="card-type">Ando Nikkei + Chifa</div></div>
+        <div class="card-rating" style="background:#5a9fe020;color:#5a9fe0">6.5K fb</div>
+      </div>
+      <div class="card-tags">
+        <div class="tag reviews">491 reseñas · 91/100</div><div class="tag yes">Menú QR</div>
+      </div>
+      <div class="card-insight">
+        <b>Bio:</b> Francisco Moreno 470. Nikkei + Chifa. Email: info@andorestaurant.cl<br>
+        <b>Frecuencia:</b> Datos IG no accesibles — cuenta probablemente pequeña.<br>
+        <b>Contenido:</b> Platos estrella (pulpo al olivo, causa limeña, pollo Lima Bangkok).<br>
+        <b>Fortaleza:</b> MEJOR rating de todos (91/100 Sluurpy, 4.5 TripAdvisor, #4 en Curicó). 6.5K likes Facebook. Menú QR.<br>
+        <b style="color:#ef4444">Debilidad:</b> IG probablemente débil. Sin web propia. Se reubicó por incendio. Reseña reciente menciona "calidad en descenso".
+      </div>
+    </div>
+
+    <div class="card" style="border-color:#e05a9f40">
+      <div class="card-header">
+        <div><div class="card-name">@mambabar.cl</div><div class="card-type">Mamba Bar</div></div>
+        <div class="card-rating" style="background:#ffffff10;color:#888">~bajo</div>
+      </div>
+      <div class="card-tags">
+        <div class="tag yes">Web propia</div><div class="tag yes">Reels</div>
+      </div>
+      <div class="card-insight">
+        <b>Bio:</b> Av. España 14. Bar de coctelería. Desde las 16:00.<br>
+        <b>Frecuencia:</b> Irregular. Pocos posts detectados.<br>
+        <b>Contenido:</b> Reels de branding ("Somos Mamba Bar"), micheladas.<br>
+        <b>Fortaleza:</b> Sitio web con menú. Usa reels. Horario amplio.<br>
+        <b style="color:#ef4444">Debilidad:</b> Rating bajo (3.7). Solo 3 reseñas. Seguidores probablemente muy bajos. No es restaurante completo.
+      </div>
+    </div>
+
+    <div class="card" style="border-color:#e05a9f40">
+      <div class="card-header">
+        <div><div class="card-name">@470socialbar</div><div class="card-type">470 Social Bar</div></div>
+        <div class="card-rating" style="background:#ffffff10;color:#888">nuevo</div>
+      </div>
+      <div class="card-tags">
+        <div class="tag yes">Reels</div><div class="tag">Tropical/playero</div>
+      </div>
+      <div class="card-insight">
+        <b>Bio:</b> Padre Hurtado 470. Social bar, mixología.<br>
+        <b>Frecuencia:</b> Publica reels de eventos/fiestas.<br>
+        <b>Contenido:</b> "Ven a vivir la experiencia 470", estética tropical/playera. Videos de invitación diaria.<br>
+        <b>Fortaleza:</b> Identidad visual clara (tropical). Reels activos.<br>
+        <b style="color:#ef4444">Debilidad:</b> 1 sola reseña. Sin web. Probablemente muy pocos seguidores. Muy nuevo.
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title" style="margin-top:32px">📸 Análisis Instagram — Talca (Peruanos)</div>
+  <div class="grid">
+
+    <div class="card" style="border-color:#e05a9f40">
+      <div class="card-header">
+        <div><div class="card-name">@piscolima.talca</div><div class="card-type">Pisco Lima — Centro</div></div>
+        <div class="card-rating" style="background:#e05a9f20;color:#e05a9f">9.7K seg</div>
+      </div>
+      <div class="card-tags">
+        <div class="tag followers">442 posts</div><div class="tag">1,224 siguiendo</div><div class="tag">Ratio 8:1</div>
+        <div class="tag yes">Web propia</div><div class="tag yes">Catering</div>
+      </div>
+      <div class="card-insight">
+        <b>Bio:</b> "Cocina peruana de carácter e identidad". 4 Norte 460.<br>
+        <b>Frecuencia:</b> ~1-2 posts/semana (442 posts en ~6 años).<br>
+        <b>Contenido:</b> Fotos de platos (ceviche, pisco sour), ambiente del local.<br>
+        <b>Fortaleza:</b> LÍDER indiscutido. 3 sucursales. Web propia. TripAdvisor 4.5. Catering para eventos. 10+ años experiencia.<br>
+        <b style="color:#ef4444">Debilidad:</b> Ratio 8:1 = sigue demasiadas cuentas (1,224). Frecuencia de posteo mejorable.
+      </div>
+    </div>
+
+    <div class="card" style="border-color:#e05a9f40">
+      <div class="card-header">
+        <div><div class="card-name">@piscolima.lasrastras</div><div class="card-type">Pisco Lima — Las Rastras</div></div>
+        <div class="card-rating" style="background:#e05a9f20;color:#e05a9f">4.4K seg</div>
+      </div>
+      <div class="card-tags">
+        <div class="tag followers">120 posts</div><div class="tag">202 siguiendo</div><div class="tag">Ratio 22:1</div>
+        <div class="tag yes">Reels</div>
+      </div>
+      <div class="card-insight">
+        <b>Bio:</b> "Sabores auténticos, ambiente acogedor. Cocina gourmet en un rincón de elegancia."<br>
+        <b>Frecuencia:</b> Menor que cuenta principal.<br>
+        <b>Contenido:</b> Reels de ingredientes frescos, platos, ambiente premium.<br>
+        <b>Fortaleza:</b> Ratio 22:1 = crecimiento orgánico excelente. Se posiciona "gourmet".<br>
+        <b style="color:#ef4444">Debilidad:</b> Solo 120 posts. Cuenta más nueva, aún creciendo.
+      </div>
+    </div>
+
+    <div class="card" style="border-color:#e05a9f40">
+      <div class="card-header">
+        <div><div class="card-name">@elperuanitotalca</div><div class="card-type">El Peruanito</div></div>
+        <div class="card-rating" style="background:#e05a9f20;color:#e05a9f">8K seg</div>
+      </div>
+      <div class="card-tags">
+        <div class="tag followers">297 posts</div>
+        <div class="tag yes">Web propia</div><div class="tag yes">Uber Eats</div><div class="tag yes">PedidosYa</div>
+      </div>
+      <div class="card-insight">
+        <b>Bio:</b> "Restaurante de comida Peruana".<br>
+        <b>Frecuencia:</b> Irregular.<br>
+        <b>Contenido:</b> Platos peruanos, mariscos marinados, ceviches.<br>
+        <b>Fortaleza:</b> 3-4 sucursales en Talca. Web propia. Multi-delivery (Uber + PedidosYa). También @elperuanitolasrastras.<br>
+        <b style="color:#ef4444">Debilidad:</b> Bio genérica. Frecuencia irregular. Divide audiencia entre múltiples cuentas.
+      </div>
+    </div>
+
+    <div class="card" style="border-color:#e05a9f40">
+      <div class="card-header">
+        <div><div class="card-name">@ambrosio_restaurante</div><div class="card-type">Don Ambrosio</div></div>
+        <div class="card-rating" style="background:#e05a9f20;color:#e05a9f">~2K seg</div>
+      </div>
+      <div class="card-tags">
+        <div class="tag followers">~1,098 posts</div><div class="tag reviews">166 reseñas Google 4.5</div>
+        <div class="tag yes">Carta digital</div>
+      </div>
+      <div class="card-insight">
+        <b>Bio:</b> Link a carta digital QR. 7 Norte 1238, Plaza Las Heras.<br>
+        <b>Frecuencia:</b> ~1,098 posts = MUY ALTA frecuencia (el que más publica de todos).<br>
+        <b>Contenido:</b> Ceviches, degustaciones, pisco sour.<br>
+        <b>Fortaleza:</b> Frecuencia ALTÍSIMA (1,098 posts). Mejor rating Google (4.5). Carta digital. 2 formatos (restaurante + sanguchería).<br>
+        <b style="color:#ef4444">Debilidad:</b> Solo ~2K seguidores con 1,098 posts = engagement muy bajo. Facebook 2.2K likes. Mucho contenido pero no convierte a seguidores.
+      </div>
+    </div>
+
+    <div class="card" style="border-color:#e05a9f40">
+      <div class="card-header">
+        <div><div class="card-name">@lariveraperuana</div><div class="card-type">La Rivera Peruana</div></div>
+        <div class="card-rating" style="background:#ffffff10;color:#888">bajo</div>
+      </div>
+      <div class="card-tags">
+        <div class="tag yes">Rappi</div><div class="tag yes">Uber Eats</div>
+      </div>
+      <div class="card-insight">
+        <b>Bio:</b> Sector norte Talca. Ceviches y mariscos.<br>
+        <b>Fortaleza:</b> Multi-delivery. Ceviche de salmón, camarones, leche de tigre.<br>
+        <b style="color:#ef4444">Debilidad:</b> Perfil IG muy bajo. Sin presencia digital relevante. Solo delivery.
+      </div>
+    </div>
+
+    <div class="card" style="border-color:#e05a9f40">
+      <div class="card-header">
+        <div><div class="card-name">@mikhuna_gastronomia_peruana</div><div class="card-type">Mikhuna</div></div>
+        <div class="card-rating" style="background:#ffffff10;color:#888">bajo</div>
+      </div>
+      <div class="card-tags">
+        <div class="tag yes">Uber Eats 4.4⭐</div><div class="tag">Dark kitchen</div>
+        <div class="tag">2.5K fb</div>
+      </div>
+      <div class="card-insight">
+        <b>Bio:</b> "Mikhuna" = comida en quechua. Gastronomía peruana delivery.<br>
+        <b>Fortaleza:</b> Buen branding cultural. Uber Eats 4.4. Entrega en 18min. Facebook 2.5K.<br>
+        <b style="color:#ef4444">Debilidad:</b> Dark kitchen = sin local visible. IG muy bajo. Solo delivery.
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title" style="margin-top:32px">🎯 Conclusiones Estratégicas de Instagram</div>
+  <div class="grid">
+    <div class="card" style="border-color:#4caf7d40">
+      <div class="card-name" style="color:#4caf7d">📊 Hallazgos Clave</div>
+      <div class="card-insight" style="border:0;padding:0;margin-top:8px;line-height:1.8">
+        <b>1. NADIE domina en contenido.</b> El más activo (Don Ambrosio, 1,098 posts) tiene solo 2K seguidores — publica mucho pero mal. El de más seguidores (Novu, 20K) solo tiene 214 posts — posible crecimiento inorgánico.<br><br>
+        <b>2. San Pancho es el fenómeno.</b> 12K seguidores con SOLO 81 posts = el engagement orgánico más alto. La gente lo busca por experiencia, no por contenido.<br><br>
+        <b>3. Los reels son subutilizados.</b> Solo Mamba, 470 y Pisco Lima Las Rastras usan reels detectables. Oportunidad enorme para quien los haga bien.<br><br>
+        <b>4. Casi ninguno tiene estrategia.</b> No hay campañas de influencers, UGC, hashtags locales, ni calendario de contenido visible.<br><br>
+        <b>5. Pisco Lima es el benchmark en Talca.</b> 9.7K seguidores + web + 3 locales + catering. Es el modelo a estudiar y superar.<br><br>
+        <b>6. El delivery está desatendido en Curicó.</b> Solo Novu y San Pancho usan Rappi. Ni Ando ni Albar lo tienen.
+      </div>
+    </div>
+    <div class="card" style="border-color:#c8952a40">
+      <div class="card-name" style="color:#c8952a">🚀 Plan de Acción IG para Almíbar y Pangoa</div>
+      <div class="card-insight" style="border:0;padding:0;margin-top:8px;line-height:1.8">
+        <b>Frecuencia:</b> 5 posts/semana mínimo (3 reels + 2 fotos). Nadie lo hace — dominás el algoritmo.<br><br>
+        <b>Reels que funcionan:</b> Preparación de cocktails en cámara lenta, plating de sushi, detrás de escena cocina, reacciones de clientes, promo flash con countdown.<br><br>
+        <b>Hashtags locales:</b> #CuricóFoodie #DondeComerCuricó #BarCuricó #NikkeiCuricó #TalcaFoodie #ComidaPeruanaTalca<br><br>
+        <b>UGC:</b> Incentivar que clientes te etiqueten (ej: "etiquétanos y gana un pisco sour gratis").<br><br>
+        <b>Stories diarios:</b> Menú del día, preparación en vivo, encuestas ("¿mojito o pisco sour?"), behind the scenes.<br><br>
+        <b>Meta Almíbar:</b> Superar a San Pancho (12K) en 3 meses.<br>
+        <b>Meta Pangoa:</b> Alcanzar a Don Ambrosio (2K) en mes 1, Pisco Lima (9.7K) en 6 meses.<br><br>
+        <b>Herramienta recomendada:</b> Metricool o Not Just Analytics para monitorear competencia semanal.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ RESEÑAS ══════════ -->
+<div id="reviews" class="content" style="display:none">
+
+  <style>
+    .review{background:#1a1a22;border-left:3px solid #2a2a35;padding:12px 16px;margin-bottom:8px;border-radius:0 8px 8px 0;font-size:13px;line-height:1.6;color:#ccc}
+    .review.pos{border-left-color:#4caf7d}
+    .review.neg{border-left-color:#ef4444}
+    .review q{font-style:italic;color:#e0e0e0}
+    .review .src{font-size:10px;color:#666;margin-top:6px;display:flex;justify-content:space-between}
+    .review .stars{color:#c8952a;font-size:12px;letter-spacing:1px}
+    .rev-header{display:flex;justify-content:space-between;align-items:center;margin:20px 0 12px}
+    .rev-name{font-size:16px;font-weight:700;color:#fff}
+    .rev-badge{font-size:11px;font-weight:700;padding:4px 10px;border-radius:6px}
+    .weakness-box{background:#ef444410;border:1px solid #ef444430;border-radius:10px;padding:14px;margin-top:8px}
+    .weakness-box h4{color:#ef4444;font-size:13px;font-weight:700;margin-bottom:8px}
+    .weakness-box li{font-size:12px;color:#ccc;margin-bottom:4px;list-style:none}
+    .weakness-box li::before{content:"⚠ ";color:#ef4444}
+    .strength-box{background:#4caf7d10;border:1px solid #4caf7d30;border-radius:10px;padding:14px;margin-top:8px}
+    .strength-box h4{color:#4caf7d;font-size:13px;font-weight:700;margin-bottom:8px}
+    .strength-box li{font-size:12px;color:#ccc;margin-bottom:4px;list-style:none}
+    .strength-box li::before{content:"✓ ";color:#4caf7d}
+  </style>
+
+  <div class="section-title">💬 Reseñas Reales — Curicó</div>
+
+  <!-- NOVU -->
+  <div class="rev-header">
+    <div class="rev-name">Novu Restobar</div>
+    <div class="rev-badge" style="background:#ef444420;color:#ef4444">Reseñas negativas dominan</div>
+  </div>
+  <div class="review neg"><q>A inicios de 2022 fuimos varias veces y el servicio era rápido, pero en 2023 empezó mal. Los meseros estaban en el celular y haciéndose jugos para ellos por el calor, sin sacar los tragos del bar.</q><div class="src"><span>TripAdvisor</span><span class="stars">★★☆☆☆</span></div></div>
+  <div class="review neg"><q>Un mojito clásico llegó después de 20 minutos con el hielo claramente derretido en el vaso, sabor terrible.</q><div class="src"><span>TripAdvisor</span><span class="stars">★★☆☆☆</span></div></div>
+  <div class="review neg"><q>Al pedir comida, nos dijeron que 3 opciones distintas no estaban disponibles. Cuando pedí cambiar el cóctel por una cerveza, nunca llegó.</q><div class="src"><span>TripAdvisor</span><span class="stars">★☆☆☆☆</span></div></div>
+  <div class="weakness-box"><h4>Debilidades detectadas</h4><ul>
+    <li>Servicio pésimo — meseros en celular, tragos que no llegan</li>
+    <li>Carta incompleta — múltiples platos "no disponibles"</li>
+    <li>Calidad en descenso desde 2022 a 2023</li>
+  </ul></div>
+
+  <!-- SAN PANCHO -->
+  <div class="rev-header">
+    <div class="rev-name">San Pancho Bar <span style="color:#888;font-size:12px">· 955 reseñas Google</span></div>
+    <div class="rev-badge" style="background:#c8952a20;color:#c8952a">4.3 ⭐ mixto</div>
+  </div>
+  <div class="review pos"><q>Jamás decepciona. Buen ambiente, buena música, lugar tranquilo y relajado con personal muy amable.</q><div class="src"><span>Google</span><span class="stars">★★★★★</span></div></div>
+  <div class="review pos"><q>Carta maravillosa, buenas cervezas artesanales, ambiente insuperable y atención inigualable.</q><div class="src"><span>TripAdvisor</span><span class="stars">★★★★★</span></div></div>
+  <div class="review neg"><q>Funciona más como discoteca que como restaurante, con muy poco personal para atender y comida de mala calidad, aunque la música y los tragos son buenos.</q><div class="src"><span>Google</span><span class="stars">★★☆☆☆</span></div></div>
+  <div class="review neg"><q>Los tragos se demoraron media hora en llegar después de que ya nos habíamos comido la comida.</q><div class="src"><span>Google</span><span class="stars">★★☆☆☆</span></div></div>
+  <div class="review neg"><q>Olor fuerte a desinfección en los baños que arruina la experiencia.</q><div class="src"><span>Google</span><span class="stars">★★☆☆☆</span></div></div>
+  <div class="weakness-box"><h4>Debilidades detectadas</h4><ul>
+    <li>Servicio lento — tragos llegan 30min después de la comida</li>
+    <li>Poco personal en horarios de alta demanda</li>
+    <li>Comida inconsistente — "funciona más como disco"</li>
+    <li>Limpieza de baños deficiente</li>
+  </ul></div>
+
+  <!-- ANDO -->
+  <div class="rev-header">
+    <div class="rev-name">Ando Nikkei + Chifa <span style="color:#888;font-size:12px">· 175 reseñas TripAdvisor</span></div>
+    <div class="rev-badge" style="background:#c8952a20;color:#c8952a">4.3 ⭐ en descenso</div>
+  </div>
+  <div class="review pos"><q>Por mucho la mejor preparación del Pulpo en Chile. El pulpo al olivo es lo mejor que he comido.</q><div class="src"><span>TripAdvisor</span><span class="stars">★★★★★</span></div></div>
+  <div class="review pos"><q>Lejos el mejor restaurante de Curicó, altamente recomendable con muy buenos precios y una experiencia culinaria maravillosa.</q><div class="src"><span>TripAdvisor</span><span class="stars">★★★★★</span></div></div>
+  <div class="review pos"><q>Una muy buena opción en relación precio-calidad en Curicó. Muy buena opción si quieres comer sushi.</q><div class="src"><span>TripAdvisor</span><span class="stars">★★★★☆</span></div></div>
+  <div class="review neg"><q>Calidad en descenso. Disminución de porciones. Preocupante baja de calidad en el local de Manso de Velasco.</q><div class="src"><span>TripAdvisor</span><span class="stars">★★☆☆☆</span></div></div>
+  <div class="review neg"><q>Es un restaurante fusión con influencias peruanas pero no destaca en sus sabores y le falta gran sazón.</q><div class="src"><span>TripAdvisor — "Sazón débil"</span><span class="stars">★★☆☆☆</span></div></div>
+  <div class="review neg"><q>A pesar de que estaba relativamente vacío, el servicio es muy lento, ofrecen platos y después dicen que no los tienen en stock, y entregan platos equivocados.</q><div class="src"><span>TripAdvisor</span><span class="stars">★★☆☆☆</span></div></div>
+  <div class="weakness-box"><h4>Debilidades detectadas</h4><ul>
+    <li>Calidad en descenso — reseñas recientes negativas</li>
+    <li>Servicio lento incluso con local vacío</li>
+    <li>Platos no disponibles / pedidos equivocados</li>
+    <li>Sazón inconsistente entre visitas</li>
+  </ul></div>
+  <div class="strength-box"><h4>Qué les funciona (copiar/superar)</h4><ul>
+    <li>Pulpo al olivo — plato estrella icónico</li>
+    <li>Buena relación precio-calidad (cuando funciona)</li>
+    <li>Concepto fusión nikkei único en la zona</li>
+  </ul></div>
+
+  <!-- ALBAR, MAMBA, 470 -->
+  <div class="rev-header">
+    <div class="rev-name">Albar · Mamba · 470</div>
+    <div class="rev-badge" style="background:#ffffff10;color:#888">Pocas reseñas</div>
+  </div>
+  <div class="review" style="border-left-color:#555"><q><b>Albar:</b> Conocido como "la mejor pizza de Curicó". Sin reseñas públicas en TripAdvisor/Google accesibles. 11K seguidores IG sugiere clientela fiel pero sin cultura de reseña.</q><div class="src"><span>Evendo.com</span></div></div>
+  <div class="review" style="border-left-color:#555"><q><b>Mamba Bar:</b> "Ambiente acogedor y atención de calidad." — Solo 3 reseñas en Google (3.7/5). 0 reseñas TripAdvisor. Presencia digital mínima.</q><div class="src"><span>Baress.cl / Google</span><span class="stars">★★★★☆</span></div></div>
+  <div class="review" style="border-left-color:#555"><q><b>470 Social Bar:</b> "Excelente servicio y atención al cliente." — Única reseña (5.0/5). Bar muy nuevo, sin tracción en reseñas.</q><div class="src"><span>Google</span><span class="stars">★★★★★</span></div></div>
+
+  <!-- SEPARATOR -->
+  <div style="border-top:2px solid #2a2a35;margin:32px 0"></div>
+
+  <div class="section-title">💬 Reseñas Reales — Talca (Peruanos)</div>
+
+  <!-- PISCO LIMA -->
+  <div class="rev-header">
+    <div class="rev-name">Pisco Lima <span style="color:#888;font-size:12px">· 293 reseñas Google · 4.5⭐</span></div>
+    <div class="rev-badge" style="background:#4caf7d20;color:#4caf7d">Mayormente positivas</div>
+  </div>
+  <div class="review pos"><q>Abundante y deliciosa!! Buen lugar para disfrutar en familia. El piqueo, caldillo y lomo saltado son exquisitos.</q><div class="src"><span>TripAdvisor</span><span class="stars">★★★★★</span></div></div>
+  <div class="review pos"><q>Camarones apanados con salsa deliciosa, una cerveza muy fría, un pisco sour excelentemente preparado, y un servicio cortés y atento. Una noche maravillosa.</q><div class="src"><span>TripAdvisor</span><span class="stars">★★★★★</span></div></div>
+  <div class="review neg"><q>El servicio fue neurótico y francamente molesto. Al plato le faltaba el sabor tan típico de la cocina. Parece que han olvidado las formas y el buen gusto que los caracteriza.</q><div class="src"><span>TripAdvisor</span><span class="stars">★★☆☆☆</span></div></div>
+  <div class="weakness-box"><h4>Debilidades detectadas</h4><ul>
+    <li>Inconsistencia reciente en servicio y sazón</li>
+    <li>Posible descuido por expansión rápida (3 locales)</li>
+  </ul></div>
+
+  <!-- EL PERUANITO -->
+  <div class="rev-header">
+    <div class="rev-name">El Peruanito <span style="color:#888;font-size:12px">· 4 sucursales</span></div>
+    <div class="rev-badge" style="background:#ef444420;color:#ef4444">Inconsistente entre locales</div>
+  </div>
+  <div class="review pos"><q>Lo mejor de Talca en comida peruana.</q><div class="src"><span>TripAdvisor — Local II</span><span class="stars">★★★★★</span></div></div>
+  <div class="review pos"><q>Buena atención, precios muy acordes. La cocina es rápida y las salsas son típicas y sabrosas.</q><div class="src"><span>Google — Local II</span><span class="stars">★★★★☆</span></div></div>
+  <div class="review neg"><q>Local I: 2.0/5 en TripAdvisor — puesto #115 de 127 restaurantes. Experiencias consistentemente malas en la sede original.</q><div class="src"><span>TripAdvisor — Local I</span><span class="stars">★★☆☆☆</span></div></div>
+  <div class="weakness-box"><h4>Debilidades detectadas</h4><ul>
+    <li>Disparidad TOTAL entre locales — Local II (4.8) vs Local I (2.0)</li>
+    <li>Problemas de consistencia operacional al escalar</li>
+    <li>La sede original es una de las peores calificadas de Talca</li>
+  </ul></div>
+
+  <!-- DON AMBROSIO -->
+  <div class="rev-header">
+    <div class="rev-name">Don Ambrosio <span style="color:#888;font-size:12px">· 166 reseñas Google · 4.5⭐</span></div>
+    <div class="rev-badge" style="background:#4caf7d20;color:#4caf7d">Bien valorado</div>
+  </div>
+  <div class="review pos"><q>El mejor restaurante de comida peruana. Ofrecen una atención muy especial, porciones y sabores que te hacen viajar a Perú por un momento.</q><div class="src"><span>Top-Rated.Online</span><span class="stars">★★★★★</span></div></div>
+  <div class="review pos"><q>Magnífica comida peruana!!! Frecuento este restaurante hace 4 años y siempre conserva su sabor. Recomiendo especialmente los ceviches y el pulpo.</q><div class="src"><span>TripAdvisor</span><span class="stars">★★★★★</span></div></div>
+  <div class="review pos"><q>Los mejores pisco sour de Talca. Excelente atención de los meseros.</q><div class="src"><span>Top-Rated.Online</span><span class="stars">★★★★★</span></div></div>
+  <div class="review neg"><q>Por el costo no corresponde la cantidad. Porciones muy pequeñas de carne en platos como lomo saltado y ceviche.</q><div class="src"><span>TripAdvisor</span><span class="stars">★★☆☆☆</span></div></div>
+  <div class="review neg"><q>Problemas de limpieza, carta incompleta (platos no disponibles), y cobros extras inesperados.</q><div class="src"><span>Top-Rated.Online</span><span class="stars">★☆☆☆☆</span></div></div>
+
+  <!-- TIERRA NORTEÑA -->
+  <div class="rev-header">
+    <div class="rev-name">Tierra Norteña <span style="color:#888;font-size:12px">· 596 reseñas Google · 4.4⭐</span></div>
+    <div class="rev-badge" style="background:#c8952a20;color:#c8952a">Decayendo</div>
+  </div>
+  <div class="review pos"><q>Exquisita comida y rico pisco sour, de lo mejor que he comido en comida peruana.</q><div class="src"><span>Restaurantess.cl</span><span class="stars">★★★★★</span></div></div>
+  <div class="review pos"><q>El lomo con salsa cuatro quesos, una delicia, y una excelente atención.</q><div class="src"><span>Foursquare</span><span class="stars">★★★★★</span></div></div>
+  <div class="review neg"><q>En sus comienzos era excelente, lamentablemente ha ido decayendo, especialmente en la calidad y cantidad.</q><div class="src"><span>Google</span><span class="stars">★★☆☆☆</span></div></div>
+  <div class="review neg"><q>Comida algo cara pero bien preparada. No se puede pagar con tarjeta de crédito ni tarjetas de tiendas.</q><div class="src"><span>Foursquare</span><span class="stars">★★★☆☆</span></div></div>
+
+  <!-- SABOR PERUANO -->
+  <div class="rev-header">
+    <div class="rev-name">Sabor Peruano Diagonal <span style="color:#888;font-size:12px">· 449 reseñas Google</span></div>
+    <div class="rev-badge" style="background:#ef444420;color:#ef4444">Muy criticado</div>
+  </div>
+  <div class="review neg"><q>Una burla. La peor comida peruana que he probado. Atención pésima y lenta. Precios altos. Fui 3 veces sin disfrutarlo y no me arriesgaré a una cuarta.</q><div class="src"><span>TripAdvisor</span><span class="stars">★☆☆☆☆</span></div></div>
+  <div class="review neg"><q>Esperamos 45 minutos por ceviches con pescado que tenía un gusto raro, como congelado, a $8.000 cada uno. Porciones pequeñas.</q><div class="src"><span>TripAdvisor</span><span class="stars">★☆☆☆☆</span></div></div>
+  <div class="review neg"><q>El pisco sour "inolvidable" es demasiado dulce y con poca espuma. Precios altos para el resultado.</q><div class="src"><span>TripAdvisor</span><span class="stars">★★☆☆☆</span></div></div>
+
+  <!-- RESUMEN FINAL -->
+  <div style="border-top:2px solid #2a2a35;margin:32px 0"></div>
+  <div class="section-title">🎯 Patrones Recurrentes en Reseñas Negativas</div>
+  <div class="grid">
+    <div class="card" style="border-color:#ef444440">
+      <div class="card-name" style="color:#ef4444">❌ Los 5 problemas que más se repiten</div>
+      <div class="card-insight" style="border:0;padding:0;margin-top:10px;line-height:2">
+        <b style="color:#fff">1. Servicio lento</b> — San Pancho, Ando, Novu, Sabor Peruano, Ajicito. Tragos que llegan derretidos, 30-45 min de espera.<br>
+        <b style="color:#fff">2. Carta incompleta</b> — Novu (3 platos no disponibles), Ando (platos sin stock), Don Ambrosio. Genera frustración inmediata.<br>
+        <b style="color:#fff">3. Calidad en descenso</b> — Ando, Tierra Norteña, Pisco Lima. Clientes antiguos notan deterioro. Peligroso para la marca.<br>
+        <b style="color:#fff">4. Porciones vs precio</b> — Don Ambrosio, Sabor Peruano, Tierra Norteña. "No corresponde al precio".<br>
+        <b style="color:#fff">5. Limpieza</b> — San Pancho (baños), Ajicito (mesas), Don Ambrosio. Factor higiénico básico fallando.
+      </div>
+    </div>
+    <div class="card" style="border-color:#4caf7d40">
+      <div class="card-name" style="color:#4caf7d">✅ Ventaja competitiva para Almíbar y Pangoa</div>
+      <div class="card-insight" style="border:0;padding:0;margin-top:10px;line-height:2">
+        <b style="color:#fff">Resolver estos 5 puntos = ganar.</b> La competencia tiene el producto pero falla en operación.<br><br>
+        <b>→ Servicio rápido:</b> App propia de Almíbar ya es ventaja. Tiempos de mesa controlados por POS.<br>
+        <b>→ Carta siempre disponible:</b> Control de stock en tiempo real via POS. Si se acaba, se saca del menú automáticamente.<br>
+        <b>→ Consistencia:</b> Recetas estandarizadas con costos controlados (ya están en el sistema).<br>
+        <b>→ Precio justo:</b> Monitorear márgenes por producto con los reportes del POS.<br>
+        <b>→ Limpieza:</b> Checklist operacional. Los baños son la primera impresión que queda.
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="updated">Última actualización: 01 de abril de 2026 · Fuentes: Google Maps, TripAdvisor, Instagram, Sluurpy, Rappi, Uber Eats, Facebook, Foursquare, Top-Rated.Online</div>
+
+<script>
+function showTab(id, el) {
+  document.querySelectorAll('.content').forEach(c => c.style.display = 'none');
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(id).style.display = 'block';
+  el.classList.add('active');
+}
+</script>
+</body>
+</html>
