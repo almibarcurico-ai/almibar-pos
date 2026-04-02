@@ -167,16 +167,22 @@ export default function PurchasesScreen({ onBack }: { onBack?: () => void }) {
         });
 
         // Update ingredient stock + detect price change
-        if (ingredientId && qty > 0) {
-          const ing = item.matched;
-          if (ing) {
-            const newStock = (ing.stock || 0) + qty;
-            const oldCost = ing.cost_per_unit || 0;
+        if (ingredientId) {
+          // Leer stock actual directo de BD (no del cache)
+          const { data: currentIng } = await supabase.from('ingredients').select('stock, cost_per_unit, name').eq('id', ingredientId).single();
+          if (currentIng) {
+            const currentStock = currentIng.stock || 0;
+            const newStock = currentStock + qty;
+            const oldCost = currentIng.cost_per_unit || 0;
+            // Detectar cambio de precio > 5%
             if (oldCost > 0 && unitPrice > 0 && Math.abs(unitPrice - oldCost) / oldCost > 0.05) {
               const pctChange = Math.round((unitPrice - oldCost) / oldCost * 100);
-              priceChanges.push(`${ing.name}: ${fmt(oldCost)} → ${fmt(unitPrice)} (${pctChange > 0 ? '+' : ''}${pctChange}%)`);
+              priceChanges.push(`${currentIng.name}: ${fmt(oldCost)} → ${fmt(unitPrice)} (${pctChange > 0 ? '+' : ''}${pctChange}%)`);
             }
-            await supabase.from('ingredients').update({ stock: newStock, cost_per_unit: unitPrice }).eq('id', ingredientId);
+            // Actualizar stock y costo
+            const updateData: any = { stock: newStock };
+            if (unitPrice > 0) updateData.cost_per_unit = unitPrice;
+            await supabase.from('ingredients').update(updateData).eq('id', ingredientId);
           }
         }
       }
