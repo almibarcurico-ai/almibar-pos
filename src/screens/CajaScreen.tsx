@@ -739,25 +739,21 @@ function ArqueosTab() {
 
   const fmt = (p: number) => '$' + Math.round(p).toLocaleString('es-CL');
 
-  // Normalize payments: payments table uses tip_amount (number), delivery_payments uses is_tip (boolean)
-  const normalizedPayments = shiftPayments.map((p: any) => ({ ...p, _isTip: (p.tip_amount || 0) > 0 && p.amount === 0 }));
-  const normalizedDelivPayments = shiftDelivPayments.map((p: any) => ({ ...p, _isTip: !!p.is_tip }));
-  const allPayments = [...normalizedPayments, ...normalizedDelivPayments];
-
-  const sumByMethod = (method: string, isTip: boolean) =>
-    allPayments.filter(p => p.method === method && p._isTip === isTip).reduce((a, p) => a + (isTip && p.tip_amount ? p.tip_amount : p.amount), 0);
-
+  // Ventas por método: usar orders.total agrupado por payment_method (fuente real de venta)
   const payByMethod = {
-    efectivo: sumByMethod('efectivo', false),
-    debito: sumByMethod('debito', false),
-    credito: sumByMethod('credito', false),
-    transferencia: sumByMethod('transferencia', false),
+    efectivo: todayOrders.filter(o => o.payment_method === 'efectivo').reduce((a: number, o: any) => a + (o.total || 0), 0),
+    debito: todayOrders.filter(o => o.payment_method === 'debito').reduce((a: number, o: any) => a + (o.total || 0), 0),
+    credito: todayOrders.filter(o => o.payment_method === 'credito').reduce((a: number, o: any) => a + (o.total || 0), 0),
+    transferencia: todayOrders.filter(o => o.payment_method === 'transferencia').reduce((a: number, o: any) => a + (o.total || 0), 0),
   };
+
+  // Propinas por método: usar payments con tip_amount > 0
+  const allTipPayments = [...shiftPayments.filter((p: any) => (p.tip_amount || 0) > 0), ...shiftDelivPayments.filter((p: any) => !!p.is_tip || (p.tip_amount || 0) > 0)];
   const tipsByMethod = {
-    efectivo: sumByMethod('efectivo', true),
-    debito: sumByMethod('debito', true),
-    credito: sumByMethod('credito', true),
-    transferencia: sumByMethod('transferencia', true),
+    efectivo: allTipPayments.filter((p: any) => p.method === 'efectivo').reduce((a: number, p: any) => a + (p.tip_amount || 0), 0),
+    debito: allTipPayments.filter((p: any) => p.method === 'debito').reduce((a: number, p: any) => a + (p.tip_amount || 0), 0),
+    credito: allTipPayments.filter((p: any) => p.method === 'credito').reduce((a: number, p: any) => a + (p.tip_amount || 0), 0),
+    transferencia: allTipPayments.filter((p: any) => p.method === 'transferencia').reduce((a: number, p: any) => a + (p.tip_amount || 0), 0),
   };
   const totals = {
     efectivo: payByMethod.efectivo + tipsByMethod.efectivo,
