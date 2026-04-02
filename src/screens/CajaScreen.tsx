@@ -676,6 +676,10 @@ function ArqueosTab() {
   const [editCloseFecha, setEditCloseFecha] = useState('');
   const [editCloseHora, setEditCloseHora] = useState('');
   const [editCloseMonto, setEditCloseMonto] = useState('');
+  const [editUserEfectivo, setEditUserEfectivo] = useState('');
+  const [editUserDebito, setEditUserDebito] = useState('');
+  const [editUserCredito, setEditUserCredito] = useState('');
+  const [editUserTransfer, setEditUserTransfer] = useState('');
   const [editNotas, setEditNotas] = useState('');
   const [detailArqueo, setDetailArqueo] = useState<any>(null);
   const [detailOrders, setDetailOrders] = useState<any[]>([]);
@@ -848,8 +852,19 @@ function ArqueosTab() {
       setEditCloseFecha(ca.toLocaleDateString('en-CA'));
       setEditCloseHora(ca.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false }));
       setEditCloseMonto(String(arqueo.closing_amount || 0));
+      // Extraer conteo por método de las notas si existen
+      const notas = arqueo.notes || '';
+      const matchEf = notas.match(/Efectivo[:\s]*\$?([\d.]+)/i);
+      const matchDe = notas.match(/Débito[:\s]*\$?([\d.]+)/i);
+      const matchCr = notas.match(/Crédito[:\s]*\$?([\d.]+)/i);
+      const matchTr = notas.match(/Transfer[:\s]*\$?([\d.]+)/i);
+      setEditUserEfectivo(matchEf ? matchEf[1].replace(/\./g, '') : '');
+      setEditUserDebito(matchDe ? matchDe[1].replace(/\./g, '') : '');
+      setEditUserCredito(matchCr ? matchCr[1].replace(/\./g, '') : '');
+      setEditUserTransfer(matchTr ? matchTr[1].replace(/\./g, '') : '');
     } else {
       setEditCloseFecha(''); setEditCloseHora(''); setEditCloseMonto('');
+      setEditUserEfectivo(''); setEditUserDebito(''); setEditUserCredito(''); setEditUserTransfer('');
     }
     setEditNotas(arqueo.notes || '');
     setEditModal(true);
@@ -865,8 +880,13 @@ function ArqueosTab() {
     };
     if (editArqueo.closed_at && editCloseFecha && editCloseHora) {
       const closeDT = new Date(editCloseFecha + 'T' + editCloseHora + ':00');
+      const uEf = parseInt(editUserEfectivo) || 0;
+      const uDe = parseInt(editUserDebito) || 0;
+      const uCr = parseInt(editUserCredito) || 0;
+      const uTr = parseInt(editUserTransfer) || 0;
       update.closed_at = closeDT.toISOString();
-      update.closing_amount = parseInt(editCloseMonto) || 0;
+      update.closing_amount = uEf + uDe + uCr + uTr;
+      update.notes = `Efectivo contado: $${uEf.toLocaleString('es-CL')} | Débito contado: $${uDe.toLocaleString('es-CL')} | Crédito contado: $${uCr.toLocaleString('es-CL')} | Transfer contado: $${uTr.toLocaleString('es-CL')}` + (editNotas.trim() && !editNotas.includes('contado') ? ' | ' + editNotas.trim() : '');
     }
     const { error } = await supabase.from('cash_registers').update(update).eq('id', editArqueo.id);
     if (error) { Alert.alert('Error', error.message); return; }
@@ -1189,8 +1209,17 @@ function ArqueosTab() {
             <TextInput style={s.inp} value={editCloseFecha} onChangeText={setEditCloseFecha} placeholder="2026-04-01" placeholderTextColor={COLORS.textMuted} />
             <Text style={s.lb}>Hora cierre</Text>
             <TextInput style={s.inp} value={editCloseHora} onChangeText={setEditCloseHora} placeholder="23:00" placeholderTextColor={COLORS.textMuted} />
-            <Text style={s.lb}>Monto cierre (usuario)</Text>
-            <TextInput style={s.inp} value={editCloseMonto} onChangeText={setEditCloseMonto} placeholder="0" placeholderTextColor={COLORS.textMuted} keyboardType="number-pad" />
+            <View style={{ borderTopWidth: 1, borderTopColor: COLORS.border, marginVertical: 8, paddingTop: 8 }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 6 }}>CONTEO USUARIO</Text>
+            </View>
+            <Text style={s.lb}>Efectivo contado</Text>
+            <TextInput style={s.inp} value={editUserEfectivo} onChangeText={setEditUserEfectivo} placeholder="0" placeholderTextColor={COLORS.textMuted} keyboardType="number-pad" />
+            <Text style={s.lb}>Débito contado</Text>
+            <TextInput style={s.inp} value={editUserDebito} onChangeText={setEditUserDebito} placeholder="0" placeholderTextColor={COLORS.textMuted} keyboardType="number-pad" />
+            <Text style={s.lb}>Crédito contado</Text>
+            <TextInput style={s.inp} value={editUserCredito} onChangeText={setEditUserCredito} placeholder="0" placeholderTextColor={COLORS.textMuted} keyboardType="number-pad" />
+            <Text style={s.lb}>Transferencia contado</Text>
+            <TextInput style={s.inp} value={editUserTransfer} onChangeText={setEditUserTransfer} placeholder="0" placeholderTextColor={COLORS.textMuted} keyboardType="number-pad" />
           </>)}
           <Text style={s.lb}>Notas</Text>
           <TextInput style={[s.inp, { minHeight: 50 }]} value={editNotas} onChangeText={setEditNotas} placeholder="Notas opcionales..." placeholderTextColor={COLORS.textMuted} multiline />
