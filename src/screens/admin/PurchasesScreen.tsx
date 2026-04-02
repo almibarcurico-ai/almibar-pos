@@ -11,7 +11,7 @@ const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
 interface ScannedItem {
   codigo: string; descripcion: string; cantidad: string; unidad: string;
   precio_unitario: string; precio_total: string; categoria: string;
-  matched?: { id: string; name: string; unit: string; cost_per_unit: number; stock: number } | null;
+  matched?: { id: string; name: string; unit: string; cost_per_unit: number; stock_current: number } | null;
   is_new?: boolean; create_new?: boolean;
 }
 
@@ -49,7 +49,7 @@ export default function PurchasesScreen({ onBack }: { onBack?: () => void }) {
 
   const load = async () => {
     const [{ data: inv }, { data: sup }, { data: ing }, { data: arq }] = await Promise.all([
-      supabase.from('purchase_invoices').select('*, supplier:supplier_id(name), items:purchase_items(*, ingredient:ingredient_id(name,unit,cost_per_unit,stock))').order('created_at', { ascending: false }),
+      supabase.from('purchase_invoices').select('*, supplier:supplier_id(name), items:purchase_items(*, ingredient:ingredient_id(name,unit,cost_per_unit,stock_current))').order('created_at', { ascending: false }),
       supabase.from('suppliers').select('*').eq('active', true).order('name'),
       supabase.from('ingredients').select('*').eq('active', true).order('name'),
       supabase.from('cash_registers').select('*').is('closed_at', null).order('opened_at', { ascending: false }).limit(1),
@@ -163,7 +163,7 @@ export default function PurchasesScreen({ onBack }: { onBack?: () => void }) {
         if (item.is_new && item.create_new && !ingredientId) {
           const { data: newIng } = await supabase.from('ingredients').insert({
             name: item.descripcion, unit: item.unidad || 'un',
-            stock: 0, alert_stock: 0, cost_per_unit: unitPrice, active: true,
+            stock_current: 0, stock_min: 0, cost_per_unit: unitPrice, active: true,
           }).select('id').single();
           if (newIng) ingredientId = newIng.id;
         }
@@ -178,9 +178,9 @@ export default function PurchasesScreen({ onBack }: { onBack?: () => void }) {
         // Update ingredient stock + detect price change
         if (ingredientId) {
           // Leer stock actual directo de BD (no del cache)
-          const { data: currentIng } = await supabase.from('ingredients').select('stock, cost_per_unit, name').eq('id', ingredientId).single();
+          const { data: currentIng } = await supabase.from('ingredients').select('stock_current, cost_per_unit, name').eq('id', ingredientId).single();
           if (currentIng) {
-            const currentStock = currentIng.stock || 0;
+            const currentStock = currentIng.stock_current || 0;
             const newStock = currentStock + qty;
             const oldCost = currentIng.cost_per_unit || 0;
             // Detectar cambio de precio > 5%
@@ -189,7 +189,7 @@ export default function PurchasesScreen({ onBack }: { onBack?: () => void }) {
               priceChanges.push(`${currentIng.name}: ${fmt(oldCost)} → ${fmt(unitPrice)} (${pctChange > 0 ? '+' : ''}${pctChange}%)`);
             }
             // Actualizar stock y costo
-            const updateData: any = { stock: newStock };
+            const updateData: any = { stock_current: newStock };
             if (unitPrice > 0) updateData.cost_per_unit = unitPrice;
             await supabase.from('ingredients').update(updateData).eq('id', ingredientId);
           }
@@ -253,9 +253,9 @@ export default function PurchasesScreen({ onBack }: { onBack?: () => void }) {
         });
         // Actualizar stock
         if (qty > 0) {
-          const { data: cur } = await supabase.from('ingredients').select('stock').eq('id', item.ingredient.id).single();
+          const { data: cur } = await supabase.from('ingredients').select('stock_current').eq('id', item.ingredient.id).single();
           if (cur) {
-            const upd: any = { stock: (cur.stock || 0) + qty };
+            const upd: any = { stock_current: (cur.stock_current || 0) + qty };
             if (unitPrice > 0) upd.cost_per_unit = unitPrice;
             await supabase.from('ingredients').update(upd).eq('id', item.ingredient.id);
           }
@@ -374,7 +374,7 @@ export default function PurchasesScreen({ onBack }: { onBack?: () => void }) {
                       {ingredients.filter(i => !searchText || i.name.toLowerCase().includes(searchText.toLowerCase())).slice(0, 15).map(i => (
                         <TouchableOpacity key={i.id} style={{ paddingVertical: 6, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }} onPress={() => { assignIngredient(idx, i); setSearchIdx(null); setSearchText(''); }}>
                           <Text style={{ fontSize: 12, color: COLORS.text }}>{i.name}</Text>
-                          <Text style={{ fontSize: 10, color: COLORS.textMuted }}>{i.unit} · Stock: {i.stock}</Text>
+                          <Text style={{ fontSize: 10, color: COLORS.textMuted }}>{i.unit} · Stock: {i.stock_current}</Text>
                         </TouchableOpacity>
                       ))}
                     </ScrollView>
@@ -404,7 +404,7 @@ export default function PurchasesScreen({ onBack }: { onBack?: () => void }) {
                 )}
                 {/* Stock info */}
                 {item.matched && (
-                  <Text style={{ fontSize: 10, color: COLORS.textMuted, marginTop: 4 }}>Stock actual: {item.matched.stock} {item.matched.unit} → después: {(item.matched.stock + (parseFloat(item.cantidad) || 0)).toFixed(1)} {item.matched.unit}</Text>
+                  <Text style={{ fontSize: 10, color: COLORS.textMuted, marginTop: 4 }}>Stock actual: {item.matched.stock_current} {item.matched.unit} → después: {(item.matched.stock_current + (parseFloat(item.cantidad) || 0)).toFixed(1)} {item.matched.unit}</Text>
                 )}
                 {/* Assign / create */}
                 {item.is_new && (
