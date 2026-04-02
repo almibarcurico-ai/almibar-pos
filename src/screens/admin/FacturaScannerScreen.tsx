@@ -4,7 +4,8 @@ import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../../lib/supabase';
 import { COLORS } from '../../theme';
 
-const ANTHROPIC_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY || '';
+const SUPA_URL = 'https://czdnllosfvakyibdijmb.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN6ZG5sbG9zZnZha3lpYmRpam1iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyODE2OTYsImV4cCI6MjA4OTg1NzY5Nn0.Xjkpx2exJXmJb3yIv81uiwvlnNMvhd2gMRdPY4S4UJA';
 
 interface InvoiceItem {
   descripcion: string;
@@ -60,64 +61,18 @@ export default function FacturaScannerScreen() {
   const scanInvoice = async (base64: string) => {
     setStep('scanning'); setError(null);
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
+      const res = await fetch(`${SUPA_URL}/functions/v1/scan-invoice`, {
         method: 'POST',
-        headers: {
-          'x-api-key': ANTHROPIC_KEY,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 4096,
-          messages: [{
-            role: 'user',
-            content: [
-              { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64 } },
-              { type: 'text', text: `Analiza esta factura/boleta de proveedor y extrae los datos en formato JSON. Responde SOLO el JSON sin explicación ni markdown.
-
-Estructura requerida:
-{
-  "proveedor": "nombre del proveedor",
-  "numero_documento": "número de factura/boleta",
-  "fecha": "YYYY-MM-DD",
-  "items": [
-    {
-      "descripcion": "nombre del producto/ingrediente",
-      "cantidad": "número",
-      "unidad": "kg/lt/un/caja/etc",
-      "precio_unitario": "número sin símbolo",
-      "precio_total": "número sin símbolo",
-      "categoria": "Carnes/Pescados/Mariscos/Lácteos/Verduras/Frutas/Licores/Cervezas/Destilados/Insumos/Especias/Otros"
-    }
-  ],
-  "subtotal": "número",
-  "iva": "número",
-  "total": "número"
-}
-
-Reglas:
-- Todos los montos sin símbolo $ ni separador de miles
-- Si un campo no es visible, usar "" vacío
-- La categoría debe ser una de las listadas
-- Cantidad y precios como números, no texto` }
-            ]
-          }]
-        })
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPA_KEY}` },
+        body: JSON.stringify({ image_base64: base64 }),
       });
 
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.error?.message || `API error ${res.status}`);
+        throw new Error(err.error || `Error ${res.status}`);
       }
 
-      const data = await res.json();
-      const text = data.content?.[0]?.text || '';
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error('No se pudo extraer JSON de la respuesta');
-
-      const parsed: InvoiceData = JSON.parse(jsonMatch[0]);
+      const parsed: InvoiceData = await res.json();
       // Match ingredients
       parsed.items = parsed.items.map(item => ({
         ...item,
@@ -269,12 +224,6 @@ Reglas:
         </View>
       )}
 
-      {!ANTHROPIC_KEY && (
-        <View style={{ backgroundColor: COLORS.warning + '15', borderRadius: 10, padding: 14, marginTop: 16, width: '100%', maxWidth: 500, borderWidth: 1, borderColor: COLORS.warning + '30' }}>
-          <Text style={{ color: COLORS.warning, fontSize: 12, fontWeight: '600' }}>⚠ API Key no configurada</Text>
-          <Text style={{ color: COLORS.textMuted, fontSize: 11, marginTop: 4 }}>Agrega EXPO_PUBLIC_ANTHROPIC_API_KEY en .env</Text>
-        </View>
-      )}
     </ScrollView>
   );
 
