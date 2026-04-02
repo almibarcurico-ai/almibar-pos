@@ -117,7 +117,10 @@ export default function ProductsScreen() {
   const productRecipeItems = productRecipe ? recipeItems.filter(ri => ri.recipe_id === productRecipe.id) : [];
   const recipeCost = productRecipeItems.reduce((s, ri) => {
     const ing = ingredients.find(i => i.id === ri.ingredient_id);
-    return s + (ing ? ing.cost_per_unit * ri.quantity : 0);
+    if (!ing) return s;
+    const ru = localRecipeUnit[ri.id] || ri.unit || ing.unit || 'g';
+    const q = parseFloat(localRecipeQty[ri.id] !== undefined ? localRecipeQty[ri.id] : String(ri.quantity)) || 0;
+    return s + calcIngCost(ing, q, ru);
   }, 0);
 
   const addIngredient = async (ing: any) => {
@@ -133,15 +136,29 @@ export default function ProductsScreen() {
   };
 
   const [localRecipeQty, setLocalRecipeQty] = useState<Record<string, string>>({});
+  const [localRecipeUnit, setLocalRecipeUnit] = useState<Record<string, string>>({});
 
-  const saveRecipeQty = async (riId: string) => {
-    const val = localRecipeQty[riId];
-    if (val === undefined) return;
-    const qty = parseFloat(val) || 0;
-    if (qty > 0) {
-      await supabase.from('recipe_items').update({ quantity: qty }).eq('id', riId);
+  const saveRecipeItem2 = async (riId: string) => {
+    const update: any = {};
+    const qtyVal = localRecipeQty[riId];
+    const unitVal = localRecipeUnit[riId];
+    if (qtyVal !== undefined) { const q = parseFloat(qtyVal) || 0; if (q > 0) update.quantity = q; }
+    if (unitVal !== undefined) update.unit = unitVal;
+    if (Object.keys(update).length > 0) {
+      await supabase.from('recipe_items').update(update).eq('id', riId);
+      await load();
     }
-    await load();
+  };
+
+  const calcIngCost = (ing: any, qty: number, recipeUnit?: string) => {
+    const cpu = ing?.cost_per_unit || 0;
+    const iu = (ing?.unit || '').toLowerCase();
+    const ru = (recipeUnit || iu).toLowerCase();
+    if (iu === 'kg' && ru === 'g') return cpu * qty / 1000;
+    if (iu === 'lt' && ru === 'ml') return cpu * qty / 1000;
+    if (iu === 'g' && ru === 'kg') return cpu * qty * 1000;
+    if (iu === 'ml' && ru === 'lt') return cpu * qty * 1000;
+    return cpu * qty;
   };
 
   const removeRecipeItem = async (riId: string) => {
@@ -304,18 +321,29 @@ export default function ProductsScreen() {
               {productRecipeItems.map(ri => {
                 const ing = ingredients.find(x => x.id === ri.ingredient_id);
                 if (!ing) return null;
-                const cost = ing.cost_per_unit * ri.quantity;
+                const currentUnit = localRecipeUnit[ri.id] || ri.unit || ing.unit || 'g';
+                const currentQty = parseFloat(localRecipeQty[ri.id] !== undefined ? localRecipeQty[ri.id] : String(ri.quantity)) || 0;
+                const cost = calcIngCost(ing, currentQty, currentUnit);
+                const iu = (ing.unit || '').toLowerCase();
+                const unitOptions = iu === 'kg' || iu === 'g' ? ['g', 'kg'] : iu === 'lt' || iu === 'ml' ? ['ml', 'lt'] : ['unidad'];
                 return (
                   <View key={ri.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: COLORS.border }}>
                     <Text style={{ flex: 1, fontSize: 12, color: COLORS.text }}>{ing.name}</Text>
                     <TextInput
-                      style={{ width: 70, fontSize: 12, color: COLORS.text, backgroundColor: COLORS.card, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2, textAlign: 'center', borderWidth: 1, borderColor: COLORS.border }}
+                      style={{ width: 60, fontSize: 12, color: COLORS.text, backgroundColor: COLORS.card, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2, textAlign: 'center', borderWidth: 1, borderColor: COLORS.border }}
                       value={localRecipeQty[ri.id] !== undefined ? localRecipeQty[ri.id] : String(ri.quantity)}
                       onChangeText={t => setLocalRecipeQty(prev => ({ ...prev, [ri.id]: t }))}
-                      onBlur={() => saveRecipeQty(ri.id)}
+                      onBlur={() => saveRecipeItem2(ri.id)}
                       keyboardType="decimal-pad"
                     />
-                    <Text style={{ width: 50, fontSize: 11, color: COLORS.textSecondary, textAlign: 'center' }}>{ing.unit}</Text>
+                    <View style={{ width: 65, flexDirection: 'row', gap: 1, justifyContent: 'center' }}>
+                      {unitOptions.map(u => (
+                        <TouchableOpacity key={u} onPress={() => { setLocalRecipeUnit(prev => ({ ...prev, [ri.id]: u })); setTimeout(() => saveRecipeItem2(ri.id), 100); }}
+                          style={{ paddingHorizontal: 5, paddingVertical: 2, borderRadius: 3, backgroundColor: currentUnit === u ? COLORS.primary : COLORS.background, borderWidth: 1, borderColor: currentUnit === u ? COLORS.primary : COLORS.border }}>
+                          <Text style={{ fontSize: 9, fontWeight: '600', color: currentUnit === u ? '#fff' : COLORS.textMuted }}>{u}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
                     <Text style={{ width: 70, fontSize: 12, color: COLORS.primary, textAlign: 'right' }}>{fmt(cost)}</Text>
                     <TouchableOpacity style={{ width: 30, alignItems: 'center' }} onPress={() => removeRecipeItem(ri.id)}>
                       <Text style={{ color: COLORS.error, fontSize: 14 }}>✕</Text>
