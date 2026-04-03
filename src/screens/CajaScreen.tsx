@@ -808,6 +808,8 @@ function ArqueosTab() {
   const handleClose = async () => {
     if (!cashRegister || !user) return;
     const userTotal = (parseInt(cEfectivo)||0) + (parseInt(cDebito)||0) + (parseInt(cCredito)||0) + (parseInt(cTransferencia)||0);
+    const totalGeneral = (cashRegister?.opening_amount || 0) + totals.ventas + totals.ingresos - totals.gastos;
+    const consumoTotal = totals.ventas - totals.propinas;
     await supabase.from('cash_registers').update({
       closed_at: new Date().toISOString(), closed_by: user.id,
       closing_amount: userTotal,
@@ -815,7 +817,7 @@ function ArqueosTab() {
       total_debit: totalByMethod.debito,
       total_credit: totalByMethod.credito,
       total_transfer: totalByMethod.transferencia,
-      total_sales: totals.ventas,
+      total_sales: consumoTotal,
       total_tips: totals.propinas,
       total_orders: todayOrders.length, total_expenses: totals.gastos, total_cash_in: totals.ingresos,
       notes: cNotas || null,
@@ -1101,15 +1103,14 @@ function ArqueosTab() {
               <ARQ label="MONTO INICIAL (efectivo)" val={fmt(cashRegister?.opening_amount || 0)} bold />
 
               <View style={{ borderTopWidth: 1, borderTopColor: COLORS.border, marginTop: 6, paddingTop: 6 }}>
-                <Text style={{ fontSize: 11, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 4 }}>COBRADO POR MÉTODO (con propina)</Text>
+                <Text style={{ fontSize: 11, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 4 }}>COBRADO POR MÉTODO (consumo + propina)</Text>
                 <ARQ label="    Efectivo" val={fmt(totalByMethod.efectivo)} />
                 <ARQ label="    Tarj. Débito" val={fmt(totalByMethod.debito)} />
                 <ARQ label="    Tarj. Crédito" val={fmt(totalByMethod.credito)} />
                 <ARQ label="    Transferencia" val={fmt(totalByMethod.transferencia)} />
-              </View>
-              <View style={{ borderTopWidth: 1, borderTopColor: COLORS.border, marginTop: 6, paddingTop: 6 }}>
-                <ARQ label="Total cobrado" val={fmt(totals.ventas)} />
-                <ARQ label="  (del cual propinas)" val={fmt(totals.propinas)} />
+                <View style={{ borderTopWidth: 1, borderTopColor: COLORS.border, marginTop: 4, paddingTop: 4 }}>
+                  <ARQ label="Total cobrado" val={fmt(totals.ventas)} bold />
+                </View>
               </View>
 
               {(totals.ingresos > 0 || totals.gastos > 0) && (
@@ -1120,17 +1121,11 @@ function ArqueosTab() {
                 </View>
               )}
 
-              <View style={{ borderTopWidth: 2, borderTopColor: COLORS.primary, marginTop: 8, paddingTop: 8 }}>
-                <ARQ label="EFECTIVO EN CAJA" val={fmt(saldoActual)} bold />
-                <Text style={{ fontSize: 10, color: COLORS.textMuted, marginTop: 2 }}>
-                  Inicial ({fmt(cashRegister?.opening_amount || 0)}) + Efectivo ({fmt(totalByMethod.efectivo)}) + Ingresos ({fmt(totals.ingresos)}) - Egresos ({fmt(totals.gastos)})
-                </Text>
-              </View>
-              <View style={{ marginTop: 6 }}>
-                <ARQ label="TARJETAS + TRANSF." val={fmt(totalTarjetas)} bold />
-              </View>
               <View style={{ borderTopWidth: 2, borderTopColor: COLORS.warning, marginTop: 8, paddingTop: 8 }}>
-                <ARQ label="TOTAL GENERAL" val={fmt(saldoActual + totalTarjetas - (cashRegister?.opening_amount || 0))} bold />
+                <ARQ label="TOTAL GENERAL" val={fmt((cashRegister?.opening_amount || 0) + totals.ventas + totals.ingresos - totals.gastos)} bold />
+                <Text style={{ fontSize: 10, color: COLORS.textMuted, marginTop: 2 }}>
+                  Inicial ({fmt(cashRegister?.opening_amount || 0)}) + Cobrado ({fmt(totals.ventas)}) + Ingresos ({fmt(totals.ingresos)}) - Egresos ({fmt(totals.gastos)})
+                </Text>
               </View>
             </View>
 
@@ -1157,9 +1152,9 @@ function ArqueosTab() {
 
             {/* DIFERENCIA */}
             {(() => {
-              const sysTotal = totals.ventas;
+              const totalGeneral = (cashRegister?.opening_amount || 0) + totals.ventas + totals.ingresos - totals.gastos;
               const userTotal = (parseInt(cEfectivo)||0) + (parseInt(cDebito)||0) + (parseInt(cCredito)||0) + (parseInt(cTransferencia)||0);
-              const diff = userTotal - sysTotal;
+              const diff = userTotal - totalGeneral;
               const hasInput = cEfectivo || cDebito || cCredito || cTransferencia;
               if (!hasInput) return null;
               return (
@@ -1170,22 +1165,9 @@ function ArqueosTab() {
                       {diff === 0 ? '✅ $0' : (diff > 0 ? '+' : '') + fmt(diff)}
                     </Text>
                   </View>
-                  {diff !== 0 && (
-                    <View style={{ marginTop: 8 }}>
-                      {(() => {
-                        const dEf = (parseInt(cEfectivo)||0) - saldoActual;
-                        const dDe = (parseInt(cDebito)||0) - totalByMethod.debito;
-                        const dCr = (parseInt(cCredito)||0) - totalByMethod.credito;
-                        const dTr = (parseInt(cTransferencia)||0) - totalByMethod.transferencia;
-                        return <>
-                          {dEf !== 0 && <Text style={{ fontSize: 11, color: COLORS.textSecondary }}>Efectivo: {dEf > 0 ? '+' : ''}{fmt(dEf)}</Text>}
-                          {dDe !== 0 && <Text style={{ fontSize: 11, color: COLORS.textSecondary }}>Débito: {dDe > 0 ? '+' : ''}{fmt(dDe)}</Text>}
-                          {dCr !== 0 && <Text style={{ fontSize: 11, color: COLORS.textSecondary }}>Crédito: {dCr > 0 ? '+' : ''}{fmt(dCr)}</Text>}
-                          {dTr !== 0 && <Text style={{ fontSize: 11, color: COLORS.textSecondary }}>Transferencia: {dTr > 0 ? '+' : ''}{fmt(dTr)}</Text>}
-                        </>;
-                      })()}
-                    </View>
-                  )}
+                  <Text style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 4 }}>
+                    Usuario ({fmt(userTotal)}) - Sistema ({fmt(totalGeneral)})
+                  </Text>
                 </View>
               );
             })()}
