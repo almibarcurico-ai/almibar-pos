@@ -697,7 +697,8 @@ function ArqueosTab() {
   // Arqueo conteo por método
   const [cEfectivo, setCEfectivo] = useState('');
   const [cDebito, setCDebito] = useState('');
-  const [cCredito, setCCredito] = useState('');
+  const [cCredito, setCCredito] = useState(''); // legacy, now used for PedidosYa
+  const [cConsumo, setCConsumo] = useState('');
   const [cTransferencia, setCTransferencia] = useState('');
   const [cNotas, setCNotas] = useState('');
   const [shiftPayments, setShiftPayments] = useState<any[]>([]);
@@ -812,7 +813,7 @@ function ArqueosTab() {
 
   const handleClose = async () => {
     if (!cashRegister || !user) return;
-    const userTotal = (parseInt(cEfectivo)||0) + (parseInt(cDebito)||0) + (parseInt(cCredito)||0) + (parseInt(cTransferencia)||0);
+    const userTotal = (parseInt(cEfectivo)||0) + (parseInt(cDebito)||0) + (parseInt(cTransferencia)||0) + (parseInt(cCredito)||0) + (parseInt(cConsumo)||0);
     const totalGeneral = (cashRegister?.opening_amount || 0) + totals.ventas + totals.ingresos - totals.gastos;
     const consumoTotal = totals.ventas - totals.propinas;
     await supabase.from('cash_registers').update({
@@ -828,7 +829,7 @@ function ArqueosTab() {
       notes: cNotas || null,
     }).eq('id', cashRegister.id);
     setCashRegister(null); setCloseModal(false);
-    setCEfectivo(''); setCDebito(''); setCCredito(''); setCTransferencia(''); setCNotas('');
+    setCEfectivo(''); setCDebito(''); setCCredito(''); setCTransferencia(''); setCConsumo(''); setCNotas('');
     Alert.alert('✅ Arqueo cerrado'); await loadData();
   };
 
@@ -1148,17 +1149,23 @@ function ArqueosTab() {
               <Text style={{ fontSize: 11, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 4 }}>📱 Transferencia</Text>
               <TextInput style={[s.inp, { fontSize: 18, fontWeight: '700', marginBottom: 8 }]} placeholder="$0" placeholderTextColor={COLORS.textMuted} keyboardType="number-pad" value={cTransferencia} onChangeText={setCTransferencia} />
 
+              <Text style={{ fontSize: 11, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 4 }}>🛵 PedidosYa</Text>
+              <TextInput style={[s.inp, { fontSize: 18, fontWeight: '700', marginBottom: 8 }]} placeholder="$0" placeholderTextColor={COLORS.textMuted} keyboardType="number-pad" value={cCredito} onChangeText={setCCredito} />
+
+              <Text style={{ fontSize: 11, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 4 }}>🍽️ Consumo</Text>
+              <TextInput style={[s.inp, { fontSize: 18, fontWeight: '700', marginBottom: 8 }]} placeholder="$0" placeholderTextColor={COLORS.textMuted} keyboardType="number-pad" value={cConsumo} onChangeText={setCConsumo} />
+
               <View style={{ borderTopWidth: 2, borderTopColor: COLORS.primary, marginTop: 4, paddingTop: 8 }}>
-                <ARQ label="Total usuario" val={fmt((parseInt(cEfectivo)||0) + (parseInt(cDebito)||0) + (parseInt(cTransferencia)||0))} bold />
+                <ARQ label="Total usuario" val={fmt((parseInt(cEfectivo)||0) + (parseInt(cDebito)||0) + (parseInt(cTransferencia)||0) + (parseInt(cCredito)||0) + (parseInt(cConsumo)||0))} bold />
               </View>
             </View>
 
             {/* DIFERENCIA */}
             {(() => {
               const totalGeneral = (cashRegister?.opening_amount || 0) + totals.ventas + totals.ingresos - totals.gastos;
-              const userTotal = (parseInt(cEfectivo)||0) + (parseInt(cDebito)||0) + (parseInt(cTransferencia)||0);
+              const userTotal = (parseInt(cEfectivo)||0) + (parseInt(cDebito)||0) + (parseInt(cTransferencia)||0) + (parseInt(cCredito)||0) + (parseInt(cConsumo)||0);
               const diff = userTotal - totalGeneral;
-              const hasInput = cEfectivo || cDebito || cCredito || cTransferencia;
+              const hasInput = cEfectivo || cDebito || cTransferencia || cCredito || cConsumo;
               if (!hasInput) return null;
               return (
                 <View style={{ backgroundColor: (diff === 0 ? COLORS.success : diff > 0 ? '#8BC34A' : COLORS.error) + '20', borderRadius: 10, padding: 14, marginBottom: 14, borderWidth: 1, borderColor: (diff === 0 ? COLORS.success : diff > 0 ? '#8BC34A' : COLORS.error) + '40' }}>
