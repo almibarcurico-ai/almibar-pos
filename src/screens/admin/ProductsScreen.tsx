@@ -92,7 +92,7 @@ export default function ProductsScreen() {
   };
 
   const saveProduct = async () => {
-    if (!editName.trim()) return;
+    if (!editName.trim()) { if (typeof window !== 'undefined') window.alert('Ingresa un nombre'); return; }
     if (!editCatId) { if (typeof window !== 'undefined') window.alert('Selecciona una categoría'); return; }
     try {
       if (isNew) {
@@ -104,6 +104,7 @@ export default function ProductsScreen() {
         if (error) { if (typeof window !== 'undefined') window.alert('Error: ' + error.message); return; }
       }
       await load();
+      if (typeof window !== 'undefined') window.alert('✅ Producto guardado');
     } catch (e: any) { if (typeof window !== 'undefined') window.alert('Error: ' + e.message); }
   };
 
