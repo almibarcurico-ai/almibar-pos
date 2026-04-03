@@ -29,7 +29,7 @@ function playClickPOS() {
 
 interface ModOption { id: string; name: string; price_adjust: number; }
 interface ModGroup { id: string; name: string; type: string; required: boolean; min_select: number; max_select: number; options: ModOption[]; }
-interface CartItem { id: string; product: Product; quantity: number; notes: string; modifiers: ModOption[]; }
+interface CartItem { id: string; product: Product; quantity: number; notes: string; modifiers: ModOption[]; client_slot?: number; }
 interface Props { table: TableWithOrder; onBack: () => void; }
 
 export default function OrderScreen({ table, onBack }: Props) {
@@ -207,9 +207,9 @@ export default function OrderScreen({ table, onBack }: Props) {
     const effectiveProduct = promoPrice != null ? { ...product, price: promoPrice } : product;
     const isPromo = promoPrice != null;
     const promoNote = isPromo ? '[PROMO]' : '';
-    const existing = cart.find(c => c.product.id === product.id && c.notes === promoNote && c.modifiers.length === 0 && (!guestNames.length || (c as any).client_slot === activeClientSlot));
+    const existing = cart.find(c => c.product.id === product.id && c.notes === promoNote && c.modifiers.length === 0 && (!guestNames.length || c.client_slot === activeClientSlot));
     if (existing) setCart(prev => prev.map(c => c.id === existing.id ? { ...c, quantity: c.quantity + 1 } : c));
-    else setCart(prev => [...prev, { id: `c-${Date.now()}-${Math.random()}`, product: effectiveProduct, quantity: 1, notes: promoNote, modifiers: [], client_slot: activeClientSlot } as any]);
+    else setCart(prev => [...prev, { id: `c-${Date.now()}-${Math.random()}`, product: effectiveProduct, quantity: 1, notes: promoNote, modifiers: [], client_slot: activeClientSlot }]);
     setSearchQuery(''); setShowDropdown(false);
   };
 
@@ -228,7 +228,7 @@ export default function OrderScreen({ table, onBack }: Props) {
     const modKey = allMods.map(m => m.id).sort().join(',');
     const existing = cart.find(c => c.product.id === modPickerProduct.id && c.modifiers.map(m => m.id).sort().join(',') === modKey);
     if (existing) setCart(prev => prev.map(c => c.id === existing.id ? { ...c, quantity: c.quantity + 1 } : c));
-    else setCart(prev => [...prev, { id: `c-${Date.now()}-${Math.random()}`, product: modPickerProduct, quantity: 1, notes: '', modifiers: allMods, client_slot: activeClientSlot } as any]);
+    else setCart(prev => [...prev, { id: `c-${Date.now()}-${Math.random()}`, product: modPickerProduct, quantity: 1, notes: '', modifiers: allMods, client_slot: activeClientSlot }]);
     setModPickerProduct(null);
   };
 
@@ -291,9 +291,16 @@ export default function OrderScreen({ table, onBack }: Props) {
     playClickPOS(); await loadOrder();
   };
 
-  const loadAvailableTables = async (statusFilter: string) => {
-    const { data } = await supabase.from('tables').select('*, order:current_order_id(id, total, order_number)').eq('active', true).eq('status', statusFilter);
-    setAvailableTables(data || []);
+  const loadAvailableTables = async (mode: string) => {
+    if (mode === 'merge') {
+      // Juntar: todas las mesas libres y ocupadas (para juntar con ocupadas)
+      const { data } = await supabase.from('tables').select('*, order:current_order_id(id, total, order_number)').eq('active', true).in('status', ['libre', 'ocupada', 'cuenta']);
+      setAvailableTables(data || []);
+    } else {
+      // Cambiar y separar: solo mesas libres
+      const { data } = await supabase.from('tables').select('*').eq('active', true).eq('status', 'libre');
+      setAvailableTables(data || []);
+    }
   };
 
   const moveToTable = async (target: any) => {
@@ -341,7 +348,7 @@ export default function OrderScreen({ table, onBack }: Props) {
         const modAdjust = c.modifiers.reduce((s, m) => s + m.price_adjust, 0);
         const groups = productModGroups[c.product.id] || [];
         const repeatGroup = groups.find(g => g.type === 'multi' && g.max_select > g.options.length);
-        return { order_id: order.id, product_id: c.product.id, quantity: c.quantity, unit_price: c.product.price + modAdjust, total_price: (c.product.price + modAdjust) * c.quantity, notes: c.notes || null, status: 'pendiente', printed: false, created_by: user.id, mod_max_select: repeatGroup ? repeatGroup.max_select : 0, mod_group_id: repeatGroup ? repeatGroup.id : null, client_slot: guestNames.length > 1 ? (c as any).client_slot || activeClientSlot : null };
+        return { order_id: order.id, product_id: c.product.id, quantity: c.quantity, unit_price: c.product.price + modAdjust, total_price: (c.product.price + modAdjust) * c.quantity, notes: c.notes || null, status: 'pendiente', printed: false, created_by: user.id, mod_max_select: repeatGroup ? repeatGroup.max_select : 0, mod_group_id: repeatGroup ? repeatGroup.id : null, client_slot: guestNames.length > 1 ? c.client_slot || activeClientSlot : null };
       });
       const { data: inserted, error } = await supabase.from('order_items').insert(items).select('id');
       if (error) throw error;
@@ -589,13 +596,13 @@ export default function OrderScreen({ table, onBack }: Props) {
           </TouchableOpacity>
         </View>
         <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
-          <TouchableOpacity onPress={() => { loadAvailableTables('libre'); setTableActionModal('move'); }} style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border }}>
+          <TouchableOpacity onPress={() => { loadAvailableTables('move'); setTableActionModal('move'); }} style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border }}>
             <Text style={{ fontSize: 10, color: COLORS.textSecondary }}>Cambiar mesa</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => { loadAvailableTables('ocupada'); setTableActionModal('merge'); }} style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border }}>
+          <TouchableOpacity onPress={() => { loadAvailableTables('merge'); setTableActionModal('merge'); }} style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border }}>
             <Text style={{ fontSize: 10, color: COLORS.textSecondary }}>Juntar</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => { loadAvailableTables('libre'); setTableActionModal('split'); }} style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border }}>
+          <TouchableOpacity onPress={() => { loadAvailableTables('split'); setTableActionModal('split'); }} style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border }}>
             <Text style={{ fontSize: 10, color: COLORS.textSecondary }}>Separar</Text>
           </TouchableOpacity>
         </View>
@@ -657,7 +664,7 @@ export default function OrderScreen({ table, onBack }: Props) {
                   <TouchableOpacity style={s.qBtn} onPress={() => updateCartQty(ci.id, 1)}><Text style={s.qBtnT}>+</Text></TouchableOpacity>
                   <View style={{ flex: 1 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      {guestNames.length > 1 && <Text style={{ fontSize: 10, fontWeight: '700', color: COLORS.primary, marginRight: 4 }}>C{(ci as any).client_slot || activeClientSlot}</Text>}
+                      {guestNames.length > 1 && <Text style={{ fontSize: 10, fontWeight: '700', color: COLORS.primary, marginRight: 4 }}>C{ci.client_slot || activeClientSlot}</Text>}
                       <Text style={s.cName} numberOfLines={1}>{ci.product.name}</Text>
                     </View>
                     {ci.modifiers && ci.modifiers.length > 0 && (
@@ -1121,34 +1128,43 @@ export default function OrderScreen({ table, onBack }: Props) {
             {tableActionModal === 'move' ? 'Cambiar mesa' : tableActionModal === 'merge' ? 'Juntar con otra mesa' : 'Separar mesa'}
           </Text>
           <Text style={{ fontSize: 12, color: COLORS.textMuted, marginBottom: 16 }}>
-            {tableActionModal === 'move' ? 'Selecciona la mesa destino (libre)' : tableActionModal === 'merge' ? 'Selecciona la mesa a fusionar (sus items se moverán aquí)' : 'Selecciona items a mover y luego la mesa destino'}
+            {tableActionModal === 'move' ? 'Selecciona la mesa libre destino' : tableActionModal === 'merge' ? 'Selecciona la mesa ocupada a fusionar aquí' : 'Selecciona los productos a mover y la mesa destino'}
           </Text>
 
           {tableActionModal === 'split' && (
-            <ScrollView style={{ maxHeight: 150, marginBottom: 12 }}>
-              {orderItems.filter(i => !i.paid).map(i => (
-                <TouchableOpacity key={i.id} onPress={() => setSplitItems(prev => { const n = new Set(prev); n.has(i.id) ? n.delete(i.id) : n.add(i.id); return n; })}
-                  style={{ flexDirection: 'row', alignItems: 'center', padding: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border }}>
-                  <Text style={{ fontSize: 16, marginRight: 8 }}>{splitItems.has(i.id) ? '☑️' : '⬜'}</Text>
-                  <Text style={{ flex: 1, fontSize: 13, color: COLORS.text }}>{i.quantity}x {i.product?.name}</Text>
-                  <Text style={{ fontSize: 12, color: COLORS.textMuted }}>${i.total_price.toLocaleString('es-CL')}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+            <View style={{ marginBottom: 12 }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 6 }}>Productos a separar:</Text>
+              <ScrollView style={{ maxHeight: 180, borderWidth: 1, borderColor: COLORS.border, borderRadius: 8 }}>
+                {orderItems.filter(i => !i.paid).map(i => (
+                  <TouchableOpacity key={i.id} onPress={() => setSplitItems(prev => { const n = new Set(prev); n.has(i.id) ? n.delete(i.id) : n.add(i.id); return n; })}
+                    style={{ flexDirection: 'row', alignItems: 'center', padding: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border, backgroundColor: splitItems.has(i.id) ? COLORS.primary + '10' : 'transparent' }}>
+                    <Text style={{ fontSize: 16, marginRight: 8 }}>{splitItems.has(i.id) ? '☑️' : '⬜'}</Text>
+                    <Text style={{ flex: 1, fontSize: 13, color: COLORS.text }}>{i.quantity}x {i.product?.name}</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: COLORS.textMuted }}>${i.total_price.toLocaleString('es-CL')}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              {splitItems.size > 0 && <Text style={{ fontSize: 11, color: COLORS.primary, marginTop: 4, fontWeight: '600' }}>{splitItems.size} producto{splitItems.size > 1 ? 's' : ''} seleccionado{splitItems.size > 1 ? 's' : ''}</Text>}
+            </View>
           )}
 
           <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 8 }}>
-            {tableActionModal === 'split' ? 'Mesa destino:' : 'Mesas disponibles:'}
+            {tableActionModal === 'move' ? 'Mesas libres:' : tableActionModal === 'merge' ? 'Mesas:' : 'Mesa destino (libre):'}
           </Text>
           <ScrollView style={{ maxHeight: 200 }}>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-              {availableTables.filter(t => t.id !== table.id).map(t => (
+              {availableTables.filter(t => t.id !== table.id).filter(t => {
+                if (tableActionModal === 'move') return t.status === 'libre';
+                if (tableActionModal === 'split') return t.status === 'libre';
+                return true; // merge: show all
+              }).map(t => (
                 <TouchableOpacity key={t.id} onPress={() => {
                   if (tableActionModal === 'move') moveToTable(t);
-                  else if (tableActionModal === 'merge') mergeFrom(t);
-                  else if (tableActionModal === 'split') splitToTable(t);
-                }} style={{ width: 70, height: 60, borderRadius: 8, backgroundColor: t.status === 'ocupada' ? COLORS.primary + '20' : COLORS.background, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center' }}>
+                  else if (tableActionModal === 'merge') { if (t.status !== 'libre') mergeFrom(t); }
+                  else if (tableActionModal === 'split' && splitItems.size > 0) splitToTable(t);
+                }} style={{ width: 80, height: 65, borderRadius: 8, backgroundColor: t.status === 'ocupada' || t.status === 'cuenta' ? COLORS.primary + '20' : COLORS.background, borderWidth: 2, borderColor: t.status === 'ocupada' || t.status === 'cuenta' ? COLORS.primary : COLORS.border, alignItems: 'center', justifyContent: 'center' }}>
                   <Text style={{ fontSize: 16, fontWeight: '800', color: COLORS.text }}>{t.number}</Text>
+                  <Text style={{ fontSize: 8, color: t.status === 'libre' ? COLORS.success : COLORS.primary, fontWeight: '600' }}>{t.status === 'libre' ? 'LIBRE' : 'OCUPADA'}</Text>
                   {t.order && <Text style={{ fontSize: 9, color: COLORS.textMuted }}>${(t.order.total || 0).toLocaleString('es-CL')}</Text>}
                 </TouchableOpacity>
               ))}
