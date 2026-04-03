@@ -182,7 +182,8 @@ function VentasTab() {
   };
 
   const fmt = (p: number) => '$' + Math.round(p).toLocaleString('es-CL');
-  const waiterName = (id: string) => users.find(u => u.id === id)?.name || '-';
+  const APP_CLIENT_ID = 'a0000000-0000-0000-0000-000000000099';
+  const waiterName = (id: string) => id === APP_CLIENT_ID ? '📱 App Cliente' : users.find(u => u.id === id)?.name || '-';
 
   // Apply filters
   const filtered = orders.filter(o => {

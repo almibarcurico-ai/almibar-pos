@@ -93,15 +93,18 @@ export default function ProductsScreen() {
 
   const saveProduct = async () => {
     if (!editName.trim()) return;
+    if (!editCatId) { if (typeof window !== 'undefined') window.alert('Selecciona una categoría'); return; }
     try {
       if (isNew) {
-        const { data } = await supabase.from('products').insert({ name: editName.trim(), price: parseInt(editPrice) || 0, description: editDesc.trim() || null, category_id: editCatId, sort_order: 0 }).select('*').single();
+        const { data, error } = await supabase.from('products').insert({ name: editName.trim(), price: parseInt(editPrice) || 0, description: editDesc.trim() || null, category_id: editCatId, sort_order: 0 }).select('*').single();
+        if (error) { if (typeof window !== 'undefined') window.alert('Error: ' + error.message); return; }
         if (data) { setSelectedProduct(data); setIsNew(false); }
       } else {
-        await supabase.from('products').update({ name: editName.trim(), price: parseInt(editPrice) || 0, description: editDesc.trim() || null, category_id: editCatId }).eq('id', selectedProduct.id);
+        const { error } = await supabase.from('products').update({ name: editName.trim(), price: parseInt(editPrice) || 0, description: editDesc.trim() || null, category_id: editCatId }).eq('id', selectedProduct.id);
+        if (error) { if (typeof window !== 'undefined') window.alert('Error: ' + error.message); return; }
       }
       await load();
-    } catch (e: any) { Alert.alert('Error', e.message); }
+    } catch (e: any) { if (typeof window !== 'undefined') window.alert('Error: ' + e.message); }
   };
 
   const deleteProduct = async () => {

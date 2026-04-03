@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, TextInput, Alert, Switch, StyleSheet } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { COLORS } from '../../theme';
@@ -29,11 +29,13 @@ export default function ModifiersScreen() {
   const [oPrice, setOPrice] = useState('0');
   const [ingredients, setIngredients] = useState<any[]>([]);
   const [ingSearch, setIngSearch] = useState('');
+  const [localQty, setLocalQty] = useState<Record<string, string>>({});
+  const scrollRef = useRef<ScrollView>(null);
 
   const load = useCallback(async () => {
     const [gR, oR, pR, lR, iR] = await Promise.all([
       supabase.from('modifier_groups').select('*').order('sort_order'),
-      supabase.from('modifier_options').select('*, ingredient:ingredient_id(name, unit, cost_per_unit)').order('sort_order'),
+      supabase.from('modifier_options').select('*, ingredient:ingredient_id(name, unit, cost_per_unit)').eq('active', true).order('sort_order'),
       supabase.from('products').select('id, name').eq('active', true).order('name'),
       supabase.from('product_modifier_groups').select('*'),
       supabase.from('ingredients').select('id, name, unit, cost_per_unit').eq('active', true).order('name'),
@@ -56,13 +58,15 @@ export default function ModifiersScreen() {
 
   const addGroup = async () => {
     if (!gName.trim()) return;
-    const { data } = await supabase.from('modifier_groups').insert({
+    const { data, error } = await supabase.from('modifier_groups').insert({
       name: gName.trim(), type: gType, required: gRequired,
       min_select: gRequired ? 1 : 0, max_select: parseInt(gMax) || 1,
       sort_order: groups.length + 1,
     }).select('*').single();
-    if (data) { setSelected(data); setAddingGroup(false); setGName(''); }
+    if (error) { if (typeof window !== 'undefined') window.alert('Error al crear grupo'); return; }
+    setAddingGroup(false); setGName('');
     await load();
+    if (data) setSelected(data);
   };
 
   const deleteGroup = async (g: Group) => {
@@ -96,11 +100,20 @@ export default function ModifiersScreen() {
 
   const updateOptionField = async (optId: string, field: string, value: any) => {
     await supabase.from('modifier_options').update({ [field]: value }).eq('id', optId);
-    await load();
+    // Update local state without full reload to prevent focus loss
+    setOptions(prev => prev.map(o => o.id === optId ? { ...o, [field]: value } : o));
   };
 
-  const deleteOption = async (o: Option) => {
-    await supabase.from('modifier_options').delete().eq('id', o.id);
+  const deleteOption = async (o: any) => {
+    // First try to check if option was used in orders
+    const { count } = await supabase.from('order_item_modifiers').select('id', { count: 'exact', head: true }).eq('option_id', o.id);
+    if (count && count > 0) {
+      // Used in orders: soft-delete
+      await supabase.from('modifier_options').update({ active: false }).eq('id', o.id);
+    } else {
+      // Never used: hard delete
+      await supabase.from('modifier_options').delete().eq('id', o.id);
+    }
     await load();
   };
 
@@ -166,7 +179,8 @@ export default function ModifiersScreen() {
       {/* Detail */}
       <View style={st.detail}>
         {selected ? (
-          <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+          <>
+          <ScrollView ref={scrollRef} contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
             <Text style={{ fontSize: 20, fontWeight: '800', color: COLORS.text, marginBottom: 4 }}>{selected.name}</Text>
             <Text style={{ fontSize: 12, color: COLORS.textMuted, marginBottom: 16 }}>
               {selected.type === 'single' ? 'Elegir 1' : `Elegir hasta ${selected.max_select}`} · {selected.required ? 'Obligatorio' : 'Opcional'}
@@ -192,17 +206,17 @@ export default function ModifiersScreen() {
                     {o.ingredient && <Text style={{ fontSize: 9, color: COLORS.success }}>🔗 {o.ingredient.name}</Text>}
                     {!o.ingredient_id && <Text style={{ fontSize: 9, color: COLORS.warning }}>⚠ Sin ingrediente</Text>}
                   </View>
-                  <TextInput style={{ width: 50, fontSize: 12, textAlign: 'center', backgroundColor: COLORS.background, borderRadius: 4, borderWidth: 1, borderColor: COLORS.border, paddingVertical: 2, color: COLORS.text }} value={String(o.quantity || 1)} onChangeText={v => updateOptionField(o.id, 'quantity', parseFloat(v) || 1)} keyboardType="decimal-pad" />
-                  <View style={{ width: 50, flexDirection: 'row', gap: 1, justifyContent: 'center' }}>
+                  <TextInput style={{ width: 70, fontSize: 15, textAlign: 'center', backgroundColor: COLORS.background, borderRadius: 6, borderWidth: 1, borderColor: COLORS.border, paddingVertical: 6, paddingHorizontal: 4, color: COLORS.text }} value={localQty[o.id] ?? String(o.quantity || 1)} onChangeText={v => setLocalQty(prev => ({ ...prev, [o.id]: v }))} onBlur={() => { if (localQty[o.id] !== undefined) { const val = parseFloat(localQty[o.id]) || 1; updateOptionField(o.id, 'quantity', val); setLocalQty(prev => { const n = { ...prev }; delete n[o.id]; return n; }); } }} keyboardType="decimal-pad" />
+                  <View style={{ width: 55, flexDirection: 'row', gap: 2, justifyContent: 'center' }}>
                     {(o.ingredient?.unit === 'lt' ? ['ml', 'lt'] : o.ingredient?.unit === 'kg' ? ['g', 'kg'] : ['unid']).map((u: string) => (
-                      <TouchableOpacity key={u} onPress={() => updateOptionField(o.id, 'unit', u)} style={{ paddingHorizontal: 4, paddingVertical: 2, borderRadius: 3, backgroundColor: (o.unit || o.ingredient?.unit) === u ? COLORS.primary : COLORS.background, borderWidth: 1, borderColor: (o.unit || o.ingredient?.unit) === u ? COLORS.primary : COLORS.border }}>
-                        <Text style={{ fontSize: 8, fontWeight: '600', color: (o.unit || o.ingredient?.unit) === u ? '#fff' : COLORS.textMuted }}>{u}</Text>
+                      <TouchableOpacity key={u} onPress={() => updateOptionField(o.id, 'unit', u)} style={{ paddingHorizontal: 6, paddingVertical: 4, borderRadius: 4, backgroundColor: (o.unit || o.ingredient?.unit) === u ? COLORS.primary : COLORS.background, borderWidth: 1, borderColor: (o.unit || o.ingredient?.unit) === u ? COLORS.primary : COLORS.border }}>
+                        <Text style={{ fontSize: 10, fontWeight: '600', color: (o.unit || o.ingredient?.unit) === u ? '#fff' : COLORS.textMuted }}>{u}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>
                   <Text style={{ width: 70, fontSize: 11, color: COLORS.textSecondary, textAlign: 'right' }}>{ingCost > 0 ? '$' + Math.round(ingCost).toLocaleString('es-CL') : '-'}</Text>
                   <Text style={{ width: 60, fontSize: 11, fontWeight: '700', color: o.price_adjust > 0 ? COLORS.warning : o.price_adjust < 0 ? COLORS.success : COLORS.textMuted, textAlign: 'right' }}>{o.price_adjust !== 0 ? fmt(o.price_adjust) : '$0'}</Text>
-                  <TouchableOpacity onPress={() => deleteOption(o)} style={{ width: 24, alignItems: 'center' }}><Text style={{ color: COLORS.error, fontSize: 14 }}>✕</Text></TouchableOpacity>
+                  <TouchableOpacity onPress={() => deleteOption(o)} style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: COLORS.error, fontSize: 18, fontWeight: '700' }}>✕</Text></TouchableOpacity>
                 </View>
               );
             })}
@@ -275,6 +289,16 @@ export default function ModifiersScreen() {
               </View>
             )}
           </ScrollView>
+          {/* Scroll buttons */}
+          <View style={{ position: 'absolute', right: 16, bottom: 16, gap: 8 }}>
+            <TouchableOpacity onPress={() => scrollRef.current?.scrollTo({ y: 0, animated: true })} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center', elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4 }}>
+              <Text style={{ color: '#fff', fontSize: 20, fontWeight: '700' }}>↑</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => scrollRef.current?.scrollToEnd({ animated: true })} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center', elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4 }}>
+              <Text style={{ color: '#fff', fontSize: 20, fontWeight: '700' }}>↓</Text>
+            </TouchableOpacity>
+          </View>
+        </>
         ) : (
           <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
             <Text style={{ fontSize: 40 }}>🎛️</Text>

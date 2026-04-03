@@ -90,7 +90,7 @@ export function generateComanda(data: {
   // Items - doble alto + bold + espaciado moderado
   ticket += CMD.BOLD_ON + CMD.SIZE_UP + CMD.CHAR_SPACING_WIDE + CMD.LINE_SPACING_WIDE;
   for (const item of data.items) {
-    ticket += `${item.qty}x ${item.name}\n`;
+    ticket += `\n${item.qty}x ${item.name}\n`;
     if (item.modifiers && item.modifiers.length > 0) {
       for (const mod of item.modifiers) {
         ticket += `  → ${mod}\n`;
@@ -99,6 +99,7 @@ export function generateComanda(data: {
     if (item.notes) {
       ticket += `  * ${item.notes}\n`;
     }
+    ticket += `\n`;
   }
   ticket += CMD.CHAR_SPACING_DEFAULT + CMD.LINE_SPACING_DEFAULT;
   ticket += CMD.BOLD_OFF + CMD.SIZE_UP;
