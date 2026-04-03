@@ -147,9 +147,15 @@ export default function ModifiersScreen() {
           <View style={{ padding: 10, borderBottomWidth: 1, borderBottomColor: '#4A4A4A' }}>
             <TextInput style={st.sideInput} placeholder="Nombre del grupo" placeholderTextColor="#888" value={gName} onChangeText={setGName} autoFocus />
             <View style={{ flexDirection: 'row', gap: 4, marginTop: 6 }}>
-              <TouchableOpacity onPress={() => setGType('single')} style={[st.chip, gType === 'single' && st.chipActive]}><Text style={[st.chipT, gType === 'single' && st.chipActiveT]}>Elegir 1</Text></TouchableOpacity>
-              <TouchableOpacity onPress={() => setGType('multi')} style={[st.chip, gType === 'multi' && st.chipActive]}><Text style={[st.chipT, gType === 'multi' && st.chipActiveT]}>Varios</Text></TouchableOpacity>
+              <TouchableOpacity onPress={() => { setGType('single'); setGMax('1'); }} style={[st.chip, gType === 'single' && st.chipActive]}><Text style={[st.chipT, gType === 'single' && st.chipActiveT]}>Elegir 1</Text></TouchableOpacity>
+              <TouchableOpacity onPress={() => { setGType('multi'); setGMax('3'); }} style={[st.chip, gType === 'multi' && st.chipActive]}><Text style={[st.chipT, gType === 'multi' && st.chipActiveT]}>Varios</Text></TouchableOpacity>
             </View>
+            {gType === 'multi' && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                <Text style={{ fontSize: 11, color: '#CCC' }}>Máximo:</Text>
+                <TextInput style={[st.sideInput, { width: 50, textAlign: 'center', paddingVertical: 4 }]} value={gMax} onChangeText={setGMax} keyboardType="number-pad" placeholder="3" placeholderTextColor="#888" />
+              </View>
+            )}
             <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
               <TouchableOpacity style={[st.newBtn, { flex: 1 }]} onPress={addGroup}><Text style={{ color: '#fff', fontWeight: '700', fontSize: 11, textAlign: 'center' }}>Crear</Text></TouchableOpacity>
               <TouchableOpacity style={{ flex: 1, paddingVertical: 6, alignItems: 'center' }} onPress={() => setAddingGroup(false)}><Text style={{ color: '#999', fontSize: 11 }}>Cancelar</Text></TouchableOpacity>
