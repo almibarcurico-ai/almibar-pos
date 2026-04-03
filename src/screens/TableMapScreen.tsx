@@ -33,6 +33,9 @@ export default function TableMapScreen({ onOpenOrder, onOpenEditor }: Props) {
   const [selectedClient, setSelectedClient] = useState<any>(null);
   const [printServerOk, setPrintServerOk] = useState(true);
 
+  // Comensales (hasta 5 nombres)
+  const [guestNames, setGuestNames] = useState<string[]>(['']);
+
   // Registro rápido de socio
   const [showRegister, setShowRegister] = useState(false);
   const [regName, setRegName] = useState('');
@@ -72,6 +75,7 @@ export default function TableMapScreen({ onOpenOrder, onOpenEditor }: Props) {
 
   const searchClients = async (text: string) => {
     setCustomerName(text);
+    setGuestNames(prev => { const copy = [...prev]; copy[0] = text; return copy; });
     setSelectedClient(null);
     if (text.length < 2) { setClientSuggestions([]); return; }
     const { data } = await supabase.from('clients').select('id, name, phone, total_visits, total_spent, member_number, notes').or('name.ilike.%' + text + '%,phone.ilike.%' + text + '%,notes.ilike.%' + text + '%').limit(5);
@@ -81,6 +85,7 @@ export default function TableMapScreen({ onOpenOrder, onOpenEditor }: Props) {
   const pickClient = (client: any) => {
     setSelectedClient(client);
     setCustomerName(client.name);
+    setGuestNames(prev => { const copy = [...prev]; copy[0] = client.name; return copy; });
     setClientSuggestions([]);
     setShowRegister(false);
   };
@@ -198,7 +203,7 @@ export default function TableMapScreen({ onOpenOrder, onOpenEditor }: Props) {
 
   const handleTablePress = (table: TableWithOrder) => {
     if (table.status === 'libre') {
-      setSelectedTable(table); setCustomerName(''); setCustomerCount('2'); setSelectedClient(null); setClientSuggestions([]); setShowRegister(false); setOpenModal(true);
+      setSelectedTable(table); setCustomerName(''); setCustomerCount('2'); setSelectedClient(null); setClientSuggestions([]); setShowRegister(false); setGuestNames(['']); setOpenModal(true);
     } else {
       onOpenOrder(table);
     }
@@ -214,7 +219,8 @@ export default function TableMapScreen({ onOpenOrder, onOpenEditor }: Props) {
     if (!selectedTable || !user) return;
     if (!customerName.trim()) { Alert.alert('', 'Ingresa el nombre del cliente'); return; }
     try {
-      const { data: od, error: oe } = await supabase.from('orders').insert({ table_id: selectedTable.id, type: 'mesa', status: 'abierta', waiter_id: user.id, notes: customerName ? `Cliente: ${customerName}` : null, client_id: selectedClient ? selectedClient.id : null, personas: parseInt(customerCount) || 1, tipo_venta: 'mesa' }).select().single();
+      const filteredGuests = guestNames.filter(n => n.trim());
+      const { data: od, error: oe } = await supabase.from('orders').insert({ table_id: selectedTable.id, type: 'mesa', status: 'abierta', waiter_id: user.id, notes: customerName ? `Cliente: ${customerName}` : null, client_id: selectedClient ? selectedClient.id : null, personas: guestNames.length, guest_names: filteredGuests.length > 0 ? guestNames : [], tipo_venta: 'mesa' }).select().single();
       if (oe) throw oe;
       await supabase.from('tables').update({ status: 'ocupada', current_order_id: od.id }).eq('id', selectedTable.id);
       await supabase.from('order_logs').insert({ order_id: od.id, action: 'table_opened', details: { table_number: selectedTable.number, customer_name: customerName, waiter: user.name }, user_id: user.id });
@@ -342,7 +348,7 @@ export default function TableMapScreen({ onOpenOrder, onOpenEditor }: Props) {
                 {selectedClient && (
                   <View style={{ backgroundColor: COLORS.primary + '15', borderRadius: 8, padding: 8, marginBottom: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                     <Text style={{ color: COLORS.primary, fontSize: 12, fontWeight: '600' }}>✅ Socio: {selectedClient.name} (#{selectedClient.member_number})</Text>
-                    <TouchableOpacity onPress={() => { setSelectedClient(null); setCustomerName(''); }}><Text style={{ color: COLORS.error, fontSize: 12 }}>✕</Text></TouchableOpacity>
+                    <TouchableOpacity onPress={() => { setSelectedClient(null); setCustomerName(''); setGuestNames(prev => { const copy = [...prev]; copy[0] = ''; return copy; }); }}><Text style={{ color: COLORS.error, fontSize: 12 }}>✕</Text></TouchableOpacity>
                   </View>
                 )}
                 {/* ── Botón "No está inscrito" ── */}
@@ -380,10 +386,49 @@ export default function TableMapScreen({ onOpenOrder, onOpenEditor }: Props) {
               </>
             )}
 
-            <Text style={s.label}>Cantidad de personas</Text>
-            <TextInput style={s.input} placeholder="2" placeholderTextColor={COLORS.textMuted} keyboardType="number-pad" value={customerCount} onChangeText={setCustomerCount} />
+            {/* ── Comensales ── */}
+            <Text style={s.label}>Comensales</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+              <Text style={{ fontSize: 16, fontWeight: '700', color: COLORS.text }}>{guestNames.length}</Text>
+              <TouchableOpacity
+                style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: guestNames.length < 5 ? COLORS.primary : COLORS.border, alignItems: 'center', justifyContent: 'center' }}
+                onPress={() => { if (guestNames.length < 5) { setGuestNames([...guestNames, '']); setCustomerCount(String(guestNames.length + 1)); } }}
+                disabled={guestNames.length >= 5}
+              >
+                <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>+</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: guestNames.length > 1 ? COLORS.error : COLORS.border, alignItems: 'center', justifyContent: 'center' }}
+                onPress={() => { if (guestNames.length > 1) { const copy = guestNames.slice(0, -1); setGuestNames(copy); setCustomerCount(String(copy.length)); } }}
+                disabled={guestNames.length <= 1}
+              >
+                <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>−</Text>
+              </TouchableOpacity>
+            </View>
+            {guestNames.length > 1 && (
+              <View style={{ gap: 6, marginBottom: 4 }}>
+                {guestNames.map((name, idx) => (
+                  <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Text style={{ fontSize: 12, color: COLORS.textSecondary, fontWeight: '600', width: 20 }}>{idx + 1}:</Text>
+                    {idx === 0 ? (
+                      <View style={[s.input, { flex: 1, justifyContent: 'center', backgroundColor: COLORS.background }]}>
+                        <Text style={{ fontSize: 14, color: name ? COLORS.text : COLORS.textMuted }}>{name || 'Cliente principal'}</Text>
+                      </View>
+                    ) : (
+                      <TextInput
+                        style={[s.input, { flex: 1 }]}
+                        placeholder={`Comensal ${idx + 1}`}
+                        placeholderTextColor={COLORS.textMuted}
+                        value={name}
+                        onChangeText={(text) => { const copy = [...guestNames]; copy[idx] = text; setGuestNames(copy); }}
+                      />
+                    )}
+                  </View>
+                ))}
+              </View>
+            )}
             <View style={s.mBtns}>
-              <TouchableOpacity style={s.mCancel} onPress={() => setOpenModal(false)}><Text style={s.mCancelT}>Cancelar</Text></TouchableOpacity>
+              <TouchableOpacity style={s.mCancel} onPress={() => { setGuestNames(['']); setOpenModal(false); }}><Text style={s.mCancelT}>Cancelar</Text></TouchableOpacity>
               <TouchableOpacity style={s.mConfirm} onPress={handleOpenTable}><Text style={s.mConfirmT}>Abrir Mesa</Text></TouchableOpacity>
             </View>
           </View>

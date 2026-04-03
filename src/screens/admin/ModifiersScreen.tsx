@@ -156,7 +156,7 @@ export default function ModifiersScreen() {
         )}
 
         <TextInput style={st.sideSearch} placeholder="Buscar..." placeholderTextColor="#999" value={search} onChangeText={setSearch} />
-        <ScrollView>
+        <ScrollView style={{ flex: 1 }}>
           {filtered.map(g => {
             const isActive = selected?.id === g.id;
             const optCount = options.filter(o => o.group_id === g.id).length;
@@ -312,7 +312,7 @@ export default function ModifiersScreen() {
 
 const st = StyleSheet.create({
   wrap: { flex: 1, flexDirection: 'row', backgroundColor: COLORS.background },
-  side: { width: 260, backgroundColor: '#3C3C3C' },
+  side: { width: 260, backgroundColor: '#3C3C3C', maxHeight: '100%' },
   sideHdr: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14 },
   sideTitle: { fontSize: 16, fontWeight: '800', color: '#fff' },
   newBtn: { backgroundColor: COLORS.primary, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },

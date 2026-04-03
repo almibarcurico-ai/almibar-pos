@@ -73,6 +73,13 @@ export default function OrderScreen({ table, onBack }: Props) {
   // Multi-method payment - Fudo style
   const [tipEntries, setTipEntries] = useState<{method:string;amount:string}[]>([]);
   const [payEntries, setPayEntries] = useState<{method:string;amount:string}[]>([]);
+  // Client slots & table management
+  const [activeClientSlot, setActiveClientSlot] = useState<number>(1);
+  const [guestNames, setGuestNames] = useState<string[]>([]);
+  const [editGuestsModal, setEditGuestsModal] = useState(false);
+  const [tableActionModal, setTableActionModal] = useState<string>(''); // 'move'|'merge'|'split'|''
+  const [availableTables, setAvailableTables] = useState<any[]>([]);
+  const [splitItems, setSplitItems] = useState<Set<string>>(new Set());
 
   // Promo flash: productos con precio reducido
   const [promoProducts, setPromoProducts] = useState<Record<string, number>>({});
@@ -115,6 +122,7 @@ export default function OrderScreen({ table, onBack }: Props) {
     ]);
     if (o) {
       setOrder(o);
+      setGuestNames(o.guest_names || []);
       const { data: w } = await supabase.from('users').select('name').eq('id', o.waiter_id).single();
       if (w) setWaiterName(w.name);
     }
@@ -199,9 +207,9 @@ export default function OrderScreen({ table, onBack }: Props) {
     const effectiveProduct = promoPrice != null ? { ...product, price: promoPrice } : product;
     const isPromo = promoPrice != null;
     const promoNote = isPromo ? '[PROMO]' : '';
-    const existing = cart.find(c => c.product.id === product.id && c.notes === promoNote && c.modifiers.length === 0);
+    const existing = cart.find(c => c.product.id === product.id && c.notes === promoNote && c.modifiers.length === 0 && (!guestNames.length || (c as any).client_slot === activeClientSlot));
     if (existing) setCart(prev => prev.map(c => c.id === existing.id ? { ...c, quantity: c.quantity + 1 } : c));
-    else setCart(prev => [...prev, { id: `c-${Date.now()}-${Math.random()}`, product: effectiveProduct, quantity: 1, notes: promoNote, modifiers: [] }]);
+    else setCart(prev => [...prev, { id: `c-${Date.now()}-${Math.random()}`, product: effectiveProduct, quantity: 1, notes: promoNote, modifiers: [], client_slot: activeClientSlot } as any]);
     setSearchQuery(''); setShowDropdown(false);
   };
 
@@ -220,7 +228,7 @@ export default function OrderScreen({ table, onBack }: Props) {
     const modKey = allMods.map(m => m.id).sort().join(',');
     const existing = cart.find(c => c.product.id === modPickerProduct.id && c.modifiers.map(m => m.id).sort().join(',') === modKey);
     if (existing) setCart(prev => prev.map(c => c.id === existing.id ? { ...c, quantity: c.quantity + 1 } : c));
-    else setCart(prev => [...prev, { id: `c-${Date.now()}-${Math.random()}`, product: modPickerProduct, quantity: 1, notes: '', modifiers: allMods }]);
+    else setCart(prev => [...prev, { id: `c-${Date.now()}-${Math.random()}`, product: modPickerProduct, quantity: 1, notes: '', modifiers: allMods, client_slot: activeClientSlot } as any]);
     setModPickerProduct(null);
   };
 
@@ -283,6 +291,49 @@ export default function OrderScreen({ table, onBack }: Props) {
     playClickPOS(); await loadOrder();
   };
 
+  const loadAvailableTables = async (statusFilter: string) => {
+    const { data } = await supabase.from('tables').select('*, order:current_order_id(id, total, order_number)').eq('active', true).eq('status', statusFilter);
+    setAvailableTables(data || []);
+  };
+
+  const moveToTable = async (target: any) => {
+    if (!order) return;
+    await supabase.from('orders').update({ table_id: target.id }).eq('id', order.id);
+    await supabase.from('tables').update({ status: 'libre', current_order_id: null }).eq('id', table.id);
+    await supabase.from('tables').update({ status: 'ocupada', current_order_id: order.id }).eq('id', target.id);
+    if (typeof window !== 'undefined') window.alert('Mesa cambiada a #' + target.number);
+    onBack();
+  };
+
+  const mergeFrom = async (source: any) => {
+    if (!source.current_order_id || !order) return;
+    await supabase.from('order_items').update({ order_id: order.id }).eq('order_id', source.current_order_id);
+    await supabase.from('payments').update({ order_id: order.id }).eq('order_id', source.current_order_id);
+    await supabase.from('orders').update({ status: 'cerrada', closed_at: new Date().toISOString(), notes: 'Fusionada con mesa ' + table.number }).eq('id', source.current_order_id);
+    await supabase.from('tables').update({ status: 'libre', current_order_id: null }).eq('id', source.id);
+    setTableActionModal('');
+    await loadOrder();
+    if (typeof window !== 'undefined') window.alert('Mesa ' + source.number + ' fusionada');
+  };
+
+  const splitToTable = async (target: any) => {
+    if (!order || splitItems.size === 0) return;
+    const { data: newOrder } = await supabase.from('orders').insert({ table_id: target.id, type: 'mesa', status: 'abierta', waiter_id: user!.id, notes: 'Separada de mesa ' + table.number, personas: 1, tipo_venta: 'mesa' }).select().single();
+    if (!newOrder) return;
+    await supabase.from('order_items').update({ order_id: newOrder.id }).in('id', Array.from(splitItems));
+    await supabase.from('tables').update({ status: 'ocupada', current_order_id: newOrder.id }).eq('id', target.id);
+    setTableActionModal(''); setSplitItems(new Set());
+    await loadOrder();
+    if (typeof window !== 'undefined') window.alert('Items movidos a mesa ' + target.number);
+  };
+
+  const saveGuestNames = async (names: string[]) => {
+    if (!order) return;
+    await supabase.from('orders').update({ guest_names: names, personas: names.length }).eq('id', order.id);
+    setGuestNames(names);
+    setEditGuestsModal(false);
+  };
+
   const sendCartToKitchen = async () => {
     if (!order || !user || cart.length === 0) return;
     try {
@@ -290,7 +341,7 @@ export default function OrderScreen({ table, onBack }: Props) {
         const modAdjust = c.modifiers.reduce((s, m) => s + m.price_adjust, 0);
         const groups = productModGroups[c.product.id] || [];
         const repeatGroup = groups.find(g => g.type === 'multi' && g.max_select > g.options.length);
-        return { order_id: order.id, product_id: c.product.id, quantity: c.quantity, unit_price: c.product.price + modAdjust, total_price: (c.product.price + modAdjust) * c.quantity, notes: c.notes || null, status: 'pendiente', printed: false, created_by: user.id, mod_max_select: repeatGroup ? repeatGroup.max_select : 0, mod_group_id: repeatGroup ? repeatGroup.id : null };
+        return { order_id: order.id, product_id: c.product.id, quantity: c.quantity, unit_price: c.product.price + modAdjust, total_price: (c.product.price + modAdjust) * c.quantity, notes: c.notes || null, status: 'pendiente', printed: false, created_by: user.id, mod_max_select: repeatGroup ? repeatGroup.max_select : 0, mod_group_id: repeatGroup ? repeatGroup.id : null, client_slot: guestNames.length > 1 ? (c as any).client_slot || activeClientSlot : null };
       });
       const { data: inserted, error } = await supabase.from('order_items').insert(items).select('id');
       if (error) throw error;
@@ -531,11 +582,38 @@ export default function OrderScreen({ table, onBack }: Props) {
         <TouchableOpacity onPress={() => setPreCuentaModal(true)}><Text style={{ fontSize: 18 }}>🧾</Text></TouchableOpacity>
       </View>
       <View style={s.subH}>
-        <Text style={{ fontSize: 12, color: COLORS.textSecondary }}>👤 {waiterName || user?.name} • {order?.opened_at ? new Date(order.opened_at).toLocaleString('es-CL') : ''}</Text>
-        <TouchableOpacity onPress={editarCliente} style={{ marginLeft: 8, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: COLORS.primary + '15', borderWidth: 1, borderColor: COLORS.primary + '30' }}>
-          <Text style={{ fontSize: 11, fontWeight: '600', color: COLORS.primary }}>{order?.notes?.match(/Cliente:\s*([^|]+)/)?.[1]?.trim() || 'Asignar cliente'} ✏️</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+          <Text style={{ fontSize: 12, color: COLORS.textSecondary }}>👤 {waiterName || user?.name} • {order?.opened_at ? new Date(order.opened_at).toLocaleString('es-CL') : ''}</Text>
+          <TouchableOpacity onPress={editarCliente} style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: COLORS.primary + '15', borderWidth: 1, borderColor: COLORS.primary + '30' }}>
+            <Text style={{ fontSize: 11, fontWeight: '600', color: COLORS.primary }}>{order?.notes?.match(/Cliente:\s*([^|]+)/)?.[1]?.trim() || 'Asignar cliente'} ✏️</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
+          <TouchableOpacity onPress={() => { loadAvailableTables('libre'); setTableActionModal('move'); }} style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border }}>
+            <Text style={{ fontSize: 10, color: COLORS.textSecondary }}>Cambiar mesa</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => { loadAvailableTables('ocupada'); setTableActionModal('merge'); }} style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border }}>
+            <Text style={{ fontSize: 10, color: COLORS.textSecondary }}>Juntar</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => { loadAvailableTables('libre'); setTableActionModal('split'); }} style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border }}>
+            <Text style={{ fontSize: 10, color: COLORS.textSecondary }}>Separar</Text>
+          </TouchableOpacity>
+        </View>
       </View>
+
+      {guestNames.length > 1 && (
+        <View style={{ flexDirection: 'row', gap: 4, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.border }}>
+          {guestNames.map((name, i) => (
+            <TouchableOpacity key={i} onPress={() => setActiveClientSlot(i + 1)}
+              style={{ flex: 1, paddingVertical: 8, borderRadius: 8, backgroundColor: activeClientSlot === i + 1 ? COLORS.primary : COLORS.background, borderWidth: 1, borderColor: activeClientSlot === i + 1 ? COLORS.primary : COLORS.border, alignItems: 'center' }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: activeClientSlot === i + 1 ? '#fff' : COLORS.text }}>{i + 1}. {name || 'Cliente ' + (i + 1)}</Text>
+            </TouchableOpacity>
+          ))}
+          <TouchableOpacity onPress={() => setEditGuestsModal(true)} style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ fontSize: 14 }}>✏️</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 120 }}>
         {/* ADICIONAR */}
@@ -578,7 +656,10 @@ export default function OrderScreen({ table, onBack }: Props) {
                   <Text style={s.cQty}>{ci.quantity}</Text>
                   <TouchableOpacity style={s.qBtn} onPress={() => updateCartQty(ci.id, 1)}><Text style={s.qBtnT}>+</Text></TouchableOpacity>
                   <View style={{ flex: 1 }}>
-                    <Text style={s.cName} numberOfLines={1}>{ci.product.name}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      {guestNames.length > 1 && <Text style={{ fontSize: 10, fontWeight: '700', color: COLORS.primary, marginRight: 4 }}>C{(ci as any).client_slot || activeClientSlot}</Text>}
+                      <Text style={s.cName} numberOfLines={1}>{ci.product.name}</Text>
+                    </View>
                     {ci.modifiers && ci.modifiers.length > 0 && (
                       <Text style={{ fontSize: 10, color: COLORS.primary, marginTop: 1 }} numberOfLines={1}>
                         {ci.modifiers.map(m => m.name).join(', ')}
@@ -796,11 +877,67 @@ export default function OrderScreen({ table, onBack }: Props) {
         <View style={s.ov}><ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 16 }}><View style={[s.md, { maxWidth: 520, width: width * 0.95 }]}>
           <Text style={s.mdT}>🧾 Pre-Cuenta</Text>
           <Text style={{ fontSize: 13, color: COLORS.textSecondary, textAlign: 'center', marginTop: 4 }}>Mesa {table.number} — ALMÍBAR • {waiterName}</Text>
-          <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
             <TouchableOpacity onPress={() => { setPayMode('full'); deselectAll(); }} style={[s.modeBtn, payMode === 'full' && s.modeBtnA]}><Text style={[s.modeBtnT, payMode === 'full' && s.modeBtnTA]}>💳 Pagar Todo</Text></TouchableOpacity>
             <TouchableOpacity onPress={() => { setPayMode('partial'); deselectAll(); }} style={[s.modeBtn, payMode === 'partial' && s.modeBtnA]}><Text style={[s.modeBtnT, payMode === 'partial' && s.modeBtnTA]}>✂️ Selección</Text></TouchableOpacity>
+            {guestNames.length > 1 && (
+              <TouchableOpacity onPress={() => { setPayMode('by_client' as any); deselectAll(); }} style={[s.modeBtn, payMode === ('by_client' as any) && s.modeBtnA]}><Text style={[s.modeBtnT, payMode === ('by_client' as any) && s.modeBtnTA]}>👥 Por Cliente</Text></TouchableOpacity>
+            )}
           </View>
           {payMode === 'partial' && <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 }}><TouchableOpacity onPress={selectAll}><Text style={{ fontSize: 12, color: COLORS.primary, fontWeight: '600' }}>Seleccionar todo</Text></TouchableOpacity><TouchableOpacity onPress={deselectAll}><Text style={{ fontSize: 12, color: COLORS.textMuted }}>Deseleccionar</Text></TouchableOpacity></View>}
+          {payMode === ('by_client' as any) && guestNames.length > 1 && (
+            <View style={{ marginTop: 12 }}>
+              {guestNames.map((gName, gi) => {
+                const slot = gi + 1;
+                const clientItems = unpaidItems.filter(i => (i as any).client_slot === slot);
+                const clientTotal = clientItems.reduce((a, i) => a + i.total_price, 0);
+                if (clientItems.length === 0) return null;
+                return (
+                  <View key={gi} style={{ backgroundColor: COLORS.background, borderRadius: 10, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: COLORS.border }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                      <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.primary }}>{slot}. {gName || 'Cliente ' + slot}</Text>
+                      <Text style={{ fontSize: 14, fontWeight: '800', color: COLORS.text }}>{fmt(clientTotal)}</Text>
+                    </View>
+                    {clientItems.map(ci => (
+                      <View key={ci.id} style={{ flexDirection: 'row', paddingVertical: 2 }}>
+                        <Text style={{ width: 28, fontSize: 12, fontWeight: '700', color: COLORS.textSecondary }}>{ci.quantity}x</Text>
+                        <Text style={{ flex: 1, fontSize: 12, color: COLORS.text }}>{ci.product?.name}</Text>
+                        <Text style={{ fontSize: 12, fontWeight: '600', color: COLORS.text }}>{fmt(ci.total_price)}</Text>
+                      </View>
+                    ))}
+                    <TouchableOpacity onPress={() => {
+                      setSelectedItemIds(new Set(clientItems.map(i => i.id)));
+                      setPayMode('partial');
+                      setPreCuentaModal(false);
+                      setPaySelectedModal(true);
+                    }} style={{ marginTop: 8, paddingVertical: 8, borderRadius: 8, backgroundColor: COLORS.success, alignItems: 'center' }}>
+                      <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>Pagar {fmt(clientTotal)}</Text>
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
+              {(() => {
+                const unassigned = unpaidItems.filter(i => !guestNames.some((_, gi) => (i as any).client_slot === gi + 1));
+                if (unassigned.length === 0) return null;
+                const unassignedTotal = unassigned.reduce((a, i) => a + i.total_price, 0);
+                return (
+                  <View style={{ backgroundColor: COLORS.background, borderRadius: 10, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: COLORS.border }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                      <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.textMuted }}>Sin asignar</Text>
+                      <Text style={{ fontSize: 14, fontWeight: '800', color: COLORS.text }}>{fmt(unassignedTotal)}</Text>
+                    </View>
+                    {unassigned.map(ci => (
+                      <View key={ci.id} style={{ flexDirection: 'row', paddingVertical: 2 }}>
+                        <Text style={{ width: 28, fontSize: 12, fontWeight: '700', color: COLORS.textSecondary }}>{ci.quantity}x</Text>
+                        <Text style={{ flex: 1, fontSize: 12, color: COLORS.text }}>{ci.product?.name}</Text>
+                        <Text style={{ fontSize: 12, fontWeight: '600', color: COLORS.text }}>{fmt(ci.total_price)}</Text>
+                      </View>
+                    ))}
+                  </View>
+                );
+              })()}
+            </View>
+          )}
           <View style={s.div} />
           {paidItems.length > 0 && (<><Text style={{ fontSize: 11, fontWeight: '700', color: COLORS.success, marginBottom: 6 }}>✅ PAGADOS</Text>{paidItems.map(i => <View key={i.id} style={{ flexDirection: 'row', paddingVertical: 3, opacity: 0.5 }}><Text style={{ width: 30, fontSize: 13, fontWeight: '700', color: COLORS.textMuted }}>{i.quantity}x</Text><Text style={{ flex: 1, fontSize: 13, color: COLORS.textMuted, textDecorationLine: 'line-through' }}>{i.product?.name}</Text><Text style={{ fontSize: 13, color: COLORS.textMuted }}>{fmt(i.total_price)}</Text></View>)}<View style={[s.div, { marginVertical: 8 }]} /></>)}
           {unpaidItems.map(i => <TouchableOpacity key={i.id} onPress={() => payMode === 'partial' ? toggleItem(i.id) : null} style={{ flexDirection: 'row', paddingVertical: 6, paddingHorizontal: 4, borderRadius: 6, backgroundColor: selectedItemIds.has(i.id) ? COLORS.primary + '15' : 'transparent' }}>{payMode === 'partial' && <View style={{ width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: selectedItemIds.has(i.id) ? COLORS.primary : COLORS.border, backgroundColor: selectedItemIds.has(i.id) ? COLORS.primary : 'transparent', alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>{selectedItemIds.has(i.id) && <Text style={{ color: '#fff', fontSize: 14, fontWeight: '800' }}>✓</Text>}</View>}<Text style={{ width: 28, fontSize: 13, fontWeight: '700', color: COLORS.textSecondary }}>{i.quantity}x</Text><Text style={{ flex: 1, fontSize: 13, color: COLORS.text }}>{i.product?.name}</Text><Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.text }}>{fmt(i.total_price)}</Text></TouchableOpacity>)}
@@ -974,6 +1111,89 @@ export default function OrderScreen({ table, onBack }: Props) {
             <TouchableOpacity style={[s.bOk, { backgroundColor: COLORS.success, opacity: payTotal < unpaidTotal ? 0.5 : 1 }]} onPress={closeTable} disabled={payTotal < unpaidTotal}><Text style={s.bOkT}>Cerrar mesa {table.number}</Text></TouchableOpacity>
           </View>
         </View></ScrollView></View>
+      </Modal>
+
+      {/* TABLE ACTION MODAL */}
+      <Modal visible={tableActionModal !== ''} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+        <View style={{ backgroundColor: COLORS.card, borderRadius: 16, padding: 20, width: '90%', maxWidth: 500, maxHeight: '70%' }}>
+          <Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.text, marginBottom: 4 }}>
+            {tableActionModal === 'move' ? 'Cambiar mesa' : tableActionModal === 'merge' ? 'Juntar con otra mesa' : 'Separar mesa'}
+          </Text>
+          <Text style={{ fontSize: 12, color: COLORS.textMuted, marginBottom: 16 }}>
+            {tableActionModal === 'move' ? 'Selecciona la mesa destino (libre)' : tableActionModal === 'merge' ? 'Selecciona la mesa a fusionar (sus items se moverán aquí)' : 'Selecciona items a mover y luego la mesa destino'}
+          </Text>
+
+          {tableActionModal === 'split' && (
+            <ScrollView style={{ maxHeight: 150, marginBottom: 12 }}>
+              {orderItems.filter(i => !i.paid).map(i => (
+                <TouchableOpacity key={i.id} onPress={() => setSplitItems(prev => { const n = new Set(prev); n.has(i.id) ? n.delete(i.id) : n.add(i.id); return n; })}
+                  style={{ flexDirection: 'row', alignItems: 'center', padding: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border }}>
+                  <Text style={{ fontSize: 16, marginRight: 8 }}>{splitItems.has(i.id) ? '☑️' : '⬜'}</Text>
+                  <Text style={{ flex: 1, fontSize: 13, color: COLORS.text }}>{i.quantity}x {i.product?.name}</Text>
+                  <Text style={{ fontSize: 12, color: COLORS.textMuted }}>${i.total_price.toLocaleString('es-CL')}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
+
+          <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 8 }}>
+            {tableActionModal === 'split' ? 'Mesa destino:' : 'Mesas disponibles:'}
+          </Text>
+          <ScrollView style={{ maxHeight: 200 }}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {availableTables.filter(t => t.id !== table.id).map(t => (
+                <TouchableOpacity key={t.id} onPress={() => {
+                  if (tableActionModal === 'move') moveToTable(t);
+                  else if (tableActionModal === 'merge') mergeFrom(t);
+                  else if (tableActionModal === 'split') splitToTable(t);
+                }} style={{ width: 70, height: 60, borderRadius: 8, backgroundColor: t.status === 'ocupada' ? COLORS.primary + '20' : COLORS.background, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ fontSize: 16, fontWeight: '800', color: COLORS.text }}>{t.number}</Text>
+                  {t.order && <Text style={{ fontSize: 9, color: COLORS.textMuted }}>${(t.order.total || 0).toLocaleString('es-CL')}</Text>}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
+          <TouchableOpacity onPress={() => { setTableActionModal(''); setSplitItems(new Set()); }} style={{ marginTop: 12, alignSelf: 'center', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8, backgroundColor: COLORS.background }}>
+            <Text style={{ color: COLORS.textSecondary, fontWeight: '600' }}>Cancelar</Text>
+          </TouchableOpacity>
+        </View></View>
+      </Modal>
+
+      {/* EDIT GUESTS MODAL */}
+      <Modal visible={editGuestsModal} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+        <View style={{ backgroundColor: COLORS.card, borderRadius: 16, padding: 20, width: '90%', maxWidth: 400 }}>
+          <Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.text, marginBottom: 16 }}>Comensales</Text>
+          {guestNames.map((name, i) => (
+            <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.primary, width: 24 }}>{i + 1}.</Text>
+              <TextInput style={{ flex: 1, borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, fontSize: 14, color: COLORS.text, backgroundColor: COLORS.background }}
+                value={name} placeholder={'Cliente ' + (i + 1)} placeholderTextColor={COLORS.textMuted}
+                onChangeText={v => setGuestNames(prev => prev.map((n, j) => j === i ? v : n))} />
+            </View>
+          ))}
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+            {guestNames.length < 5 && (
+              <TouchableOpacity onPress={() => setGuestNames(prev => [...prev, ''])} style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: COLORS.primary, alignItems: 'center' }}>
+                <Text style={{ color: '#fff', fontWeight: '700' }}>+ Agregar</Text>
+              </TouchableOpacity>
+            )}
+            {guestNames.length > 1 && (
+              <TouchableOpacity onPress={() => setGuestNames(prev => prev.slice(0, -1))} style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center' }}>
+                <Text style={{ color: COLORS.textSecondary, fontWeight: '700' }}>- Quitar</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
+            <TouchableOpacity onPress={() => setEditGuestsModal(false)} style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: COLORS.background, alignItems: 'center' }}>
+              <Text style={{ color: COLORS.textSecondary, fontWeight: '600' }}>Cancelar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => saveGuestNames(guestNames)} style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: COLORS.primary, alignItems: 'center' }}>
+              <Text style={{ color: '#fff', fontWeight: '700' }}>Guardar</Text>
+            </TouchableOpacity>
+          </View>
+        </View></View>
       </Modal>
 
       {/* EDITAR CLIENTE */}

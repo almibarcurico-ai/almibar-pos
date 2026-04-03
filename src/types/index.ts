@@ -75,6 +75,7 @@ export interface Order {
   tip_amount: number;
   notes: string | null;
   client_id: string | null;
+  guest_names: string[];
 }
 
 export interface OrderItem {
@@ -90,6 +91,7 @@ export interface OrderItem {
   paid: boolean;
   created_at: string;
   created_by: string;
+  client_slot: number | null;
   // Joined
   product?: Product;
 }
