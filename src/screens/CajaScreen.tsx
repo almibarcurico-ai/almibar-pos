@@ -187,7 +187,8 @@ function VentasTab() {
 
   // Apply filters
   const filtered = orders.filter(o => {
-    if (filterPago !== 'todos' && o.payment_method !== filterPago) return false;
+    const pm = (o.payment_method === 'debito' || o.payment_method === 'credito') ? 'tarjeta' : o.payment_method;
+    if (filterPago !== 'todos' && pm !== filterPago) return false;
     if (filterGarzon !== 'todos' && o.waiter_id !== filterGarzon) return false;
     return true;
   });
@@ -750,8 +751,10 @@ function ArqueosTab() {
   // === FUENTE ÚNICA: payments ===
   // payments.amount = consumo + propina (el total que pagó el cliente)
   // payments.tip_amount = cuánto de ese amount fue propina
-  const sumByMethod = (method: string) => shiftPayments.filter((p: any) => p.method === method).reduce((a: number, p: any) => a + (p.amount || 0), 0);
-  const sumTipByMethod = (method: string) => shiftPayments.filter((p: any) => p.method === method).reduce((a: number, p: any) => a + (p.tip_amount || 0), 0);
+  // Map old methods to new: debito/credito → tarjeta
+  const methodAlias = (m: string) => (m === 'debito' || m === 'credito') ? 'tarjeta' : m;
+  const sumByMethod = (method: string) => shiftPayments.filter((p: any) => methodAlias(p.method) === method).reduce((a: number, p: any) => a + (p.amount || 0), 0);
+  const sumTipByMethod = (method: string) => shiftPayments.filter((p: any) => methodAlias(p.method) === method).reduce((a: number, p: any) => a + (p.tip_amount || 0), 0);
   const totalByMethod = {
     efectivo: sumByMethod('efectivo'),
     tarjeta: sumByMethod('tarjeta'),
