@@ -61,10 +61,10 @@ export default function TableCard({ table, onPress, onLongPress, hasAppOrder }: 
 
 const styles = StyleSheet.create({
   // Fudo: large rounded squares, solid colored
-  box: { width: 100, height: 90, borderRadius: 12, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
-  num: { fontSize: 28, fontWeight: '800' },
-  status: { fontSize: 9, color: 'rgba(255,255,255,0.8)', textTransform: 'uppercase', fontWeight: '600' },
-  total: { fontSize: 12, fontWeight: '700', color: '#FFFFFF', textAlign: 'center' },
-  waiter: { fontSize: 9, color: 'rgba(255,255,255,0.7)', textAlign: 'center' },
-  cap: { position: 'absolute', bottom: 4, right: 6, fontSize: 9, color: 'rgba(255,255,255,0.6)' },
+  box: { width: 130, height: 110, borderRadius: 14, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  num: { fontSize: 32, fontWeight: '800' },
+  status: { fontSize: 11, color: 'rgba(255,255,255,0.8)', textTransform: 'uppercase', fontWeight: '600' },
+  total: { fontSize: 14, fontWeight: '700', color: '#FFFFFF', textAlign: 'center' },
+  waiter: { fontSize: 10, color: 'rgba(255,255,255,0.7)', textAlign: 'center' },
+  cap: { position: 'absolute', bottom: 5, right: 8, fontSize: 10, color: 'rgba(255,255,255,0.6)' },
 });
