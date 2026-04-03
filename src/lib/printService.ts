@@ -197,13 +197,15 @@ export function generateBoleta(data: {
   ticket += pad('Subtotal:', fmt(data.subtotal)) + '\n';
   if (data.discount && data.discount > 0) {
     ticket += pad(data.discountLabel || 'Descuento:', '-' + fmt(data.discount)) + '\n';
-    ticket += pad('Neto:', fmt(data.subtotal - data.discount)) + '\n';
   }
+  const neto = data.subtotal - (data.discount || 0);
+  ticket += pad('Neto:', fmt(neto)) + '\n';
   if (data.tip > 0) {
-    ticket += pad('Propina:', fmt(data.tip)) + '\n';
+    ticket += pad('Propina 10%:', fmt(data.tip)) + '\n';
   }
   ticket += CMD.DOUBLE_BOTH;
-  ticket += pad('TOTAL:', fmt(data.total)) + '\n';
+  const totalConPropina = neto + (data.tip || 0);
+  ticket += pad('TOTAL:', fmt(totalConPropina)) + '\n';
   ticket += CMD.CHAR_SPACING_DEFAULT + CMD.SIZE_UP + CMD.BOLD_OFF;
   ticket += CMD.LINE;
 
