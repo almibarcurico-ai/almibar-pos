@@ -215,9 +215,11 @@ export default function TableMapScreen({ onOpenOrder, onOpenEditor }: Props) {
     }
   };
 
+  const [openingTable, setOpeningTable] = useState(false);
   const handleOpenTable = async () => {
-    if (!selectedTable || !user) return;
+    if (!selectedTable || !user || openingTable) return;
     if (!customerName.trim()) { Alert.alert('', 'Ingresa el nombre del cliente'); return; }
+    setOpeningTable(true);
     try {
       const filteredGuests = guestNames.filter(n => n.trim());
       const { data: od, error: oe } = await supabase.from('orders').insert({ table_id: selectedTable.id, type: 'mesa', status: 'abierta', waiter_id: user.id, notes: customerName ? `Cliente: ${customerName}` : null, client_id: selectedClient ? selectedClient.id : null, personas: guestNames.length, guest_names: filteredGuests.length > 0 ? guestNames : [], tipo_venta: 'mesa' }).select().single();
@@ -227,7 +229,7 @@ export default function TableMapScreen({ onOpenOrder, onOpenEditor }: Props) {
       setOpenModal(false);
       await loadTables();
       onOpenOrder({ ...selectedTable, status: 'ocupada', current_order_id: od.id, order: { ...od, waiter_name: user.name, items_count: 0 } });
-    } catch (e: any) { Alert.alert('Error', e.message); }
+    } catch (e: any) { Alert.alert('Error', e.message); } finally { setOpeningTable(false); }
   };
 
   const handleFreeTable = async (table: TableWithOrder) => {

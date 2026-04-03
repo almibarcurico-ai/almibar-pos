@@ -295,12 +295,20 @@ function ClientesEnLocal() {
       } else {
         await supabase.from('promo_banners').insert({ title: 'PROMO FLASH', subtitle: '🥃 Shot Tequila $1.000 · 🍺 Schop $2.500 · 🍹 Mojito $2.500', emoji: '🔥', image_url: '', sort_order: 0, active: true, created_at: ahora });
       }
-      // Auto-desactivar en 10 minutos
+      // Auto-desactivar en 5 minutos
       setTimeout(async () => {
         await supabase.from('promo_banners').update({ active: false }).eq('title', 'PROMO FLASH');
         setPromoActiva(false);
-      }, 5 * 60 * 1000); // 5 minutos
-      Alert.alert('⚡ Promo Flash activada', '3 productos en promo por 5 minutos.\nShot Tequila $1.000\nSchop Patagonia $2.500\nMojito Cubano $2.500');
+      }, 5 * 60 * 1000);
+      // Auto-enviar WhatsApp a socios con mesas activas
+      await load(); // refresh client list
+      const conTel = clientes.filter(c => c.phone && !enviados.has(c.orderId));
+      if (conTel.length > 0) {
+        conTel.forEach((c, i) => setTimeout(() => enviarPromo(c), i * 1500));
+        Alert.alert('⚡ Promo Flash activada', `3 productos en promo por 5 minutos.\nShot Tequila $1.000\nSchop Patagonia $2.500\nMojito Cubano $2.500\n\n📱 Enviando WhatsApp a ${conTel.length} socio${conTel.length > 1 ? 's' : ''} en el local`);
+      } else {
+        Alert.alert('⚡ Promo Flash activada', '3 productos en promo por 5 minutos.\nShot Tequila $1.000\nSchop Patagonia $2.500\nMojito Cubano $2.500\n\nNo hay socios con teléfono en mesas activas.');
+      }
     } else {
       // Desactivar: ocultar banner
       await supabase.from('promo_banners').update({ active: false }).eq('title', 'PROMO FLASH');
