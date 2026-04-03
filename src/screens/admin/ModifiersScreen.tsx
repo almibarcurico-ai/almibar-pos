@@ -30,6 +30,8 @@ export default function ModifiersScreen() {
   const [ingredients, setIngredients] = useState<any[]>([]);
   const [ingSearch, setIngSearch] = useState('');
   const [localQty, setLocalQty] = useState<Record<string, string>>({});
+  const [localName, setLocalName] = useState<Record<string, string>>({});
+  const [localPrice, setLocalPrice] = useState<Record<string, string>>({});
   const scrollRef = useRef<ScrollView>(null);
 
   const load = useCallback(async () => {
@@ -199,24 +201,67 @@ export default function ModifiersScreen() {
             </View>
             {groupOptions.map((o: any) => {
               const ingCost = o.ingredient ? (o.unit === 'ml' && o.ingredient.unit === 'lt' ? o.ingredient.cost_per_unit * (o.quantity || 1) / 1000 : o.unit === 'g' && o.ingredient.unit === 'kg' ? o.ingredient.cost_per_unit * (o.quantity || 1) / 1000 : o.ingredient.cost_per_unit * (o.quantity || 1)) : 0;
+              const hasPrice = (localPrice[o.id] !== undefined ? parseInt(localPrice[o.id]) || 0 : o.price_adjust) !== 0;
               return (
-                <View key={o.id} style={st.optionRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.text }}>{o.name}</Text>
-                    {o.ingredient && <Text style={{ fontSize: 9, color: COLORS.success }}>🔗 {o.ingredient.name}</Text>}
-                    {!o.ingredient_id && <Text style={{ fontSize: 9, color: COLORS.warning }}>⚠ Sin ingrediente</Text>}
+                <View key={o.id} style={{ borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingVertical: 10 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    {/* Nombre editable */}
+                    <TextInput style={{ flex: 1, fontSize: 14, fontWeight: '600', color: COLORS.text, backgroundColor: COLORS.background, borderRadius: 6, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 10, paddingVertical: 6 }}
+                      value={localName[o.id] ?? o.name}
+                      onChangeText={v => setLocalName(prev => ({ ...prev, [o.id]: v }))}
+                      onBlur={() => { if (localName[o.id] !== undefined && localName[o.id] !== o.name) { updateOptionField(o.id, 'name', localName[o.id].trim()); } setLocalName(prev => { const n = { ...prev }; delete n[o.id]; return n; }); }}
+                    />
+                    {/* Cantidad */}
+                    <TextInput style={{ width: 55, fontSize: 13, textAlign: 'center', backgroundColor: COLORS.background, borderRadius: 6, borderWidth: 1, borderColor: COLORS.border, paddingVertical: 6, color: COLORS.text }}
+                      value={localQty[o.id] ?? String(o.quantity || 1)}
+                      onChangeText={v => setLocalQty(prev => ({ ...prev, [o.id]: v }))}
+                      onBlur={() => { if (localQty[o.id] !== undefined) { updateOptionField(o.id, 'quantity', parseFloat(localQty[o.id]) || 1); setLocalQty(prev => { const n = { ...prev }; delete n[o.id]; return n; }); } }}
+                      keyboardType="decimal-pad"
+                    />
+                    {/* Unidad */}
+                    <View style={{ flexDirection: 'row', gap: 2 }}>
+                      {(o.ingredient?.unit === 'lt' ? ['ml', 'lt'] : o.ingredient?.unit === 'kg' ? ['g', 'kg'] : ['unid']).map((u: string) => (
+                        <TouchableOpacity key={u} onPress={() => updateOptionField(o.id, 'unit', u)} style={{ paddingHorizontal: 6, paddingVertical: 4, borderRadius: 4, backgroundColor: (o.unit || o.ingredient?.unit) === u ? COLORS.primary : COLORS.background, borderWidth: 1, borderColor: (o.unit || o.ingredient?.unit) === u ? COLORS.primary : COLORS.border }}>
+                          <Text style={{ fontSize: 10, fontWeight: '600', color: (o.unit || o.ingredient?.unit) === u ? '#fff' : COLORS.textMuted }}>{u}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                    {/* Eliminar */}
+                    <TouchableOpacity onPress={() => deleteOption(o)} style={{ width: 32, height: 32, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: COLORS.error, fontSize: 16, fontWeight: '700' }}>✕</Text></TouchableOpacity>
                   </View>
-                  <TextInput style={{ width: 70, fontSize: 15, textAlign: 'center', backgroundColor: COLORS.background, borderRadius: 6, borderWidth: 1, borderColor: COLORS.border, paddingVertical: 6, paddingHorizontal: 4, color: COLORS.text }} value={localQty[o.id] ?? String(o.quantity || 1)} onChangeText={v => setLocalQty(prev => ({ ...prev, [o.id]: v }))} onBlur={() => { if (localQty[o.id] !== undefined) { const val = parseFloat(localQty[o.id]) || 1; updateOptionField(o.id, 'quantity', val); setLocalQty(prev => { const n = { ...prev }; delete n[o.id]; return n; }); } }} keyboardType="decimal-pad" />
-                  <View style={{ width: 55, flexDirection: 'row', gap: 2, justifyContent: 'center' }}>
-                    {(o.ingredient?.unit === 'lt' ? ['ml', 'lt'] : o.ingredient?.unit === 'kg' ? ['g', 'kg'] : ['unid']).map((u: string) => (
-                      <TouchableOpacity key={u} onPress={() => updateOptionField(o.id, 'unit', u)} style={{ paddingHorizontal: 6, paddingVertical: 4, borderRadius: 4, backgroundColor: (o.unit || o.ingredient?.unit) === u ? COLORS.primary : COLORS.background, borderWidth: 1, borderColor: (o.unit || o.ingredient?.unit) === u ? COLORS.primary : COLORS.border }}>
-                        <Text style={{ fontSize: 10, fontWeight: '600', color: (o.unit || o.ingredient?.unit) === u ? '#fff' : COLORS.textMuted }}>{u}</Text>
-                      </TouchableOpacity>
-                    ))}
+                  {/* Segunda fila: costo + precio editable */}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6, paddingLeft: 4 }}>
+                    {o.ingredient && <Text style={{ fontSize: 10, color: COLORS.success }}>🔗 {o.ingredient.name}</Text>}
+                    {!o.ingredient_id && <Text style={{ fontSize: 10, color: COLORS.warning }}>⚠ Sin ingrediente</Text>}
+                    <Text style={{ fontSize: 10, color: COLORS.textSecondary, marginLeft: 'auto' }}>Costo: {ingCost > 0 ? '$' + Math.round(ingCost).toLocaleString('es-CL') : '-'}</Text>
+                    {/* Toggle agrega valor */}
+                    <TouchableOpacity
+                      onPress={() => {
+                        if (hasPrice) {
+                          updateOptionField(o.id, 'price_adjust', 0);
+                          setLocalPrice(prev => ({ ...prev, [o.id]: '0' }));
+                        } else {
+                          setLocalPrice(prev => ({ ...prev, [o.id]: '' }));
+                        }
+                      }}
+                      style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 4, backgroundColor: hasPrice ? COLORS.warning + '20' : COLORS.background, borderWidth: 1, borderColor: hasPrice ? COLORS.warning : COLORS.border }}
+                    >
+                      <Text style={{ fontSize: 10, fontWeight: '600', color: hasPrice ? COLORS.warning : COLORS.textMuted }}>{hasPrice ? '$ Agrega valor' : 'Sin valor extra'}</Text>
+                    </TouchableOpacity>
+                    {/* Precio editable */}
+                    {hasPrice || localPrice[o.id] === '' ? (
+                      <TextInput
+                        style={{ width: 70, fontSize: 13, fontWeight: '700', textAlign: 'center', backgroundColor: COLORS.background, borderRadius: 6, borderWidth: 1, borderColor: COLORS.warning, paddingVertical: 4, color: COLORS.warning }}
+                        value={localPrice[o.id] ?? String(o.price_adjust)}
+                        onChangeText={v => setLocalPrice(prev => ({ ...prev, [o.id]: v }))}
+                        onBlur={() => { if (localPrice[o.id] !== undefined) { const val = parseInt(localPrice[o.id]) || 0; updateOptionField(o.id, 'price_adjust', val); setLocalPrice(prev => { const n = { ...prev }; delete n[o.id]; return n; }); } }}
+                        keyboardType="number-pad"
+                        placeholder="+$0"
+                        placeholderTextColor={COLORS.textMuted}
+                        autoFocus={localPrice[o.id] === ''}
+                      />
+                    ) : null}
                   </View>
-                  <Text style={{ width: 70, fontSize: 11, color: COLORS.textSecondary, textAlign: 'right' }}>{ingCost > 0 ? '$' + Math.round(ingCost).toLocaleString('es-CL') : '-'}</Text>
-                  <Text style={{ width: 60, fontSize: 11, fontWeight: '700', color: o.price_adjust > 0 ? COLORS.warning : o.price_adjust < 0 ? COLORS.success : COLORS.textMuted, textAlign: 'right' }}>{o.price_adjust !== 0 ? fmt(o.price_adjust) : '$0'}</Text>
-                  <TouchableOpacity onPress={() => deleteOption(o)} style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: COLORS.error, fontSize: 18, fontWeight: '700' }}>✕</Text></TouchableOpacity>
                 </View>
               );
             })}
@@ -226,9 +271,17 @@ export default function ModifiersScreen() {
               <Text style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 4 }}>Agregar opción desde ingrediente:</Text>
               <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
                 <TextInput style={[st.input, { flex: 1 }]} placeholder="🔍 Buscar ingrediente..." placeholderTextColor={COLORS.textMuted} value={ingSearch} onChangeText={setIngSearch} />
-                <View style={{ width: 80 }}>
-                  <TextInput style={st.input} value={oPrice} onChangeText={setOPrice} keyboardType="number-pad" placeholder="+$0" placeholderTextColor={COLORS.textMuted} />
-                </View>
+                <TouchableOpacity
+                  onPress={() => setOPrice(oPrice === '0' ? '' : '0')}
+                  style={{ paddingHorizontal: 10, paddingVertical: 8, borderRadius: 6, backgroundColor: oPrice !== '0' && oPrice !== '' ? COLORS.warning + '20' : COLORS.background, borderWidth: 1, borderColor: oPrice !== '0' && oPrice !== '' ? COLORS.warning : COLORS.border }}
+                >
+                  <Text style={{ fontSize: 11, fontWeight: '600', color: oPrice !== '0' && oPrice !== '' ? COLORS.warning : COLORS.textMuted }}>{oPrice !== '0' && oPrice !== '' ? '$ Con valor' : 'Sin valor'}</Text>
+                </TouchableOpacity>
+                {(oPrice !== '0') && (
+                  <View style={{ width: 80 }}>
+                    <TextInput style={st.input} value={oPrice === '0' ? '' : oPrice} onChangeText={setOPrice} keyboardType="number-pad" placeholder="+$0" placeholderTextColor={COLORS.textMuted} />
+                  </View>
+                )}
               </View>
               {ingSearch.length >= 2 && (
                 <View style={{ backgroundColor: COLORS.card, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, maxHeight: 120, marginTop: 4 }}>
