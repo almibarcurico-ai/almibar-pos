@@ -1125,7 +1125,7 @@ function ArqueosTab() {
               <View style={{ borderTopWidth: 2, borderTopColor: COLORS.primary, marginTop: 8, paddingTop: 8 }}>
                 <ARQ label="EFECTIVO EN CAJA" val={fmt(saldoActual)} bold />
                 <Text style={{ fontSize: 10, color: COLORS.textMuted, marginTop: 2 }}>
-                  Inicial ({fmt(cashRegister?.opening_amount || 0)}) + Efectivo ({fmt(totalByMethod.efectivo)}) + Ingresos ({fmt(totals.ingresos)}) - Egresos ({fmt(totals.gastos)})
+                  Inicial ({fmt(cashRegister?.opening_amount || 0)}) + Efectivo ({fmt(ventaNetaByMethod.efectivo)}) + Ingresos ({fmt(totals.ingresos)}) - Egresos ({fmt(totals.gastos)})
                 </Text>
               </View>
               <View style={{ marginTop: 6 }}>
