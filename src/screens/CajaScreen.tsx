@@ -705,6 +705,9 @@ function ArqueosTab() {
   const [detailOrders, setDetailOrders] = useState<any[]>([]);
   const [detailMovs, setDetailMovs] = useState<any[]>([]);
   const [detailPayments, setDetailPayments] = useState<any[]>([]);
+  const [editOrderModal, setEditOrderModal] = useState(false);
+  const [editOrder, setEditOrder] = useState<any>(null);
+  const [editOrderItems, setEditOrderItems] = useState<any[]>([]);
   const [movType, setMovType] = useState<'gasto' | 'ingreso'>('gasto');
   const [movAmount, setMovAmount] = useState('');
   const [movDesc, setMovDesc] = useState('');
@@ -867,6 +870,38 @@ function ArqueosTab() {
     // Movimientos del arqueo
     const { data: movs } = await supabase.from('cash_movements').select('*, users:created_by(name)').eq('cash_register_id', arqueo.id).order('created_at');
     setDetailMovs(movs || []);
+  };
+
+  const openEditOrder = async (order: any) => {
+    setEditOrder(order);
+    const { data } = await supabase.from('order_items').select('*, product:product_id(name)').eq('order_id', order.id).order('created_at');
+    setEditOrderItems(data || []);
+    setEditOrderModal(true);
+  };
+
+  const saveEditOrder = async () => {
+    if (!editOrder) return;
+    const total = Math.max(0, (editOrder.subtotal || 0) - (editOrder.discount_value || 0));
+    await supabase.from('orders').update({
+      payment_method: editOrder.payment_method,
+      tip_amount: editOrder.tip_amount || 0,
+      discount_value: editOrder.discount_value || 0,
+      total,
+    }).eq('id', editOrder.id);
+    // Actualizar payment si existe
+    const { data: pays } = await supabase.from('payments').select('id').eq('order_id', editOrder.id).limit(1);
+    if (pays && pays[0]) {
+      await supabase.from('payments').update({
+        method: editOrder.payment_method,
+        amount: total + (editOrder.tip_amount || 0),
+        tip_amount: editOrder.tip_amount || 0,
+      }).eq('id', pays[0].id);
+    }
+    Alert.alert('Guardado', 'Venta actualizada');
+    setEditOrderModal(false); setEditOrder(null);
+    // Recargar detalle del arqueo
+    if (detailArqueo) openArqueoDetail(detailArqueo);
+    await loadData();
   };
 
   const handleMov = async () => {
@@ -1353,7 +1388,7 @@ function ArqueosTab() {
                   const payMethod = orderPays.length > 0 ? orderPays.map((p: any) => p.method).join(', ') : o.payment_method || '-';
                   const tipTotal = orderPays.reduce((a: number, p: any) => a + (p.tip_amount || 0), 0);
                   return (
-                    <View key={o.id} style={{ flexDirection: 'row', alignItems: 'center', padding: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border, backgroundColor: i % 2 === 0 ? 'transparent' : COLORS.card }}>
+                    <TouchableOpacity key={o.id} style={{ flexDirection: 'row', alignItems: 'center', padding: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border, backgroundColor: i % 2 === 0 ? 'transparent' : COLORS.card }} onPress={() => openEditOrder(o)}>
                       <View style={{ width: 50 }}><Text style={{ fontSize: 16, fontWeight: '800', color: COLORS.primary }}>#{o.table?.number || '?'}</Text></View>
                       <View style={{ flex: 1 }}>
                         <Text style={{ fontSize: 12, color: COLORS.text }} numberOfLines={2}>{(o.order_items || []).map((it: any) => it.quantity + 'x ' + (it.product?.name || '?')).join(', ')}</Text>
@@ -1363,7 +1398,7 @@ function ArqueosTab() {
                         <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.text }}>{fmt(o.total || 0)}</Text>
                         {tipTotal > 0 && <Text style={{ fontSize: 10, color: COLORS.success }}>+{fmt(tipTotal)} propina</Text>}
                       </View>
-                    </View>
+                    </TouchableOpacity>
                   );
                 })}
                 {detailOrders.length === 0 && <Text style={{ padding: 16, color: COLORS.textMuted }}>Sin ventas en este arqueo</Text>}
@@ -1393,6 +1428,77 @@ function ArqueosTab() {
             )}
           </>)}
         </View></ScrollView></View>
+      </Modal>
+
+      {/* MODAL: Editar Venta desde Arqueo */}
+      <Modal visible={editOrderModal} transparent animationType="fade">
+        <View style={s.ov}><ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 16 }}>
+          <View style={[s.md, { maxWidth: 500 }]}>
+            <Text style={s.mdT}>Orden #{editOrder?.order_number}</Text>
+            <Text style={{ fontSize: 12, color: COLORS.textSecondary, textAlign: 'center' }}>
+              Mesa {editOrder?.table?.number || '—'} • {editOrder?.closed_at ? new Date(editOrder.closed_at).toLocaleString('es-CL') : ''}
+              {editOrder?.waiter?.name ? ` • ${editOrder.waiter.name}` : ''}
+            </Text>
+            <View style={s.div} />
+            <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 6 }}>CONSUMO</Text>
+            {editOrderItems.map((it: any) => (
+              <View key={it.id} style={{ flexDirection: 'row', paddingVertical: 3 }}>
+                <Text style={{ width: 28, fontSize: 13, fontWeight: '700', color: COLORS.textSecondary }}>{it.quantity}x</Text>
+                <Text style={{ flex: 1, fontSize: 13, color: COLORS.text }}>{it.product?.name}</Text>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.text, marginLeft: 8 }}>{fmt(it.total_price)}</Text>
+              </View>
+            ))}
+            <View style={s.div} />
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              <Text style={{ color: COLORS.textSecondary }}>Subtotal</Text>
+              <Text style={{ fontWeight: '600', color: COLORS.text }}>{fmt(editOrder?.subtotal || 0)}</Text>
+            </View>
+            {(editOrder?.discount_value || 0) > 0 && <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+              <Text style={{ color: COLORS.success }}>Descuento</Text>
+              <Text style={{ fontWeight: '600', color: COLORS.success }}>-{fmt(editOrder.discount_value)}</Text>
+            </View>}
+            {(editOrder?.tip_amount || 0) > 0 && <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+              <Text style={{ color: COLORS.textSecondary }}>Propina</Text>
+              <Text style={{ fontWeight: '600', color: COLORS.warning }}>{fmt(editOrder.tip_amount)}</Text>
+            </View>}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, paddingTop: 8, borderTopWidth: 2, borderTopColor: COLORS.primary }}>
+              <Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.text }}>TOTAL</Text>
+              <Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.primary }}>{fmt(Math.max(0, (editOrder?.subtotal || 0) - (editOrder?.discount_value || 0)))}</Text>
+            </View>
+
+            {/* EDITAR */}
+            <View style={{ marginTop: 16, backgroundColor: COLORS.background, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: COLORS.border }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 8 }}>EDITAR VENTA</Text>
+              <Text style={s.lb}>Método de pago</Text>
+              <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+                {['efectivo', 'tarjeta', 'transferencia', 'pedidosya', 'consumo'].map(m => (
+                  <TouchableOpacity key={m} onPress={() => setEditOrder((p: any) => ({ ...p, payment_method: m }))}
+                    style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, backgroundColor: editOrder?.payment_method === m ? COLORS.primary : COLORS.card, borderWidth: 1, borderColor: editOrder?.payment_method === m ? COLORS.primary : COLORS.border }}>
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: editOrder?.payment_method === m ? '#fff' : COLORS.text }}>{m.charAt(0).toUpperCase() + m.slice(1)}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.lb}>Propina</Text>
+                  <TextInput style={s.inp} value={String(editOrder?.tip_amount || 0)} onChangeText={t => setEditOrder((p: any) => ({ ...p, tip_amount: parseInt(t) || 0 }))} keyboardType="number-pad" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.lb}>Descuento</Text>
+                  <TextInput style={s.inp} value={String(editOrder?.discount_value || 0)} onChangeText={t => {
+                    const dv = parseInt(t) || 0;
+                    setEditOrder((p: any) => ({ ...p, discount_value: dv }));
+                  }} keyboardType="number-pad" />
+                </View>
+              </View>
+            </View>
+
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+              <TouchableOpacity style={s.bC} onPress={() => { setEditOrderModal(false); setEditOrder(null); }}><Text style={s.bCT}>Cancelar</Text></TouchableOpacity>
+              <TouchableOpacity style={s.bOk} onPress={saveEditOrder}><Text style={s.bOkT}>Guardar cambios</Text></TouchableOpacity>
+            </View>
+          </View>
+        </ScrollView></View>
       </Modal>
     </ScrollView>
   );
