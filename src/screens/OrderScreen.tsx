@@ -1123,7 +1123,7 @@ export default function OrderScreen({ table, onBack }: Props) {
             {tipEntries.map((te, i) => (
               <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
                 <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.background, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, overflow: 'hidden' }}>
-                  <TouchableOpacity onPress={() => { const methods = ['efectivo','debito','credito','transferencia']; const next = methods[(methods.indexOf(te.method) + 1) % methods.length]; updateTipEntry(i, 'method', next); }} style={{ paddingHorizontal: 10, paddingVertical: 10, backgroundColor: COLORS.card, borderRightWidth: 1, borderRightColor: COLORS.border }}>
+                  <TouchableOpacity onPress={() => { const methods = ['efectivo','tarjeta','transferencia','pedidosya','consumo']; const next = methods[(methods.indexOf(te.method) + 1) % methods.length]; updateTipEntry(i, 'method', next); }} style={{ paddingHorizontal: 10, paddingVertical: 10, backgroundColor: COLORS.card, borderRightWidth: 1, borderRightColor: COLORS.border }}>
                     <Text style={{ fontSize: 12, color: COLORS.text, minWidth: 80 }}>{te.method === 'efectivo' ? '💵 Efectivo' : te.method === 'tarjeta' ? '💳 Tarjeta' : te.method === 'transferencia' ? '📱 Transf.' : te.method === 'pedidosya' ? '🛵 PedidosYa' : '🍽️ Consumo'}</Text>
                   </TouchableOpacity>
                   <Text style={{ paddingHorizontal: 8, fontSize: 14, color: COLORS.textSecondary }}>$</Text>
@@ -1143,7 +1143,7 @@ export default function OrderScreen({ table, onBack }: Props) {
             {payEntries.map((pe, i) => (
               <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
                 <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.background, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, overflow: 'hidden' }}>
-                  <TouchableOpacity onPress={() => { const methods = ['efectivo','debito','credito','transferencia']; const next = methods[(methods.indexOf(pe.method) + 1) % methods.length]; updatePayEntry(i, 'method', next); }} style={{ paddingHorizontal: 10, paddingVertical: 10, backgroundColor: COLORS.card, borderRightWidth: 1, borderRightColor: COLORS.border }}>
+                  <TouchableOpacity onPress={() => { const methods = ['efectivo','tarjeta','transferencia','pedidosya','consumo']; const next = methods[(methods.indexOf(pe.method) + 1) % methods.length]; updatePayEntry(i, 'method', next); }} style={{ paddingHorizontal: 10, paddingVertical: 10, backgroundColor: COLORS.card, borderRightWidth: 1, borderRightColor: COLORS.border }}>
                     <Text style={{ fontSize: 12, color: COLORS.text, minWidth: 80 }}>{pe.method === 'efectivo' ? '💵 Efectivo' : pe.method === 'tarjeta' ? '💳 Tarjeta' : pe.method === 'transferencia' ? '📱 Transf.' : pe.method === 'pedidosya' ? '🛵 PedidosYa' : '🍽️ Consumo'}</Text>
                   </TouchableOpacity>
                   <Text style={{ paddingHorizontal: 8, fontSize: 14, color: COLORS.textSecondary }}>$</Text>
