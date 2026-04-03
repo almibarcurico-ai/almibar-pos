@@ -45,7 +45,7 @@ export default function CajaScreen() {
 // =====================================================
 function VentasTab() {
   const [orders, setOrders] = useState<any[]>([]);
-  const [period, setPeriod] = useState<'turno' | 'diario' | 'semanal' | 'mensual' | 'anual' | 'rango'>('turno');
+  const [period, setPeriod] = useState<'diario' | 'semanal' | 'mensual' | 'anual' | 'rango'>('diario');
   const [date, setDate] = useState(new Date().toLocaleDateString('en-CA'));
   const [rangoDesde, setRangoDesde] = useState(new Date().toLocaleDateString('en-CA'));
   const [rangoHasta, setRangoHasta] = useState(new Date().toLocaleDateString('en-CA'));
@@ -112,35 +112,35 @@ function VentasTab() {
 
     const d = new Date(date + 'T12:00:00');
 
-    if (period === 'turno') {
-      const selectedArqueo = allArqueos[arqueoIdx];
-      if (selectedArqueo) {
-        since = selectedArqueo.opened_at;
-        until = selectedArqueo.closed_at || new Date(Date.now() + 86400000).toISOString();
-      } else if (cajas?.[0]) {
-        since = cajas[0].opened_at;
-        until = new Date(Date.now() + 86400000).toISOString();
-      } else {
-        since = toChileISO(new Date().toLocaleDateString('en-CA'));
+    // Buscar arqueo que abrió en el rango del período para usar su rango real
+    const findShiftRange = (rangeStart: string, rangeEnd: string) => {
+      const shifts = allArqueos.filter((a: any) => a.opened_at >= rangeStart && a.opened_at < rangeEnd);
+      if (shifts.length > 0) {
+        const first = shifts[shifts.length - 1]; // oldest in range
+        const last = shifts[0]; // newest in range
+        return { since: first.opened_at, until: last.closed_at || new Date(Date.now() + 86400000).toISOString() };
       }
-      if (!until!) until = toChileISO(addDays(new Date().toLocaleDateString('en-CA'), 1));
-    } else if (period === 'diario') {
-      since = toChileISO(date);
-      until = toChileISO(addDays(date, 1));
+      return { since: rangeStart, until: rangeEnd };
+    };
+
+    if (period === 'diario') {
+      const dayStart = toChileISO(date);
+      const dayEnd = toChileISO(addDays(date, 1));
+      const shift = findShiftRange(dayStart, dayEnd);
+      since = shift.since; until = shift.until;
     } else if (period === 'semanal') {
       const start = new Date(d); start.setDate(start.getDate() - start.getDay());
       const startStr = start.toISOString().split('T')[0];
-      since = toChileISO(startStr);
-      until = toChileISO(addDays(startStr, 7));
+      const shift = findShiftRange(toChileISO(startStr), toChileISO(addDays(startStr, 7)));
+      since = shift.since; until = shift.until;
     } else if (period === 'mensual') {
       const startStr = date.substring(0, 7) + '-01';
       const end = new Date(d.getFullYear(), d.getMonth() + 1, 1);
-      const endStr = end.toISOString().split('T')[0];
-      since = toChileISO(startStr);
-      until = toChileISO(endStr);
+      const shift = findShiftRange(toChileISO(startStr), toChileISO(end.toISOString().split('T')[0]));
+      since = shift.since; until = shift.until;
     } else if (period === 'anual') {
-      since = toChileISO(d.getFullYear() + '-01-01');
-      until = toChileISO((d.getFullYear() + 1) + '-01-01');
+      const shift = findShiftRange(toChileISO(d.getFullYear() + '-01-01'), toChileISO((d.getFullYear() + 1) + '-01-01'));
+      since = shift.since; until = shift.until;
     } else if (period === 'rango') {
       since = toChileISO(rangoDesde);
       until = toChileISO(addDays(rangoHasta, 1));
@@ -162,9 +162,9 @@ function VentasTab() {
       payment_method: 'efectivo',
     }));
 
-    // En modo turno, incluir órdenes abiertas
+    // Incluir órdenes abiertas en modo diario
     let openOrders: any[] = [];
-    if (period === 'turno') {
+    if (period === 'diario') {
       const { data: openData } = await supabase.from('orders').select('*, order_items(total_price)').eq('status', 'abierta').gte('opened_at', since!).order('opened_at', { ascending: false });
       // Obtener números de mesa para órdenes abiertas
       const openTableIds = (openData || []).map((o: any) => o.table_id).filter(Boolean);
@@ -225,7 +225,7 @@ function VentasTab() {
   };
 
   const changeDate = (dir: number) => {
-    if (period === 'rango' || period === 'turno') return;
+    if (period === 'rango') return;
     const d = new Date(date + 'T12:00:00');
     if (period === 'diario') d.setDate(d.getDate() + dir);
     else if (period === 'semanal') d.setDate(d.getDate() + (dir * 7));
@@ -236,7 +236,6 @@ function VentasTab() {
 
   const dateLabel = () => {
     const d = new Date(date + 'T12:00:00');
-    if (period === 'turno') return currentArqueo ? 'Desde ' + new Date(currentArqueo.opened_at).toLocaleString('es-CL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'Sin arqueo abierto';
     if (period === 'diario') return d.toLocaleDateString('es-CL', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
     if (period === 'semanal') return `Semana del ${d.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}`;
     if (period === 'anual') return String(d.getFullYear());
@@ -250,22 +249,14 @@ function VentasTab() {
       <View style={s.filterBar}>
         {/* Period selector */}
         <View style={s.filterRow}>
-          {(['turno', 'diario', 'semanal', 'mensual', 'anual', 'rango'] as const).map(p => (
+          {(['diario', 'semanal', 'mensual', 'anual', 'rango'] as const).map(p => (
             <TouchableOpacity key={p} style={[s.fChip, period === p && s.fChipA]} onPress={() => setPeriod(p)}>
               <Text style={[s.fChipT, period === p && s.fChipTA]}>{p.charAt(0).toUpperCase() + p.slice(1)}</Text>
             </TouchableOpacity>
           ))}
         </View>
         {/* Date nav */}
-        {period === 'turno' ? (
-          <View style={s.dateNav}>
-            <TouchableOpacity onPress={() => setArqueoIdx(prev => Math.min(prev + 1, allArqueos.length - 1))} style={s.dateBtn}><Text style={s.dateBtnT}>◀</Text></TouchableOpacity>
-            <Text style={[s.dateLabel, { fontSize: 12 }]}>
-              {(() => { const a = allArqueos[arqueoIdx]; if (!a) return 'Sin arqueo'; return new Date(a.opened_at).toLocaleString('es-CL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) + (a.closed_at ? ' → ' + new Date(a.closed_at).toLocaleString('es-CL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ' (abierto)'); })()}
-            </Text>
-            <TouchableOpacity onPress={() => setArqueoIdx(prev => Math.max(prev - 1, 0))} style={s.dateBtn}><Text style={s.dateBtnT}>▶</Text></TouchableOpacity>
-          </View>
-        ) : period === 'rango' ? (
+        {period === 'rango' ? (
           <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'center', marginTop: 8, alignItems: 'center' }}>
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 2, textAlign: 'center' }}>Desde</Text>
@@ -1477,7 +1468,7 @@ function AnulacionesTab() {
 function PropinasTab() {
   const [orders, setOrders] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
-  const [period, setPeriod] = useState<'turno' | 'diario' | 'semanal' | 'mensual' | 'rango'>('turno');
+  const [period, setPeriod] = useState<'diario' | 'semanal' | 'mensual' | 'rango'>('diario');
   const [allArqueos, setAllArqueos] = useState<any[]>([]);
   const [arqueoIdx, setArqueoIdx] = useState(0);
   const [date, setDate] = useState(new Date().toLocaleDateString('en-CA'));
@@ -1501,17 +1492,33 @@ function PropinasTab() {
   const toChileISO = (ds: string) => { const l = new Date(ds + 'T00:00:00'); const om = l.getTimezoneOffset(); const sg = om <= 0 ? '+' : '-'; const ao = Math.abs(om); return ds + 'T00:00:00' + sg + String(Math.floor(ao/60)).padStart(2,'0') + ':' + String(ao%60).padStart(2,'0'); };
   const addDays = (ds: string, n: number) => { const x = new Date(ds + 'T12:00:00'); x.setDate(x.getDate() + n); return x.toLocaleDateString('en-CA'); };
 
+  const findShiftRange = (rangeStart: string, rangeEnd: string) => {
+    const shifts = allArqueos.filter((a: any) => a.opened_at >= rangeStart && a.opened_at < rangeEnd);
+    if (shifts.length > 0) {
+      const first = shifts[shifts.length - 1];
+      const last = shifts[0];
+      return { since: first.opened_at, until: last.closed_at || new Date(Date.now() + 86400000).toISOString() };
+    }
+    return { since: rangeStart, until: rangeEnd };
+  };
+
   const load = async () => {
     let since: string, until: string;
     const d = new Date(date + 'T12:00:00');
-    if (period === 'turno') {
-      if (lastArqueo) { since = lastArqueo.opened_at; until = lastArqueo.closed_at || new Date(Date.now() + 86400000).toISOString(); }
-      else { since = toChileISO(date); until = toChileISO(addDays(date, 1)); }
-    } else if (period === 'rango') {
+    if (period === 'rango') {
       since = toChileISO(rangoDesde); until = toChileISO(addDays(rangoHasta, 1));
-    } else if (period === 'diario') { since = toChileISO(date); until = toChileISO(addDays(date, 1)); }
-    else if (period === 'semanal') { const st = new Date(d); st.setDate(st.getDate() - st.getDay()); const ss = st.toLocaleDateString('en-CA'); since = toChileISO(ss); until = toChileISO(addDays(ss, 7)); }
-    else { const ss = date.substring(0,7) + '-01'; const en = new Date(d.getFullYear(), d.getMonth() + 1, 1); since = toChileISO(ss); until = toChileISO(en.toLocaleDateString('en-CA')); }
+    } else if (period === 'diario') {
+      const shift = findShiftRange(toChileISO(date), toChileISO(addDays(date, 1)));
+      since = shift.since; until = shift.until;
+    } else if (period === 'semanal') {
+      const st = new Date(d); st.setDate(st.getDate() - st.getDay()); const ss = st.toLocaleDateString('en-CA');
+      const shift = findShiftRange(toChileISO(ss), toChileISO(addDays(ss, 7)));
+      since = shift.since; until = shift.until;
+    } else {
+      const ss = date.substring(0,7) + '-01'; const en = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+      const shift = findShiftRange(toChileISO(ss), toChileISO(en.toLocaleDateString('en-CA')));
+      since = shift.since; until = shift.until;
+    }
 
     const { data: mesaData } = await supabase.from('orders').select('id,table_id,waiter_id,tip_amount,closed_at,table:table_id(number)').eq('status', 'cerrada').gte('closed_at', since).lt('closed_at', until).gt('tip_amount', 0).order('closed_at', { ascending: false });
     setOrders(mesaData || []);
@@ -1524,7 +1531,7 @@ function PropinasTab() {
   };
 
   const changeDate = (dir: number) => {
-    if (period === 'turno') return;
+    if (period === 'rango') return;
     const d = new Date(date + 'T12:00:00');
     if (period === 'diario') d.setDate(d.getDate() + dir);
     else if (period === 'semanal') d.setDate(d.getDate() + (dir * 7));
@@ -1546,21 +1553,13 @@ function PropinasTab() {
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 20 }}>
       <View style={s.filterBar}>
         <View style={s.filterRow}>
-          {(['turno', 'diario', 'semanal', 'mensual', 'rango'] as const).map(p => (
+          {(['diario', 'semanal', 'mensual', 'rango'] as const).map(p => (
             <TouchableOpacity key={p} style={[s.fChip, period === p && s.fChipA]} onPress={() => setPeriod(p)}>
               <Text style={[s.fChipT, period === p && s.fChipTA]}>{p.charAt(0).toUpperCase() + p.slice(1)}</Text>
             </TouchableOpacity>
           ))}
         </View>
-        {period === 'turno' ? (
-          <View style={s.dateNav}>
-            <TouchableOpacity onPress={() => setArqueoIdx(prev => Math.min(prev + 1, allArqueos.length - 1))} style={s.dateBtn}><Text style={s.dateBtnT}>◀</Text></TouchableOpacity>
-            <Text style={[s.dateLabel, { fontSize: 12 }]}>
-              {lastArqueo ? new Date(lastArqueo.opened_at).toLocaleString('es-CL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) + (lastArqueo.closed_at ? ' → ' + new Date(lastArqueo.closed_at).toLocaleString('es-CL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ' (abierto)') : 'Sin arqueo'}
-            </Text>
-            <TouchableOpacity onPress={() => setArqueoIdx(prev => Math.max(prev - 1, 0))} style={s.dateBtn}><Text style={s.dateBtnT}>▶</Text></TouchableOpacity>
-          </View>
-        ) : period === 'rango' ? (
+        {period === 'rango' ? (
           <View style={{ marginTop: 8, gap: 8 }}>
             <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'center', alignItems: 'center' }}>
               <View style={{ flex: 1 }}>
