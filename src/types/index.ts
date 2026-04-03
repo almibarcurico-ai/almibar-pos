@@ -5,7 +5,7 @@ export type TableStatus = 'libre' | 'ocupada' | 'cuenta' | 'reservada';
 export type OrderType = 'mesa' | 'delivery' | 'takeaway' | 'mostrador';
 export type OrderStatus = 'abierta' | 'cerrada' | 'anulada' | 'en_curso' | 'enviada';
 export type DiscountType = 'none' | 'percent' | 'fixed';
-export type PaymentMethod = 'efectivo' | 'debito' | 'credito' | 'transferencia' | 'mixto' | 'online';
+export type PaymentMethod = 'efectivo' | 'tarjeta' | 'transferencia' | 'pedidosya' | 'consumo' | 'mixto';
 export type ItemStatus = 'pendiente' | 'preparando' | 'listo' | 'entregado';
 
 export interface User {

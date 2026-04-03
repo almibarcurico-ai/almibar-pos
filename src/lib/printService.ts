@@ -212,7 +212,7 @@ export function generateBoleta(data: {
   // Payments
   ticket += CMD.SIZE_UP;
   for (const p of data.payments) {
-    const label = p.method === 'efectivo' ? 'Efectivo' : p.method === 'debito' ? 'Debito' : p.method === 'credito' ? 'Credito' : 'Transf.';
+    const label = p.method === 'efectivo' ? 'Efectivo' : p.method === 'tarjeta' ? 'Tarjeta' : p.method === 'transferencia' ? 'Transf.' : p.method === 'pedidosya' ? 'PedidosYa' : p.method === 'consumo' ? 'Consumo' : p.method;
     ticket += pad(label + ':', fmt(p.amount)) + '\n';
   }
 

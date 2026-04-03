@@ -267,7 +267,7 @@ function VentasTab() {
         <View style={s.filterRow}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             {/* Medio de pago */}
-            {['todos', 'efectivo', 'debito', 'credito', 'transferencia'].map(m => (
+            {['todos', 'efectivo', 'tarjeta', 'transferencia', 'pedidosya', 'consumo'].map(m => (
               <TouchableOpacity key={m} style={[s.fChip, filterPago === m && s.fChipA]} onPress={() => setFilterPago(m)}>
                 <Text style={[s.fChipT, filterPago === m && s.fChipTA]}>{m === 'todos' ? 'Todos' : m.charAt(0).toUpperCase() + m.slice(1)}</Text>
               </TouchableOpacity>
@@ -454,7 +454,7 @@ function VentasTab() {
               <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 8 }}>EDITAR VENTA</Text>
               <Text style={s.lb}>Método de pago</Text>
               <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
-                {['efectivo', 'debito', 'credito', 'transferencia', 'mixto'].map(m => (
+                {['efectivo', 'tarjeta', 'transferencia', 'pedidosya', 'consumo'].map(m => (
                   <TouchableOpacity key={m} onPress={() => setDetailOrder((p: any) => ({ ...p, payment_method: m }))}
                     style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, backgroundColor: detailOrder?.payment_method === m ? COLORS.primary : COLORS.card, borderWidth: 1, borderColor: detailOrder?.payment_method === m ? COLORS.primary : COLORS.border }}>
                     <Text style={{ fontSize: 12, fontWeight: '600', color: detailOrder?.payment_method === m ? '#fff' : COLORS.text }}>{m.charAt(0).toUpperCase() + m.slice(1)}</Text>
@@ -754,34 +754,36 @@ function ArqueosTab() {
   const sumTipByMethod = (method: string) => shiftPayments.filter((p: any) => p.method === method).reduce((a: number, p: any) => a + (p.tip_amount || 0), 0);
   const totalByMethod = {
     efectivo: sumByMethod('efectivo'),
-    debito: sumByMethod('debito'),
-    credito: sumByMethod('credito'),
+    tarjeta: sumByMethod('tarjeta'),
     transferencia: sumByMethod('transferencia'),
+    pedidosya: sumByMethod('pedidosya'),
+    consumo: sumByMethod('consumo'),
   };
   const tipByMethod = {
     efectivo: sumTipByMethod('efectivo'),
-    debito: sumTipByMethod('debito'),
-    credito: sumTipByMethod('credito'),
+    tarjeta: sumTipByMethod('tarjeta'),
     transferencia: sumTipByMethod('transferencia'),
+    pedidosya: sumTipByMethod('pedidosya'),
+    consumo: sumTipByMethod('consumo'),
   };
   const totalPropinas = shiftPayments.reduce((a: number, p: any) => a + (p.tip_amount || 0), 0);
-  // Venta neta = amount - tip (lo que realmente es consumo)
   const ventaNetaByMethod = {
     efectivo: totalByMethod.efectivo - tipByMethod.efectivo,
-    debito: totalByMethod.debito - tipByMethod.debito,
-    credito: totalByMethod.credito - tipByMethod.credito,
+    tarjeta: totalByMethod.tarjeta - tipByMethod.tarjeta,
     transferencia: totalByMethod.transferencia - tipByMethod.transferencia,
+    pedidosya: totalByMethod.pedidosya - tipByMethod.pedidosya,
+    consumo: totalByMethod.consumo - tipByMethod.consumo,
   };
   const totals = {
-    ventas: totalByMethod.efectivo + totalByMethod.debito + totalByMethod.credito + totalByMethod.transferencia,
-    ventasNetas: ventaNetaByMethod.efectivo + ventaNetaByMethod.debito + ventaNetaByMethod.credito + ventaNetaByMethod.transferencia,
+    ventas: totalByMethod.efectivo + totalByMethod.tarjeta + totalByMethod.transferencia + totalByMethod.pedidosya + totalByMethod.consumo,
+    ventasNetas: ventaNetaByMethod.efectivo + ventaNetaByMethod.tarjeta + ventaNetaByMethod.transferencia + ventaNetaByMethod.pedidosya + ventaNetaByMethod.consumo,
     propinas: totalPropinas,
     gastos: movements.filter(m => m.type === 'gasto').reduce((a, m) => a + m.amount, 0),
     ingresos: movements.filter(m => m.type === 'ingreso').reduce((a, m) => a + m.amount, 0),
   };
   // Efectivo en caja: apertura + todo el efectivo recibido (con propina) + ingresos - egresos
   const saldoActual = (cashRegister?.opening_amount || 0) + totalByMethod.efectivo + totals.ingresos - totals.gastos;
-  const totalTarjetas = totalByMethod.debito + totalByMethod.credito + totalByMethod.transferencia;
+  const totalTarjetas = totalByMethod.tarjeta + totalByMethod.transferencia + totalByMethod.pedidosya + totalByMethod.consumo;
 
   const handleOpen = async () => {
     if (!user) return;
@@ -814,8 +816,8 @@ function ArqueosTab() {
       closed_at: new Date().toISOString(), closed_by: user.id,
       closing_amount: userTotal,
       total_cash: totalByMethod.efectivo,
-      total_debit: totalByMethod.debito,
-      total_credit: totalByMethod.credito,
+      total_debit: totalByMethod.tarjeta,
+      total_credit: totalByMethod.pedidosya,
       total_transfer: totalByMethod.transferencia,
       total_sales: consumoTotal,
       total_tips: totals.propinas,
@@ -1105,9 +1107,10 @@ function ArqueosTab() {
               <View style={{ borderTopWidth: 1, borderTopColor: COLORS.border, marginTop: 6, paddingTop: 6 }}>
                 <Text style={{ fontSize: 11, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 4 }}>COBRADO POR MÉTODO (consumo + propina)</Text>
                 <ARQ label="    Efectivo" val={fmt(totalByMethod.efectivo)} />
-                <ARQ label="    Tarj. Débito" val={fmt(totalByMethod.debito)} />
-                <ARQ label="    Tarj. Crédito" val={fmt(totalByMethod.credito)} />
+                <ARQ label="    Tarjeta" val={fmt(totalByMethod.tarjeta)} />
                 <ARQ label="    Transferencia" val={fmt(totalByMethod.transferencia)} />
+                {totalByMethod.pedidosya > 0 && <ARQ label="    PedidosYa" val={fmt(totalByMethod.pedidosya)} />}
+                {totalByMethod.consumo > 0 && <ARQ label="    Consumo" val={fmt(totalByMethod.consumo)} />}
                 <View style={{ borderTopWidth: 1, borderTopColor: COLORS.border, marginTop: 4, paddingTop: 4 }}>
                   <ARQ label="Total cobrado" val={fmt(totals.ventas)} bold />
                 </View>
@@ -1133,27 +1136,24 @@ function ArqueosTab() {
             <View style={{ backgroundColor: COLORS.cardHover, borderRadius: 10, padding: 14, marginBottom: 14 }}>
               <Text style={{ fontSize: 12, fontWeight: '800', color: '#fff', marginBottom: 10, backgroundColor: COLORS.textMuted, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 4, overflow: 'hidden' }}>SEGÚN USUARIO</Text>
               
-              <Text style={{ fontSize: 11, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 4 }}>Efectivo contado</Text>
+              <Text style={{ fontSize: 11, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 4 }}>💵 Efectivo</Text>
               <TextInput style={[s.inp, { fontSize: 18, fontWeight: '700', marginBottom: 8 }]} placeholder="$0" placeholderTextColor={COLORS.textMuted} keyboardType="number-pad" value={cEfectivo} onChangeText={setCEfectivo} />
-              
-              <Text style={{ fontSize: 11, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 4 }}>Tarj. Débito</Text>
+
+              <Text style={{ fontSize: 11, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 4 }}>💳 Tarjeta</Text>
               <TextInput style={[s.inp, { fontSize: 18, fontWeight: '700', marginBottom: 8 }]} placeholder="$0" placeholderTextColor={COLORS.textMuted} keyboardType="number-pad" value={cDebito} onChangeText={setCDebito} />
-              
-              <Text style={{ fontSize: 11, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 4 }}>Tarj. Crédito</Text>
-              <TextInput style={[s.inp, { fontSize: 18, fontWeight: '700', marginBottom: 8 }]} placeholder="$0" placeholderTextColor={COLORS.textMuted} keyboardType="number-pad" value={cCredito} onChangeText={setCCredito} />
-              
-              <Text style={{ fontSize: 11, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 4 }}>Transferencia</Text>
+
+              <Text style={{ fontSize: 11, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 4 }}>📱 Transferencia</Text>
               <TextInput style={[s.inp, { fontSize: 18, fontWeight: '700', marginBottom: 8 }]} placeholder="$0" placeholderTextColor={COLORS.textMuted} keyboardType="number-pad" value={cTransferencia} onChangeText={setCTransferencia} />
 
               <View style={{ borderTopWidth: 2, borderTopColor: COLORS.primary, marginTop: 4, paddingTop: 8 }}>
-                <ARQ label="Total usuario" val={fmt((parseInt(cEfectivo)||0) + (parseInt(cDebito)||0) + (parseInt(cCredito)||0) + (parseInt(cTransferencia)||0))} bold />
+                <ARQ label="Total usuario" val={fmt((parseInt(cEfectivo)||0) + (parseInt(cDebito)||0) + (parseInt(cTransferencia)||0))} bold />
               </View>
             </View>
 
             {/* DIFERENCIA */}
             {(() => {
               const totalGeneral = (cashRegister?.opening_amount || 0) + totals.ventas + totals.ingresos - totals.gastos;
-              const userTotal = (parseInt(cEfectivo)||0) + (parseInt(cDebito)||0) + (parseInt(cCredito)||0) + (parseInt(cTransferencia)||0);
+              const userTotal = (parseInt(cEfectivo)||0) + (parseInt(cDebito)||0) + (parseInt(cTransferencia)||0);
               const diff = userTotal - totalGeneral;
               const hasInput = cEfectivo || cDebito || cCredito || cTransferencia;
               if (!hasInput) return null;
