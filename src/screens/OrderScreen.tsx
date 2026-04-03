@@ -628,12 +628,18 @@ export default function OrderScreen({ table, onBack }: Props) {
   };
 
   // Fudo-style helpers
-  const addTipEntry = () => setTipEntries(prev => [...prev, { method: 'efectivo', amount: String(Math.round(unpaidTotal * 0.1)) }]);
+  const addTipEntry = () => { const defaultMethod = payEntries.length > 0 ? payEntries[0].method : 'efectivo'; setTipEntries(prev => [...prev, { method: defaultMethod, amount: String(Math.round(unpaidTotal * 0.1)) }]); };
   const removeTipEntry = (i: number) => setTipEntries(prev => prev.filter((_, idx) => idx !== i));
   const updateTipEntry = (i: number, field: string, val: string) => setTipEntries(prev => prev.map((e, idx) => idx === i ? { ...e, [field]: val } : e));
-  const addPayEntry = () => setPayEntries(prev => { const paid = prev.reduce((a, e) => a + (parseInt(e.amount) || 0), 0); const remaining = Math.max(0, unpaidTotal + tipTotal - paid); return [...prev, { method: 'efectivo', amount: String(remaining) }]; });
+  const addPayEntry = () => setPayEntries(prev => { const paid = prev.reduce((a, e) => a + (parseInt(e.amount) || 0), 0); const remaining = Math.max(0, unpaidTotal + tipTotal - paid); const defaultMethod = prev.length > 0 ? prev[0].method : 'efectivo'; return [...prev, { method: defaultMethod, amount: String(remaining) }]; });
   const removePayEntry = (i: number) => setPayEntries(prev => prev.filter((_, idx) => idx !== i));
-  const updatePayEntry = (i: number, field: string, val: string) => setPayEntries(prev => prev.map((e, idx) => idx === i ? { ...e, [field]: val } : e));
+  const updatePayEntry = (i: number, field: string, val: string) => {
+    setPayEntries(prev => prev.map((e, idx) => idx === i ? { ...e, [field]: val } : e));
+    // Sync tip method when changing pay method (if single tip entry)
+    if (field === 'method' && tipEntries.length === 1) {
+      setTipEntries(prev => prev.map((e, idx) => idx === 0 ? { ...e, method: val } : e));
+    }
+  };
   const tipTotal = tipEntries.reduce((a, e) => a + (parseInt(e.amount) || 0), 0);
   const payTotal = payEntries.reduce((a, e) => a + (parseInt(e.amount) || 0), 0);
   const grandTotal = unpaidTotal + tipTotal;
