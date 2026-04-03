@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Dimensions } from 'react-native';
 import { supabase } from '../lib/supabase';
-import { printOrder, generateAnulacion, sendToPrinter } from '../lib/printService';
+import { printOrder, generateAnulacion, generateBoleta, sendToPrinter, PRINTER_CONFIG } from '../lib/printService';
 import { useAuth } from '../contexts/AuthContext';
 import { TableWithOrder, Category, Product, OrderItem, Order } from '../types';
 import { COLORS } from '../theme';
@@ -332,6 +332,46 @@ export default function OrderScreen({ table, onBack }: Props) {
     setTableActionModal(''); setSplitItems(new Set());
     await loadOrder();
     if (typeof window !== 'undefined') window.alert('Items movidos a mesa ' + target.number);
+  };
+
+  const printByClient = async () => {
+    if (!order) return;
+    const cajaIp = PRINTER_CONFIG.caja?.ip || PRINTER_CONFIG.barra?.ip;
+    const cajaPort = PRINTER_CONFIG.caja?.port || PRINTER_CONFIG.barra?.port || 9100;
+    if (!cajaIp) return;
+    const slots = guestNames.length > 1 ? guestNames : [''];
+    for (let gi = 0; gi < slots.length; gi++) {
+      const slot = gi + 1;
+      const clientItems = guestNames.length > 1
+        ? unpaidItems.filter(i => (i as any).client_slot === slot)
+        : unpaidItems;
+      if (clientItems.length === 0) continue;
+      const clientSubtotal = clientItems.reduce((a: number, i: any) => a + i.total_price, 0);
+      const clientDiscount = discountType === 'percent'
+        ? Math.round(clientItems.filter((i: any) => !(i.notes || '').includes('[PROMO]')).reduce((a: number, i: any) => a + i.total_price, 0) * (parseInt(discountValue) || 0) / 100)
+        : 0;
+      const clientTotal = Math.max(0, clientSubtotal - clientDiscount);
+      const ticket = generateBoleta({
+        table: table.number,
+        waiter: waiterName || '',
+        items: clientItems.map((i: any) => ({ name: i.product?.name || '', qty: i.quantity, price: i.unit_price, total: i.total_price })),
+        subtotal: clientSubtotal,
+        discount: clientDiscount,
+        discountLabel: discountType === 'percent' ? `Dcto (${discountValue}%)` : undefined,
+        tip: 0,
+        total: clientTotal,
+        payments: [],
+        orderNumber: order.order_number,
+      });
+      // Add client name header
+      const header = `\n--- ${slots[gi] || 'Cliente ' + slot} ---\n`;
+      await sendToPrinter(cajaIp, cajaPort, ticket.replace('ALMIBAR\n', `ALMIBAR\n${slots[gi] ? slots[gi].toUpperCase() : 'CLIENTE ' + slot}\n`), 'caja');
+    }
+    if (order) await supabase.from('orders').update({ discount_type: discountType, discount_value: discountAmount, subtotal: unpaidSubtotal, total: unpaidTotal }).eq('id', order.id);
+    await supabase.from('tables').update({ status: 'cuenta' }).eq('id', table.id);
+    playClickPOS();
+    setPreCuentaModal(false);
+    onBack();
   };
 
   const saveGuestNames = async (names: string[]) => {
@@ -953,9 +993,10 @@ export default function OrderScreen({ table, onBack }: Props) {
           {discountAmount > 0 && <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4, backgroundColor: '#f0fdf4', borderRadius: 6, paddingHorizontal: 8, marginVertical: 4 }}><Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.success }}>Descuento {discountType === 'percent' ? `(${discountValue}%)` : ''} {esMiercoles ? '· Miércoles' : ''}</Text><Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.success }}>-{fmt(discountAmount)}</Text></View>}
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 }}><Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.text }}>TOTAL</Text><Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.primary }}>{fmt(unpaidTotal)}</Text></View>
           <Text style={{ fontSize: 12, color: COLORS.textMuted, textAlign: 'center', marginTop: 8 }}>Propina sugerida 10%: {fmt(Math.round(unpaidSubtotal * 0.1))}</Text>
-          <View style={{ flexDirection: 'row', gap: 12, marginTop: 20 }}>
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 20, flexWrap: 'wrap' }}>
             <TouchableOpacity style={s.bC} onPress={() => { setPreCuentaModal(false); resetPayState(); }}><Text style={s.bCT}>✕ Cerrar</Text></TouchableOpacity>
             <TouchableOpacity style={[s.bOk, { backgroundColor: COLORS.warning }]} onPress={async () => { try { if (order) await supabase.from('orders').update({ discount_type: discountType, discount_value: discountAmount, subtotal: unpaidSubtotal, total: unpaidTotal }).eq('id', order.id); await supabase.from('tables').update({ status: 'cuenta' }).eq('id', table.id); playClickPOS(); setPreCuentaModal(false); onBack(); } catch (e: any) { Alert.alert('Error', e.message); } }}><Text style={s.bOkT}>🖨 Imprimir</Text></TouchableOpacity>
+            {guestNames.length > 1 && <TouchableOpacity style={[s.bOk, { backgroundColor: COLORS.info }]} onPress={printByClient}><Text style={s.bOkT}>🖨 Por socio</Text></TouchableOpacity>}
             {(user?.role === 'cajero' || user?.role === 'admin') && unpaidItems.length > 0 && <TouchableOpacity style={[s.bOk, { backgroundColor: COLORS.success }]} onPress={() => { setPreCuentaModal(false); if (payMode === 'partial' && selectedItems.length > 0) { setPaySelectedModal(true); } else { const tip10 = Math.round(unpaidTotal * 0.1); setPayEntries([{ method: 'efectivo', amount: String(unpaidTotal + tip10) }]); setTipEntries([{ method: 'efectivo', amount: String(tip10) }]); setCloseModal(true); } }}><Text style={s.bOkT}>💳 Pagar</Text></TouchableOpacity>}
           </View>
         </View></ScrollView></View>
