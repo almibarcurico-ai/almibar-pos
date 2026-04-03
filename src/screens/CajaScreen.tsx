@@ -747,23 +747,42 @@ function ArqueosTab() {
 
   const fmt = (p: number) => '$' + Math.round(p).toLocaleString('es-CL');
 
-  // === FUENTE ÚNICA: payments.amount (propina ya está incluida en amount) ===
+  // === FUENTE ÚNICA: payments ===
+  // payments.amount = consumo + propina (el total que pagó el cliente)
+  // payments.tip_amount = cuánto de ese amount fue propina
   const sumByMethod = (method: string) => shiftPayments.filter((p: any) => p.method === method).reduce((a: number, p: any) => a + (p.amount || 0), 0);
+  const sumTipByMethod = (method: string) => shiftPayments.filter((p: any) => p.method === method).reduce((a: number, p: any) => a + (p.tip_amount || 0), 0);
   const totalByMethod = {
     efectivo: sumByMethod('efectivo'),
     debito: sumByMethod('debito'),
     credito: sumByMethod('credito'),
     transferencia: sumByMethod('transferencia'),
   };
+  const tipByMethod = {
+    efectivo: sumTipByMethod('efectivo'),
+    debito: sumTipByMethod('debito'),
+    credito: sumTipByMethod('credito'),
+    transferencia: sumTipByMethod('transferencia'),
+  };
   const totalPropinas = shiftPayments.reduce((a: number, p: any) => a + (p.tip_amount || 0), 0);
+  // Venta neta = amount - tip (lo que realmente es consumo)
+  const ventaNetaByMethod = {
+    efectivo: totalByMethod.efectivo - tipByMethod.efectivo,
+    debito: totalByMethod.debito - tipByMethod.debito,
+    credito: totalByMethod.credito - tipByMethod.credito,
+    transferencia: totalByMethod.transferencia - tipByMethod.transferencia,
+  };
   const totals = {
     ventas: totalByMethod.efectivo + totalByMethod.debito + totalByMethod.credito + totalByMethod.transferencia,
+    ventasNetas: ventaNetaByMethod.efectivo + ventaNetaByMethod.debito + ventaNetaByMethod.credito + ventaNetaByMethod.transferencia,
     propinas: totalPropinas,
     gastos: movements.filter(m => m.type === 'gasto').reduce((a, m) => a + m.amount, 0),
     ingresos: movements.filter(m => m.type === 'ingreso').reduce((a, m) => a + m.amount, 0),
   };
-  const saldoActual = (cashRegister?.opening_amount || 0) + totalByMethod.efectivo + totals.ingresos - totals.gastos;
-  const totalTarjetas = totalByMethod.debito + totalByMethod.credito + totalByMethod.transferencia;
+  // Efectivo en caja: apertura + ventas_efectivo_sin_propina + ingresos - egresos
+  // (propinas en efectivo se las lleva el garzón, no quedan en caja)
+  const saldoActual = (cashRegister?.opening_amount || 0) + ventaNetaByMethod.efectivo + totals.ingresos - totals.gastos;
+  const totalTarjetas = ventaNetaByMethod.debito + ventaNetaByMethod.credito + ventaNetaByMethod.transferencia;
 
   const handleOpen = async () => {
     if (!user) return;
@@ -1083,15 +1102,16 @@ function ArqueosTab() {
               <ARQ label="MONTO INICIAL (efectivo)" val={fmt(cashRegister?.opening_amount || 0)} bold />
 
               <View style={{ borderTopWidth: 1, borderTopColor: COLORS.border, marginTop: 6, paddingTop: 6 }}>
-                <Text style={{ fontSize: 11, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 4 }}>VENTAS POR MÉTODO</Text>
-                <ARQ label="    Efectivo" val={fmt(totalByMethod.efectivo)} />
-                <ARQ label="    Tarj. Débito" val={fmt(totalByMethod.debito)} />
-                <ARQ label="    Tarj. Crédito" val={fmt(totalByMethod.credito)} />
-                <ARQ label="    Transferencia" val={fmt(totalByMethod.transferencia)} />
+                <Text style={{ fontSize: 11, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 4 }}>VENTAS NETAS (sin propina)</Text>
+                <ARQ label="    Efectivo" val={fmt(ventaNetaByMethod.efectivo)} />
+                <ARQ label="    Tarj. Débito" val={fmt(ventaNetaByMethod.debito)} />
+                <ARQ label="    Tarj. Crédito" val={fmt(ventaNetaByMethod.credito)} />
+                <ARQ label="    Transferencia" val={fmt(ventaNetaByMethod.transferencia)} />
               </View>
               <View style={{ borderTopWidth: 1, borderTopColor: COLORS.border, marginTop: 6, paddingTop: 6 }}>
-                <ARQ label="Total ventas" val={fmt(totals.ventas)} />
+                <ARQ label="Total ventas netas" val={fmt(totals.ventasNetas)} />
                 <ARQ label="Total propinas" val={fmt(totals.propinas)} />
+                <ARQ label="Total recaudado" val={fmt(totals.ventas)} />
               </View>
 
               {(totals.ingresos > 0 || totals.gastos > 0) && (
@@ -1112,7 +1132,7 @@ function ArqueosTab() {
                 <ARQ label="TARJETAS + TRANSF." val={fmt(totalTarjetas)} bold />
               </View>
               <View style={{ borderTopWidth: 2, borderTopColor: COLORS.warning, marginTop: 8, paddingTop: 8 }}>
-                <ARQ label="TOTAL GENERAL" val={fmt(saldoActual + totalTarjetas - (cashRegister?.opening_amount || 0))} bold />
+                <ARQ label="TOTAL GENERAL" val={fmt(totals.ventasNetas)} bold />
               </View>
             </View>
 
@@ -1139,7 +1159,7 @@ function ArqueosTab() {
 
             {/* DIFERENCIA */}
             {(() => {
-              const sysTotal = saldoActual + totalTarjetas - (cashRegister?.opening_amount || 0);
+              const sysTotal = totals.ventasNetas;
               const userTotal = (parseInt(cEfectivo)||0) + (parseInt(cDebito)||0) + (parseInt(cCredito)||0) + (parseInt(cTransferencia)||0);
               const diff = userTotal - sysTotal;
               const hasInput = cEfectivo || cDebito || cCredito || cTransferencia;
@@ -1156,9 +1176,9 @@ function ArqueosTab() {
                     <View style={{ marginTop: 8 }}>
                       {(() => {
                         const dEf = (parseInt(cEfectivo)||0) - saldoActual;
-                        const dDe = (parseInt(cDebito)||0) - totalByMethod.debito;
-                        const dCr = (parseInt(cCredito)||0) - totalByMethod.credito;
-                        const dTr = (parseInt(cTransferencia)||0) - totalByMethod.transferencia;
+                        const dDe = (parseInt(cDebito)||0) - ventaNetaByMethod.debito;
+                        const dCr = (parseInt(cCredito)||0) - ventaNetaByMethod.credito;
+                        const dTr = (parseInt(cTransferencia)||0) - ventaNetaByMethod.transferencia;
                         return <>
                           {dEf !== 0 && <Text style={{ fontSize: 11, color: COLORS.textSecondary }}>Efectivo: {dEf > 0 ? '+' : ''}{fmt(dEf)}</Text>}
                           {dDe !== 0 && <Text style={{ fontSize: 11, color: COLORS.textSecondary }}>Débito: {dDe > 0 ? '+' : ''}{fmt(dDe)}</Text>}
