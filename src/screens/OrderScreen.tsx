@@ -989,6 +989,23 @@ export default function OrderScreen({ table, onBack }: Props) {
           {paidItems.length > 0 && (<><Text style={{ fontSize: 11, fontWeight: '700', color: COLORS.success, marginBottom: 6 }}>✅ PAGADOS</Text>{paidItems.map(i => <View key={i.id} style={{ flexDirection: 'row', paddingVertical: 3, opacity: 0.5 }}><Text style={{ width: 30, fontSize: 13, fontWeight: '700', color: COLORS.textMuted }}>{i.quantity}x</Text><Text style={{ flex: 1, fontSize: 13, color: COLORS.textMuted, textDecorationLine: 'line-through' }}>{i.product?.name}</Text><Text style={{ fontSize: 13, color: COLORS.textMuted }}>{fmt(i.total_price)}</Text></View>)}<View style={[s.div, { marginVertical: 8 }]} /></>)}
           {unpaidItems.map(i => <TouchableOpacity key={i.id} onPress={() => payMode === 'partial' ? toggleItem(i.id) : null} style={{ flexDirection: 'row', paddingVertical: 6, paddingHorizontal: 4, borderRadius: 6, backgroundColor: selectedItemIds.has(i.id) ? COLORS.primary + '15' : 'transparent' }}>{payMode === 'partial' && <View style={{ width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: selectedItemIds.has(i.id) ? COLORS.primary : COLORS.border, backgroundColor: selectedItemIds.has(i.id) ? COLORS.primary : 'transparent', alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>{selectedItemIds.has(i.id) && <Text style={{ color: '#fff', fontSize: 14, fontWeight: '800' }}>✓</Text>}</View>}<Text style={{ width: 28, fontSize: 13, fontWeight: '700', color: COLORS.textSecondary }}>{i.quantity}x</Text><Text style={{ flex: 1, fontSize: 13, color: COLORS.text }}>{i.product?.name}</Text><Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.text }}>{fmt(i.total_price)}</Text></TouchableOpacity>)}
           <View style={s.div} />
+          {/* Descuento */}
+          <View style={{ marginBottom: 8 }}>
+            <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 6 }}>DESCUENTO</Text>
+            <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+              {[0, 10, 15, 20, 30, 40].map(p => (
+                <TouchableOpacity key={p} onPress={() => { if (p === 0) { setDiscountType('none'); setDiscountValue(''); } else { setDiscountType('percent'); setDiscountValue(String(p)); } }}
+                  style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, backgroundColor: discountType === 'percent' && discountValue === String(p) ? COLORS.success : p === 0 && discountType === 'none' ? COLORS.success : COLORS.background, borderWidth: 1, borderColor: discountType === 'percent' && discountValue === String(p) ? COLORS.success : p === 0 && discountType === 'none' ? COLORS.success : COLORS.border }}>
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: (discountType === 'percent' && discountValue === String(p)) || (p === 0 && discountType === 'none') ? '#fff' : COLORS.text }}>{p === 0 ? 'Sin dcto' : `${p}%`}</Text>
+                </TouchableOpacity>
+              ))}
+              <TextInput style={{ width: 80, borderWidth: 1, borderColor: discountType === 'fixed' ? COLORS.success : COLORS.border, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, fontSize: 13, color: COLORS.text, backgroundColor: COLORS.background, textAlign: 'center' }}
+                placeholder="$ fijo" placeholderTextColor={COLORS.textMuted} keyboardType="number-pad"
+                value={discountType === 'fixed' ? discountValue : ''}
+                onChangeText={v => { setDiscountType('fixed'); setDiscountValue(v); }}
+                onFocus={() => setDiscountType('fixed')} />
+            </View>
+          </View>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 }}><Text style={{ fontSize: 14, color: COLORS.textSecondary }}>Subtotal</Text><Text style={{ fontSize: 14, color: COLORS.textSecondary }}>{fmt(unpaidSubtotal)}</Text></View>
           {discountAmount > 0 && <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4, backgroundColor: '#f0fdf4', borderRadius: 6, paddingHorizontal: 8, marginVertical: 4 }}><Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.success }}>Descuento {discountType === 'percent' ? `(${discountValue}%)` : ''} {esMiercoles ? '· Miércoles' : ''}</Text><Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.success }}>-{fmt(discountAmount)}</Text></View>}
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 }}><Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.text }}>TOTAL</Text><Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.primary }}>{fmt(unpaidTotal)}</Text></View>
