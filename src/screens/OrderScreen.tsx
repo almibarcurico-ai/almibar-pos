@@ -125,6 +125,11 @@ export default function OrderScreen({ table, onBack }: Props) {
     if (o) {
       setOrder(o);
       setGuestNames(o.guest_names || []);
+      // Restore discount from saved order (discount_value stores % or fixed amount)
+      if (o.discount_type && o.discount_type !== 'none' && o.discount_value > 0) {
+        setDiscountType(o.discount_type);
+        setDiscountValue(String(o.discount_value));
+      }
       const { data: w } = await supabase.from('users').select('name').eq('id', o.waiter_id).single();
       if (w) setWaiterName(w.name);
     }
@@ -384,7 +389,7 @@ export default function OrderScreen({ table, onBack }: Props) {
       const header = `\n--- ${slots[gi] || 'Cliente ' + slot} ---\n`;
       await sendToPrinter(cajaIp, cajaPort, ticket.replace('ALMIBAR\n', `ALMIBAR\n${slots[gi] ? slots[gi].toUpperCase() : 'CLIENTE ' + slot}\n`), 'caja');
     }
-    if (order) await supabase.from('orders').update({ discount_type: discountType, discount_value: discountAmount, subtotal: unpaidSubtotal, total: unpaidTotal }).eq('id', order.id);
+    if (order) await supabase.from('orders').update({ discount_type: discountType, discount_value: parseInt(discountValue) || 0, subtotal: unpaidSubtotal, total: unpaidTotal }).eq('id', order.id);
     await supabase.from('tables').update({ status: 'cuenta' }).eq('id', table.id);
     playClickPOS();
     setPreCuentaModal(false);
@@ -552,7 +557,7 @@ export default function OrderScreen({ table, onBack }: Props) {
   const toggleItem = (id: string) => setSelectedItemIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const selectAll = () => setSelectedItemIds(new Set(unpaidItems.map(i => i.id)));
   const deselectAll = () => setSelectedItemIds(new Set());
-  const resetPayState = () => { setReceivedAmount(''); setTipPercent(10); setTipCustom(''); setSelectedItemIds(new Set()); setPayMode('full'); setTipEntries([]); setPayEntries([]); setDiscountType('none'); setDiscountValue(''); };
+  const resetPayState = () => { setReceivedAmount(''); setTipPercent(10); setTipCustom(''); setSelectedItemIds(new Set()); setPayMode('full'); setTipEntries([]); setPayEntries([]); };
 
   const paySelected = async () => {
     if (!order || !user || selectedItems.length === 0) return;
@@ -614,7 +619,7 @@ export default function OrderScreen({ table, onBack }: Props) {
     }
 
     await supabase.from('order_items').update({ paid: true }).eq('order_id', order.id).eq('paid', false);
-    await supabase.from('orders').update({ status: 'cerrada', closed_at: new Date().toISOString(), payment_method: mainMethod, tip_amount: tipTotalFinal, discount_type: discountType, discount_value: discountAmount, total: unpaidTotal }).eq('id', order.id);
+    await supabase.from('orders').update({ status: 'cerrada', closed_at: new Date().toISOString(), payment_method: mainMethod, tip_amount: tipTotalFinal, discount_type: discountType, discount_value: parseInt(discountValue) || 0, total: unpaidTotal }).eq('id', order.id);
     await supabase.from('tables').update({ status: 'libre', current_order_id: null }).eq('id', table.id);
     setCloseModal(false); resetPayState();
     if (order?.client_id) await supabase.rpc('update_client_stats', { p_client_id: order.client_id });
@@ -1036,7 +1041,7 @@ export default function OrderScreen({ table, onBack }: Props) {
           <Text style={{ fontSize: 12, color: COLORS.textMuted, textAlign: 'center', marginTop: 8 }}>Propina sugerida 10%: {fmt(Math.round(unpaidSubtotal * 0.1))}</Text>
           <View style={{ flexDirection: 'row', gap: 8, marginTop: 20, flexWrap: 'wrap' }}>
             <TouchableOpacity style={s.bC} onPress={() => { setPreCuentaModal(false); resetPayState(); }}><Text style={s.bCT}>✕ Cerrar</Text></TouchableOpacity>
-            <TouchableOpacity style={[s.bOk, { backgroundColor: COLORS.warning }]} onPress={async () => { try { if (order) await supabase.from('orders').update({ discount_type: discountType, discount_value: discountAmount, subtotal: unpaidSubtotal, total: unpaidTotal }).eq('id', order.id); await supabase.from('tables').update({ status: 'cuenta' }).eq('id', table.id); const cajaIp = PRINTER_CONFIG.caja?.ip || PRINTER_CONFIG.barra?.ip; const cajaPort = PRINTER_CONFIG.caja?.port || PRINTER_CONFIG.barra?.port || 9100; if (cajaIp) { const printItems = payMode === 'partial' && selectedItems.length > 0 ? selectedItems : unpaidItems; const printSubtotal = printItems.reduce((a: number, i: any) => a + i.total_price, 0); const printDiscount = discountType === 'percent' ? Math.round(printItems.filter((i: any) => !(i.notes || '').includes('[PROMO]')).reduce((a: number, i: any) => a + i.total_price, 0) * (parseInt(discountValue) || 0) / 100) : discountType === 'fixed' ? (parseInt(discountValue) || 0) : 0; const printTotal = Math.max(0, printSubtotal - printDiscount); const ticket = generateBoleta({ table: table.number, waiter: waiterName || '', items: groupItemsForPrint(printItems), subtotal: printSubtotal, discount: printDiscount, discountLabel: discountType === 'percent' ? `Dcto (${discountValue}%)` : undefined, tip: Math.round(printTotal * 0.1), total: printTotal, payments: [], orderNumber: order?.order_number }); await sendToPrinter(cajaIp, cajaPort, ticket, 'caja'); } playClickPOS(); setPreCuentaModal(false); onBack(); } catch (e: any) { if (typeof window !== 'undefined') window.alert('Error: ' + e.message); } }}><Text style={s.bOkT}>🖨 {payMode === 'partial' && selectedItems.length > 0 ? `Imprimir (${selectedItems.length})` : 'Imprimir'}</Text></TouchableOpacity>
+            <TouchableOpacity style={[s.bOk, { backgroundColor: COLORS.warning }]} onPress={async () => { try { if (order) await supabase.from('orders').update({ discount_type: discountType, discount_value: parseInt(discountValue) || 0, subtotal: unpaidSubtotal, total: unpaidTotal }).eq('id', order.id); await supabase.from('tables').update({ status: 'cuenta' }).eq('id', table.id); const cajaIp = PRINTER_CONFIG.caja?.ip || PRINTER_CONFIG.barra?.ip; const cajaPort = PRINTER_CONFIG.caja?.port || PRINTER_CONFIG.barra?.port || 9100; if (cajaIp) { const printItems = payMode === 'partial' && selectedItems.length > 0 ? selectedItems : unpaidItems; const printSubtotal = printItems.reduce((a: number, i: any) => a + i.total_price, 0); const printDiscount = discountType === 'percent' ? Math.round(printItems.filter((i: any) => !(i.notes || '').includes('[PROMO]')).reduce((a: number, i: any) => a + i.total_price, 0) * (parseInt(discountValue) || 0) / 100) : discountType === 'fixed' ? (parseInt(discountValue) || 0) : 0; const printTotal = Math.max(0, printSubtotal - printDiscount); const ticket = generateBoleta({ table: table.number, waiter: waiterName || '', items: groupItemsForPrint(printItems), subtotal: printSubtotal, discount: printDiscount, discountLabel: discountType === 'percent' ? `Dcto (${discountValue}%)` : undefined, tip: Math.round(printTotal * 0.1), total: printTotal, payments: [], orderNumber: order?.order_number }); await sendToPrinter(cajaIp, cajaPort, ticket, 'caja'); } playClickPOS(); setPreCuentaModal(false); onBack(); } catch (e: any) { if (typeof window !== 'undefined') window.alert('Error: ' + e.message); } }}><Text style={s.bOkT}>🖨 {payMode === 'partial' && selectedItems.length > 0 ? `Imprimir (${selectedItems.length})` : 'Imprimir'}</Text></TouchableOpacity>
             {guestNames.length > 1 && <TouchableOpacity style={[s.bOk, { backgroundColor: COLORS.info }]} onPress={printByClient}><Text style={s.bOkT}>🖨 Por socio</Text></TouchableOpacity>}
             {(user?.role === 'cajero' || user?.role === 'admin') && unpaidItems.length > 0 && <TouchableOpacity style={[s.bOk, { backgroundColor: COLORS.success }]} onPress={() => { setPreCuentaModal(false); if (payMode === 'partial' && selectedItems.length > 0) { setPaySelectedModal(true); } else { const tip10 = Math.round(unpaidTotal * 0.1); setPayEntries([{ method: 'efectivo', amount: String(unpaidTotal + tip10) }]); setTipEntries([{ method: 'efectivo', amount: String(tip10) }]); setCloseModal(true); } }}><Text style={s.bOkT}>💳 Pagar</Text></TouchableOpacity>}
           </View>
