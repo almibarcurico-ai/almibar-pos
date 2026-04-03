@@ -1537,10 +1537,22 @@ function PropinasTab() {
             <TouchableOpacity onPress={() => setArqueoIdx(prev => Math.max(prev - 1, 0))} style={s.dateBtn}><Text style={s.dateBtnT}>▶</Text></TouchableOpacity>
           </View>
         ) : period === 'rango' ? (
-          <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'center', marginTop: 8, alignItems: 'center' }}>
-            <TextInput style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, fontSize: 13, color: COLORS.text, width: 120, textAlign: 'center' }} value={rangoDesde} onChangeText={setRangoDesde} placeholder="2026-04-01" />
-            <Text style={{ color: COLORS.textMuted }}>→</Text>
-            <TextInput style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, fontSize: 13, color: COLORS.text, width: 120, textAlign: 'center' }} value={rangoHasta} onChangeText={setRangoHasta} placeholder="2026-04-03" />
+          <View style={{ marginTop: 8, gap: 8 }}>
+            <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'center', alignItems: 'center' }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 2, textAlign: 'center' }}>Desde</Text>
+                <TextInput style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14, color: COLORS.text, textAlign: 'center', backgroundColor: COLORS.background }} value={rangoDesde} onChangeText={setRangoDesde} placeholder="2026-04-01" inputMode="none"
+                  onFocus={(e) => { if (typeof document !== 'undefined') { const inp = e.target as any; inp.type = 'date'; inp.showPicker?.(); } }}
+                  onChange={(e: any) => { const v = e.target?.value; if (v) setRangoDesde(v); }} />
+              </View>
+              <Text style={{ color: COLORS.textMuted, fontSize: 16, marginTop: 12 }}>→</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 2, textAlign: 'center' }}>Hasta</Text>
+                <TextInput style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14, color: COLORS.text, textAlign: 'center', backgroundColor: COLORS.background }} value={rangoHasta} onChangeText={setRangoHasta} placeholder="2026-04-03" inputMode="none"
+                  onFocus={(e) => { if (typeof document !== 'undefined') { const inp = e.target as any; inp.type = 'date'; inp.showPicker?.(); } }}
+                  onChange={(e: any) => { const v = e.target?.value; if (v) setRangoHasta(v); }} />
+              </View>
+            </View>
           </View>
         ) : (
           <View style={s.dateNav}>
