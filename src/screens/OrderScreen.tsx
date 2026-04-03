@@ -77,6 +77,8 @@ export default function OrderScreen({ table, onBack }: Props) {
   const [activeClientSlot, setActiveClientSlot] = useState<number>(1);
   const [guestNames, setGuestNames] = useState<string[]>([]);
   const [editGuestsModal, setEditGuestsModal] = useState(false);
+  const [guestSearchResults, setGuestSearchResults] = useState<any[]>([]);
+  const [guestSearchIndex, setGuestSearchIndex] = useState(-1);
   const [tableActionModal, setTableActionModal] = useState<string>(''); // 'move'|'merge'|'split'|''
   const [availableTables, setAvailableTables] = useState<any[]>([]);
   const [splitItems, setSplitItems] = useState<Set<string>>(new Set());
@@ -1259,17 +1261,43 @@ export default function OrderScreen({ table, onBack }: Props) {
       {/* EDIT GUESTS MODAL */}
       <Modal visible={editGuestsModal} transparent animationType="fade">
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
-        <View style={{ backgroundColor: COLORS.card, borderRadius: 16, padding: 20, width: '90%', maxWidth: 400 }}>
-          <Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.text, marginBottom: 16 }}>Comensales</Text>
+        <View style={{ backgroundColor: COLORS.card, borderRadius: 16, padding: 20, width: '90%', maxWidth: 440 }}>
+          <Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.text, marginBottom: 4 }}>Comensales</Text>
+          <Text style={{ fontSize: 12, color: COLORS.textMuted, marginBottom: 12 }}>Busca por nombre, teléfono o RUT</Text>
           {guestNames.map((name, i) => (
-            <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.primary, width: 24 }}>{i + 1}.</Text>
-              <TextInput style={{ flex: 1, borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, fontSize: 14, color: COLORS.text, backgroundColor: COLORS.background }}
-                value={name} placeholder={'Cliente ' + (i + 1)} placeholderTextColor={COLORS.textMuted}
-                onChangeText={v => setGuestNames(prev => prev.map((n, j) => j === i ? v : n))} />
+            <View key={i} style={{ marginBottom: 10 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.primary, width: 24 }}>{i + 1}.</Text>
+                <TextInput style={{ flex: 1, borderWidth: 1, borderColor: guestSearchIndex === i ? COLORS.primary : COLORS.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, fontSize: 14, color: COLORS.text, backgroundColor: COLORS.background }}
+                  value={name} placeholder="Buscar socio..." placeholderTextColor={COLORS.textMuted}
+                  onFocus={() => { setGuestSearchIndex(i); setGuestSearchResults([]); }}
+                  onChangeText={async (v) => {
+                    setGuestNames(prev => prev.map((n, j) => j === i ? v : n));
+                    setGuestSearchIndex(i);
+                    if (v.length >= 2) {
+                      const { data } = await supabase.from('clients').select('id, name, phone, total_visits, notes').or('name.ilike.%' + v + '%,phone.ilike.%' + v + '%,notes.ilike.%' + v + '%').eq('active', true).limit(5);
+                      if (data) setGuestSearchResults(data);
+                    } else { setGuestSearchResults([]); }
+                  }} />
+              </View>
+              {guestSearchIndex === i && guestSearchResults.length > 0 && (
+                <View style={{ marginLeft: 32, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, marginTop: 4, maxHeight: 120 }}>
+                  <ScrollView nestedScrollEnabled>
+                    {guestSearchResults.map(c => (
+                      <TouchableOpacity key={c.id} onPress={() => {
+                        setGuestNames(prev => prev.map((n, j) => j === i ? c.name : n));
+                        setGuestSearchResults([]); setGuestSearchIndex(-1);
+                      }} style={{ padding: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border }}>
+                        <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.text }}>{c.name}</Text>
+                        <Text style={{ fontSize: 10, color: COLORS.textMuted }}>{c.phone || ''} · {c.total_visits || 0} visitas</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
             </View>
           ))}
-          <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
             {guestNames.length < 5 && (
               <TouchableOpacity onPress={() => setGuestNames(prev => [...prev, ''])} style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: COLORS.primary, alignItems: 'center' }}>
                 <Text style={{ color: '#fff', fontWeight: '700' }}>+ Agregar</Text>
@@ -1282,10 +1310,10 @@ export default function OrderScreen({ table, onBack }: Props) {
             )}
           </View>
           <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
-            <TouchableOpacity onPress={() => setEditGuestsModal(false)} style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: COLORS.background, alignItems: 'center' }}>
+            <TouchableOpacity onPress={() => { setEditGuestsModal(false); setGuestSearchResults([]); setGuestSearchIndex(-1); }} style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: COLORS.background, alignItems: 'center' }}>
               <Text style={{ color: COLORS.textSecondary, fontWeight: '600' }}>Cancelar</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => saveGuestNames(guestNames)} style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: COLORS.primary, alignItems: 'center' }}>
+            <TouchableOpacity onPress={() => { saveGuestNames(guestNames); setGuestSearchResults([]); setGuestSearchIndex(-1); }} style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: COLORS.primary, alignItems: 'center' }}>
               <Text style={{ color: '#fff', fontWeight: '700' }}>Guardar</Text>
             </TouchableOpacity>
           </View>
