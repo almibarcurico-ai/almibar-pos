@@ -409,7 +409,7 @@ export default function OrderScreen({ table, onBack }: Props) {
       const items = cart.map(c => {
         const modAdjust = c.modifiers.reduce((s, m) => s + m.price_adjust, 0);
         const groups = productModGroups[c.product.id] || [];
-        const repeatGroup = groups.find(g => g.type === 'multi' && g.max_select > g.options.length);
+        const repeatGroup = groups.find(g => g.type === 'multi' && g.max_select > 1);
         return { order_id: order.id, product_id: c.product.id, quantity: c.quantity, unit_price: c.product.price + modAdjust, total_price: (c.product.price + modAdjust) * c.quantity, notes: c.notes || null, status: 'pendiente', printed: false, created_by: user.id, mod_max_select: repeatGroup ? repeatGroup.max_select : 0, mod_group_id: repeatGroup ? repeatGroup.id : null, client_slot: guestNames.length > 1 ? c.client_slot || activeClientSlot : null };
       });
       const { data: inserted, error } = await supabase.from('order_items').insert(items).select('id');
