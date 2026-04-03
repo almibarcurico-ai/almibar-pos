@@ -504,6 +504,15 @@ function VentasTab() {
                   discount_value: detailOrder.discount_value || 0,
                   total,
                 }).eq('id', detailOrder.id);
+                // Actualizar payment también
+                const { data: pays } = await supabase.from('payments').select('id').eq('order_id', detailOrder.id).limit(1);
+                if (pays && pays[0]) {
+                  await supabase.from('payments').update({
+                    method: detailOrder.payment_method,
+                    amount: total + (detailOrder.tip_amount || 0),
+                    tip_amount: detailOrder.tip_amount || 0,
+                  }).eq('id', pays[0].id);
+                }
                 Alert.alert('Guardado', 'Venta actualizada');
                 setDetailModal(false);
                 load();
