@@ -316,7 +316,7 @@ export default function OrderScreen({ table, onBack }: Props) {
     if (!source.current_order_id || !order) return;
     await supabase.from('order_items').update({ order_id: order.id }).eq('order_id', source.current_order_id);
     await supabase.from('payments').update({ order_id: order.id }).eq('order_id', source.current_order_id);
-    await supabase.from('orders').update({ status: 'cerrada', closed_at: new Date().toISOString(), notes: 'Fusionada con mesa ' + table.number }).eq('id', source.current_order_id);
+    await supabase.from('orders').update({ status: 'anulada', closed_at: new Date().toISOString(), total: 0, subtotal: 0, notes: 'Fusionada con mesa ' + table.number }).eq('id', source.current_order_id);
     await supabase.from('tables').update({ status: 'libre', current_order_id: null }).eq('id', source.id);
     setTableActionModal('');
     await loadOrder();
