@@ -157,16 +157,6 @@ export default function ProductionScreen() {
           </TouchableOpacity>
         </View>
         <TextInput style={st.sideSearch} placeholder="Buscar..." placeholderTextColor="#999" value={search} onChangeText={setSearch} />
-        {/* Low stock alert */}
-        {(() => {
-          const lowStock = productions.filter(p => p.stock_min > 0 && (p.stock_current || 0) <= p.stock_min);
-          if (lowStock.length === 0) return null;
-          return (
-            <View style={{ backgroundColor: '#E53935', paddingHorizontal: 10, paddingVertical: 6 }}>
-              <Text style={{ fontSize: 10, fontWeight: '700', color: '#fff' }}>⚠ Stock bajo: {lowStock.map(p => p.name).join(', ')}</Text>
-            </View>
-          );
-        })()}
         <ScrollView>
           {filtered.map(p => {
             const isActive = selected?.id === p.id;

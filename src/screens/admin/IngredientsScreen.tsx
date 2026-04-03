@@ -243,15 +243,6 @@ export default function IngredientsScreen() {
         </View>
       </View>
 
-      {/* Low stock alert */}
-      {lowStock.length > 0 && (
-        <View style={s.alertBar}>
-          <Text style={{ fontSize: 13, fontWeight: '700', color: '#E53935' }}>
-            ⚠️ {lowStock.length} con stock bajo: {lowStock.slice(0, 3).map(i => i.name).join(', ')}{lowStock.length > 3 ? '...' : ''}
-          </Text>
-        </View>
-      )}
-
       {/* Search + filter */}
       <View style={s.toolbar}>
         <View style={s.searchBox}>
