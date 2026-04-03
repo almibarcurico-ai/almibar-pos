@@ -55,6 +55,8 @@ function VentasTab() {
   const [loading, setLoading] = useState(true);
   const [openTables, setOpenTables] = useState<any[]>([]);
   const [currentArqueo, setCurrentArqueo] = useState<any>(null);
+  const [allArqueos, setAllArqueos] = useState<any[]>([]);
+  const [arqueoIdx, setArqueoIdx] = useState(0);
 
   // Detail modal
   const [detailModal, setDetailModal] = useState(false);
@@ -62,8 +64,13 @@ function VentasTab() {
   const [detailItems, setDetailItems] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
 
-  useEffect(() => { loadUsers(); }, []);
-  useEffect(() => { load(); }, [period, date, rangoDesde, rangoHasta]);
+  useEffect(() => { loadUsers(); loadAllArqueos(); }, []);
+  useEffect(() => { load(); }, [period, date, rangoDesde, rangoHasta, arqueoIdx, allArqueos]);
+
+  const loadAllArqueos = async () => {
+    const { data } = await supabase.from('cash_registers').select('*').order('opened_at', { ascending: false }).limit(50);
+    if (data) setAllArqueos(data);
+  };
 
   const loadUsers = async () => {
     const { data } = await supabase.from('users').select('id, name').order('name');
@@ -106,13 +113,17 @@ function VentasTab() {
     const d = new Date(date + 'T12:00:00');
 
     if (period === 'turno') {
-      // Desde la apertura del arqueo actual hasta ahora
-      if (cajas?.[0]) {
+      const selectedArqueo = allArqueos[arqueoIdx];
+      if (selectedArqueo) {
+        since = selectedArqueo.opened_at;
+        until = selectedArqueo.closed_at || new Date(Date.now() + 86400000).toISOString();
+      } else if (cajas?.[0]) {
         since = cajas[0].opened_at;
+        until = new Date(Date.now() + 86400000).toISOString();
       } else {
         since = toChileISO(new Date().toLocaleDateString('en-CA'));
       }
-      until = toChileISO(addDays(new Date().toLocaleDateString('en-CA'), 1));
+      if (!until!) until = toChileISO(addDays(new Date().toLocaleDateString('en-CA'), 1));
     } else if (period === 'diario') {
       since = toChileISO(date);
       until = toChileISO(addDays(date, 1));
@@ -247,15 +258,28 @@ function VentasTab() {
         </View>
         {/* Date nav */}
         {period === 'turno' ? (
-          <View style={[s.dateNav]}>
-            <Text style={s.dateLabel}>{dateLabel()}</Text>
+          <View style={s.dateNav}>
+            <TouchableOpacity onPress={() => setArqueoIdx(prev => Math.min(prev + 1, allArqueos.length - 1))} style={s.dateBtn}><Text style={s.dateBtnT}>◀</Text></TouchableOpacity>
+            <Text style={[s.dateLabel, { fontSize: 12 }]}>
+              {(() => { const a = allArqueos[arqueoIdx]; if (!a) return 'Sin arqueo'; return new Date(a.opened_at).toLocaleString('es-CL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) + (a.closed_at ? ' → ' + new Date(a.closed_at).toLocaleString('es-CL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ' (abierto)'); })()}
+            </Text>
+            <TouchableOpacity onPress={() => setArqueoIdx(prev => Math.max(prev - 1, 0))} style={s.dateBtn}><Text style={s.dateBtnT}>▶</Text></TouchableOpacity>
           </View>
         ) : period === 'rango' ? (
-          <View style={[s.dateNav, { gap: 8 }]}>
-            <Text style={{ fontSize: 12, color: COLORS.textSecondary }}>Desde:</Text>
-            <TextInput style={[s.fChip, { paddingHorizontal: 10, fontSize: 13, color: COLORS.text, minWidth: 120, textAlign: 'center' }]} value={rangoDesde} onChangeText={setRangoDesde} placeholder="YYYY-MM-DD" placeholderTextColor={COLORS.textMuted} />
-            <Text style={{ fontSize: 12, color: COLORS.textSecondary }}>Hasta:</Text>
-            <TextInput style={[s.fChip, { paddingHorizontal: 10, fontSize: 13, color: COLORS.text, minWidth: 120, textAlign: 'center' }]} value={rangoHasta} onChangeText={setRangoHasta} placeholder="YYYY-MM-DD" placeholderTextColor={COLORS.textMuted} />
+          <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'center', marginTop: 8, alignItems: 'center' }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 2, textAlign: 'center' }}>Desde</Text>
+              <TextInput style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14, color: COLORS.text, textAlign: 'center', backgroundColor: COLORS.background }} value={rangoDesde} onChangeText={setRangoDesde} placeholder="2026-04-01" inputMode="none"
+                onFocus={(e) => { if (typeof document !== 'undefined') { const inp = e.target as any; inp.type = 'date'; inp.showPicker?.(); } }}
+                onChange={(e: any) => { const v = e.target?.value; if (v) setRangoDesde(v); }} />
+            </View>
+            <Text style={{ color: COLORS.textMuted, fontSize: 16, marginTop: 12 }}>→</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 2, textAlign: 'center' }}>Hasta</Text>
+              <TextInput style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14, color: COLORS.text, textAlign: 'center', backgroundColor: COLORS.background }} value={rangoHasta} onChangeText={setRangoHasta} placeholder="2026-04-03" inputMode="none"
+                onFocus={(e) => { if (typeof document !== 'undefined') { const inp = e.target as any; inp.type = 'date'; inp.showPicker?.(); } }}
+                onChange={(e: any) => { const v = e.target?.value; if (v) setRangoHasta(v); }} />
+            </View>
           </View>
         ) : (
           <View style={s.dateNav}>
