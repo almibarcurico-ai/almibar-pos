@@ -663,19 +663,26 @@ export default function OrderScreen({ table, onBack }: Props) {
         </View>
       </View>
 
-      {guestNames.length > 1 && (
-        <View style={{ flexDirection: 'row', gap: 4, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.border }}>
-          {guestNames.map((name, i) => (
-            <TouchableOpacity key={i} onPress={() => setActiveClientSlot(i + 1)}
-              style={{ flex: 1, paddingVertical: 8, borderRadius: 8, backgroundColor: activeClientSlot === i + 1 ? COLORS.primary : COLORS.background, borderWidth: 1, borderColor: activeClientSlot === i + 1 ? COLORS.primary : COLORS.border, alignItems: 'center' }}>
-              <Text style={{ fontSize: 12, fontWeight: '700', color: activeClientSlot === i + 1 ? '#fff' : COLORS.text }}>{i + 1}. {name || 'Cliente ' + (i + 1)}</Text>
+      <View style={{ flexDirection: 'row', gap: 4, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.border, alignItems: 'center' }}>
+        {guestNames.length > 1 ? (
+          <>
+            {guestNames.map((name, i) => (
+              <TouchableOpacity key={i} onPress={() => setActiveClientSlot(i + 1)}
+                style={{ flex: 1, paddingVertical: 8, borderRadius: 8, backgroundColor: activeClientSlot === i + 1 ? COLORS.primary : COLORS.background, borderWidth: 1, borderColor: activeClientSlot === i + 1 ? COLORS.primary : COLORS.border, alignItems: 'center' }}>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: activeClientSlot === i + 1 ? '#fff' : COLORS.text }}>{i + 1}. {name || 'Cliente ' + (i + 1)}</Text>
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity onPress={() => setEditGuestsModal(true)} style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ fontSize: 14 }}>✏️</Text>
             </TouchableOpacity>
-          ))}
-          <TouchableOpacity onPress={() => setEditGuestsModal(true)} style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ fontSize: 14 }}>✏️</Text>
+          </>
+        ) : (
+          <TouchableOpacity onPress={() => { setGuestNames(guestNames.length === 0 ? [order?.notes?.match(/Cliente:\s*([^|]+)/)?.[1]?.trim() || '', ''] : [...guestNames, '']); setEditGuestsModal(true); }}
+            style={{ paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border }}>
+            <Text style={{ fontSize: 11, color: COLORS.textSecondary }}>👥 Agregar socios</Text>
           </TouchableOpacity>
-        </View>
-      )}
+        )}
+      </View>
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 120 }}>
         {/* ADICIONAR */}
