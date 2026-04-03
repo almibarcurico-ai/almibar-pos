@@ -16,6 +16,7 @@ const ALL_TABS: Tab[] = [
   { key: 'reservas', label: 'Reservas', icon: '📋', roles: ['garzon', 'cajero', 'admin'] },
   { key: 'caja', label: 'Caja', icon: '💰', roles: ['cajero', 'admin'] },
   { key: 'delivery', label: 'Delivery', icon: '🛵', roles: ['cajero', 'admin'] },
+  { key: 'kds', label: 'Cocina', icon: '🔥', roles: ['cocina', 'barra', 'admin'] },
   { key: 'productos', label: 'Productos', icon: '🍕', roles: ['admin'] },
   { key: 'reportes', label: 'Reportes', icon: '📊', roles: ['admin'] },
   { key: 'admin', label: 'Admin', icon: '⚙️', roles: ['admin'] },

@@ -22,6 +22,7 @@ import ModifiersScreen from './src/screens/admin/ModifiersScreen';
 import InventoryCountScreen from './src/screens/admin/InventoryCountScreen';
 import ProductionScreen from './src/screens/admin/ProductionScreen';
 import CostScreen from './src/screens/admin/CostScreen';
+import KDSScreen from './src/screens/KDSScreen';
 import TabNavigator from './src/components/TabNavigator';
 import MobileTableScreen from './src/screens/MobileTableScreen';
 import { COLORS } from './src/theme';
@@ -171,6 +172,7 @@ function AppContent() {
         {activeTab === 'reservas' && <ReservationsScreen />}
         {activeTab === 'caja' && <CajaScreen />}
         {activeTab === 'delivery' && <DeliveryScreen user={user} />}
+        {activeTab === 'kds' && <KDSScreen user={user} />}
         {activeTab === 'productos' && <ProductosHub />}
         {activeTab === 'reportes' && <ReportsScreen />}
         {activeTab === 'admin' && <AdminScreen onOpenEditor={navigateToEditor} onOpenInventory={navigateToInventory} />}
