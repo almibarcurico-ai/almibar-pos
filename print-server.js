@@ -225,6 +225,7 @@ async function loadPrinterMappings() {
 // Guarda lastCheckTime en archivo para sobrevivir restarts
 // =============================================
 const LAST_CHECK_FILE = path.join(__dirname, '.last_poll_time');
+const LAST_MOD_CHECK_FILE = path.join(__dirname, '.last_mod_poll_time');
 
 function loadLastCheckTime() {
   try {
@@ -237,7 +238,19 @@ function saveLastCheckTime(t) {
   try { fs.writeFileSync(LAST_CHECK_FILE, t); } catch {}
 }
 
+function loadLastModCheckTime() {
+  try {
+    if (fs.existsSync(LAST_MOD_CHECK_FILE)) return fs.readFileSync(LAST_MOD_CHECK_FILE, 'utf8').trim();
+  } catch {}
+  return new Date().toISOString();
+}
+
+function saveLastModCheckTime(t) {
+  try { fs.writeFileSync(LAST_MOD_CHECK_FILE, t); } catch {}
+}
+
 let lastCheckTime = loadLastCheckTime();
+let lastModCheckTime = loadLastModCheckTime();
 
 async function pollNewItems() {
   try {
@@ -264,6 +277,88 @@ async function pollNewItems() {
     }
   } catch (e) {
     // Silenciar errores de polling
+  }
+}
+
+// =============================================
+// Polling: buscar modificadores nuevos en items ya impresos
+// Para reimprimir solo los mods agregados después del envío
+// =============================================
+async function pollNewModifiers() {
+  try {
+    // Buscar modifiers creados después del último check
+    const { data: newMods, error } = await supabase
+      .from('order_item_modifiers')
+      .select('id, order_item_id, option_name, created_at')
+      .gt('created_at', lastModCheckTime)
+      .order('created_at', { ascending: true });
+
+    if (error || !newMods || newMods.length === 0) return;
+
+    // Avanzar timestamp
+    lastModCheckTime = newMods[newMods.length - 1].created_at;
+    saveLastModCheckTime(lastModCheckTime);
+
+    // Obtener los order_items correspondientes (solo los ya impresos)
+    const itemIds = [...new Set(newMods.map(m => m.order_item_id))];
+    const { data: items } = await supabase
+      .from('order_items')
+      .select('id, order_id, product_id, printed, status, created_at, product:products(name, category_id)')
+      .in('id', itemIds)
+      .eq('printed', true);
+
+    if (!items || items.length === 0) return;
+
+    // Para cada item ya impreso, verificar si los mods son posteriores al envío
+    for (const item of items) {
+      // Solo reimprimir mods creados más de 5 segundos después del item
+      // (los mods iniciales se crean junto con el item, no necesitan reimpresión)
+      const itemTime = new Date(item.created_at).getTime();
+      const nuevos = newMods.filter(m => m.order_item_id === item.id && (new Date(m.created_at).getTime() - itemTime) > 5000);
+      if (nuevos.length === 0) continue;
+
+      // Obtener la orden para mesa y garzón
+      const { data: order } = await supabase
+        .from('orders')
+        .select('id, table_id, created_by, order_number')
+        .eq('id', item.order_id)
+        .single();
+
+      if (!order) continue;
+
+      const { data: tableData } = order.table_id
+        ? await supabase.from('tables').select('number').eq('id', order.table_id).single()
+        : { data: null };
+      const { data: waiter } = await supabase.from('users').select('name').eq('id', order.created_by).single();
+
+      const catId = item.product?.category_id;
+      const stations = categoryPrinterMap[catId] || [];
+      const tableNum = tableData?.number || '?';
+
+      console.log('\n🖨️  Nuevos modificadores Mesa ' + tableNum + ' — ' + item.product?.name + ' +' + nuevos.length + ' mods');
+
+      for (const station of stations) {
+        const printer = PRINTER_IPS[station];
+        if (!printer) continue;
+
+        const ticket = generateComanda({
+          table: tableNum,
+          waiter: waiter?.name || '',
+          station: station,
+          items: [{
+            name: item.product?.name || 'Item',
+            qty: 1,
+            modifiers: nuevos.map(m => m.option_name),
+            notes: 'MODIFICADORES AGREGADOS',
+          }],
+          orderNumber: order.order_number,
+        });
+
+        queuePrint(station.charAt(0).toUpperCase() + station.slice(1), printer.ip, printer.port, ticket);
+      }
+    }
+  } catch (e) {
+    // Silenciar errores
   }
 }
 
@@ -555,10 +650,12 @@ async function pollAppNotifications() {
 // Polling loop — busca items nuevos cada 3 segundos
 (function startPolling() {
   console.log('  🔄 Polling order_items: iniciado');
+  console.log('  🔄 Polling modifiers: iniciado');
   console.log('  🔄 Polling app items + notificaciones: iniciado');
   async function loop() {
     await pollAppItems();
     await pollNewItems();
+    await pollNewModifiers();
     await pollAppNotifications();
     setTimeout(loop, 3000);
   }

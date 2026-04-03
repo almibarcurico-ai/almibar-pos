@@ -1001,8 +1001,9 @@ function ArqueosTab() {
       {/* Table header */}
       <View style={s.tblHdr}>
         <Text style={[s.tblH, { width: 140 }]}>Apertura / Cierre</Text>
-        <Text style={[s.tblH, { width: 100, textAlign: 'right' }]}>$ Sistema</Text>
-        <Text style={[s.tblH, { width: 100, textAlign: 'right' }]}>$ Usuario</Text>
+        <Text style={[s.tblH, { width: 90, textAlign: 'right' }]}>Ventas</Text>
+        <Text style={[s.tblH, { width: 80, textAlign: 'right' }]}>Propinas</Text>
+        <Text style={[s.tblH, { width: 90 }]}>Usuario</Text>
         <Text style={[s.tblH, { width: 90, textAlign: 'right' }]}>Diferencia</Text>
         <Text style={[s.tblH, { width: 70 }]}>Estado</Text>
       </View>
@@ -1022,8 +1023,12 @@ function ArqueosTab() {
                     {h.closed_at ? new Date(h.closed_at).toLocaleString('es-CL', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-'}
                   </Text>
                 </View>
-                <Text style={[s.tblC, { width: 100, textAlign: 'right', fontWeight: '600' }]}>{fmt(sysTotal)}</Text>
-                <Text style={[s.tblC, { width: 100, textAlign: 'right' }]}>{fmt(h.closing_amount || 0)}</Text>
+                <Text style={[s.tblC, { width: 90, textAlign: 'right', fontWeight: '600' }]}>{fmt(h.total_sales || ((h.total_cash || 0) + (h.total_debit || 0) + (h.total_credit || 0) + (h.total_transfer || 0)))}</Text>
+                <Text style={[s.tblC, { width: 80, textAlign: 'right', color: (h.total_tips || 0) > 0 ? COLORS.warning : COLORS.textMuted }]}>{(h.total_tips || 0) > 0 ? fmt(h.total_tips) : '-'}</Text>
+                <View style={{ width: 90, justifyContent: 'center' }}>
+                  <Text style={{ fontSize: 11, fontWeight: '600', color: COLORS.text }} numberOfLines={1}>{h.opener?.name || '-'}</Text>
+                  {h.closer && h.closer.name !== h.opener?.name && <Text style={{ fontSize: 10, color: COLORS.textMuted }} numberOfLines={1}>{h.closer.name}</Text>}
+                </View>
                 <View style={{ width: 90, alignItems: 'flex-end', justifyContent: 'center' }}>
                   {diff === 0 ? (
                     <Text style={{ fontSize: 13, fontWeight: '700', color: COLORS.text }}>$0</Text>
