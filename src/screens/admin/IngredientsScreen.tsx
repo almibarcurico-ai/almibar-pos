@@ -15,8 +15,10 @@ const confirm = (msg: string) => typeof window !== 'undefined' ? window.confirm(
 export default function IngredientsScreen() {
   const { user } = useAuth();
   const [items, setItems] = useState<any[]>([]);
+  const [suppliers, setSuppliers] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   const [filterCat, setFilterCat] = useState('all');
+  const [filterSupplier, setFilterSupplier] = useState('all');
   const [modal, setModal] = useState(false);
   const [ed, setEd] = useState<any>({});
   const [isNew, setIsNew] = useState(false);
@@ -29,8 +31,12 @@ export default function IngredientsScreen() {
   const [pendingImport, setPendingImport] = useState<any[]>([]);
 
   const load = useCallback(async () => {
-    const { data } = await supabase.from('ingredients').select('*').eq('active', true).order('name');
+    const [{ data }, { data: sups }] = await Promise.all([
+      supabase.from('ingredients').select('*').eq('active', true).order('name'),
+      supabase.from('suppliers').select('*').order('name'),
+    ]);
     if (data) setItems(data);
+    if (sups) setSuppliers(sups);
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -38,8 +44,10 @@ export default function IngredientsScreen() {
   const filtered = items.filter(i => {
     const ms = !search || i.name.toLowerCase().includes(search.toLowerCase());
     const mc = filterCat === 'all' || i.category === filterCat;
-    return ms && mc;
+    const msp = filterSupplier === 'all' || (filterSupplier === 'sin' ? !i.default_supplier_id : i.default_supplier_id === filterSupplier);
+    return ms && mc && msp;
   });
+  const supplierName = (id: string | null) => id ? (suppliers.find(s => s.id === id)?.name || '-') : '-';
 
   const lowStock = items.filter(i => i.stock_current <= i.stock_min && i.stock_min > 0);
 
@@ -60,6 +68,7 @@ export default function IngredientsScreen() {
       stock_current: parseFloat(ed.stock_current) || 0,
       stock_min: parseFloat(ed.stock_min) || 0,
       cost_per_unit: newCost, category: ed.category,
+      default_supplier_id: ed.default_supplier_id || null,
     };
 
     try {
@@ -278,6 +287,34 @@ export default function IngredientsScreen() {
                 <Text style={s.sideCount}>{items.filter(i => i.is_production).length}</Text>
               </TouchableOpacity>
             )}
+
+            {/* Separador proveedores */}
+            <View style={{ paddingHorizontal: 14, paddingTop: 14, paddingBottom: 6 }}>
+              <Text style={{ fontSize: 10, fontWeight: '700', color: '#888', letterSpacing: 1 }}>PROVEEDORES</Text>
+            </View>
+            <TouchableOpacity style={[s.sideItem, filterSupplier === 'all' && s.sideItemA]} onPress={() => setFilterSupplier('all')}>
+              <Text style={[s.sideItemT, filterSupplier === 'all' && s.sideItemTA]}>Todos</Text>
+            </TouchableOpacity>
+            {suppliers.map(sup => {
+              const n = items.filter(i => i.default_supplier_id === sup.id).length;
+              if (n === 0) return null;
+              const isA = filterSupplier === sup.id;
+              return (
+                <TouchableOpacity key={sup.id} style={[s.sideItem, isA && s.sideItemA]} onPress={() => setFilterSupplier(isA ? 'all' : sup.id)}>
+                  <Text style={[s.sideItemT, isA && s.sideItemTA]}>{sup.name}</Text>
+                  <Text style={s.sideCount}>{n}</Text>
+                </TouchableOpacity>
+              );
+            })}
+            {(() => {
+              const sinProv = items.filter(i => !i.default_supplier_id).length;
+              return sinProv > 0 ? (
+                <TouchableOpacity style={[s.sideItem, filterSupplier === 'sin' && s.sideItemA]} onPress={() => setFilterSupplier(filterSupplier === 'sin' ? 'all' : 'sin')}>
+                  <Text style={[s.sideItemT, filterSupplier === 'sin' && s.sideItemTA]}>Sin proveedor</Text>
+                  <Text style={s.sideCount}>{sinProv}</Text>
+                </TouchableOpacity>
+              ) : null;
+            })()}
           </ScrollView>
         </View>
 
@@ -285,8 +322,10 @@ export default function IngredientsScreen() {
         <View style={{ flex: 1 }}>
           <View style={s.tHead}>
             <Text style={[s.th, { flex: 1 }]}>Ingrediente</Text>
+            <Text style={[s.th, { width: 90 }]}>Proveedor</Text>
             <Text style={[s.th, { width: 60, textAlign: 'center' }]}>Unidad</Text>
             <Text style={[s.th, { width: 80, textAlign: 'right' }]}>Stock</Text>
+            <Text style={[s.th, { width: 60, textAlign: 'right' }]}>Mín.</Text>
             <Text style={[s.th, { width: 80, textAlign: 'right' }]}>Costo</Text>
             <Text style={[s.th, { width: 50 }]}></Text>
           </View>
@@ -296,9 +335,13 @@ export default function IngredientsScreen() {
               return (
                 <TouchableOpacity key={i.id} style={[s.tRow, idx % 2 === 0 && s.tRowAlt]} onPress={() => openEdit(i)}>
                   <Text style={[s.td, { flex: 1, fontWeight: '600' }]}>{i.name}</Text>
+                  <Text style={[s.td, { width: 90, fontSize: 11, color: i.default_supplier_id ? COLORS.text : COLORS.textMuted }]}>{supplierName(i.default_supplier_id)}</Text>
                   <Text style={[s.td, { width: 60, textAlign: 'center', fontSize: 11, color: COLORS.textSecondary }]}>{i.unit}</Text>
                   <Text style={[s.td, { width: 80, textAlign: 'right', fontWeight: '600', color: isLow ? '#E53935' : COLORS.text }]}>
                     {Math.round(i.stock_current)} {i.unit}
+                  </Text>
+                  <Text style={[s.td, { width: 60, textAlign: 'right', fontSize: 11, color: i.stock_min > 0 ? COLORS.textSecondary : COLORS.textMuted }]}>
+                    {i.stock_min > 0 ? Math.round(i.stock_min) : '-'}
                   </Text>
                   <Text style={[s.td, { width: 80, textAlign: 'right', fontWeight: '700', color: COLORS.primary }]}>
                     {fmt(i.cost_per_unit)}
@@ -325,6 +368,12 @@ export default function IngredientsScreen() {
           <Text style={s.lb}>Categoría</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 36 }}>
             {CATS.map(c => <Chip key={c} label={c} active={ed.category === c} onPress={() => setEd((e: any) => ({ ...e, category: c }))} />)}
+          </ScrollView>
+
+          <Text style={s.lb}>Proveedor</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 36 }}>
+            <Chip label="Sin proveedor" active={!ed.default_supplier_id} onPress={() => setEd((e: any) => ({ ...e, default_supplier_id: null }))} />
+            {suppliers.map(sup => <Chip key={sup.id} label={sup.name} active={ed.default_supplier_id === sup.id} onPress={() => setEd((e: any) => ({ ...e, default_supplier_id: sup.id }))} />)}
           </ScrollView>
 
           <Text style={s.lb}>Unidad base</Text>
