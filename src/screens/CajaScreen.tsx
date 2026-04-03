@@ -1453,14 +1453,21 @@ function AnulacionesTab() {
 function PropinasTab() {
   const [orders, setOrders] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
-  const [period, setPeriod] = useState<'diario' | 'semanal' | 'mensual'>('diario');
+  const [period, setPeriod] = useState<'turno' | 'diario' | 'semanal' | 'mensual'>('turno');
+  const [lastArqueo, setLastArqueo] = useState<any>(null);
   const [date, setDate] = useState(new Date().toLocaleDateString('en-CA'));
   const [users, setUsers] = useState<any[]>([]);
 
-  useEffect(() => { loadUsers(); }, []);
-  useEffect(() => { load(); }, [period, date]);
+  useEffect(() => { loadUsers(); loadLastArqueo(); }, []);
+  useEffect(() => { load(); }, [period, date, lastArqueo]);
 
   const loadUsers = async () => { const { data } = await supabase.from('users').select('id,name').order('name'); if (data) setUsers(data); };
+  const loadLastArqueo = async () => {
+    const { data: open } = await supabase.from('cash_registers').select('*').is('closed_at', null).order('opened_at', { ascending: false }).limit(1);
+    if (open?.[0]) { setLastArqueo(open[0]); return; }
+    const { data: closed } = await supabase.from('cash_registers').select('*').not('closed_at', 'is', null).order('closed_at', { ascending: false }).limit(1);
+    if (closed?.[0]) setLastArqueo(closed[0]);
+  };
   const waiterName = (id: string) => users.find((u: any) => u.id === id)?.name || '-';
   const fmt = (p: number) => '$' + Math.round(p).toLocaleString('es-CL');
 
@@ -1470,7 +1477,10 @@ function PropinasTab() {
   const load = async () => {
     let since: string, until: string;
     const d = new Date(date + 'T12:00:00');
-    if (period === 'diario') { since = toChileISO(date); until = toChileISO(addDays(date, 1)); }
+    if (period === 'turno') {
+      if (lastArqueo) { since = lastArqueo.opened_at; until = lastArqueo.closed_at || new Date(Date.now() + 86400000).toISOString(); }
+      else { since = toChileISO(date); until = toChileISO(addDays(date, 1)); }
+    } else if (period === 'diario') { since = toChileISO(date); until = toChileISO(addDays(date, 1)); }
     else if (period === 'semanal') { const st = new Date(d); st.setDate(st.getDate() - st.getDay()); const ss = st.toLocaleDateString('en-CA'); since = toChileISO(ss); until = toChileISO(addDays(ss, 7)); }
     else { const ss = date.substring(0,7) + '-01'; const en = new Date(d.getFullYear(), d.getMonth() + 1, 1); since = toChileISO(ss); until = toChileISO(en.toLocaleDateString('en-CA')); }
 
@@ -1485,6 +1495,7 @@ function PropinasTab() {
   };
 
   const changeDate = (dir: number) => {
+    if (period === 'turno') return;
     const d = new Date(date + 'T12:00:00');
     if (period === 'diario') d.setDate(d.getDate() + dir);
     else if (period === 'semanal') d.setDate(d.getDate() + (dir * 7));
@@ -1506,17 +1517,23 @@ function PropinasTab() {
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 20 }}>
       <View style={s.filterBar}>
         <View style={s.filterRow}>
-          {(['diario', 'semanal', 'mensual'] as const).map(p => (
+          {(['turno', 'diario', 'semanal', 'mensual'] as const).map(p => (
             <TouchableOpacity key={p} style={[s.fChip, period === p && s.fChipA]} onPress={() => setPeriod(p)}>
               <Text style={[s.fChipT, period === p && s.fChipTA]}>{p.charAt(0).toUpperCase() + p.slice(1)}</Text>
             </TouchableOpacity>
           ))}
         </View>
-        <View style={s.dateNav}>
-          <TouchableOpacity onPress={() => changeDate(-1)} style={s.dateBtn}><Text style={s.dateBtnT}>◀</Text></TouchableOpacity>
-          <Text style={s.dateLabel}>{new Date(date + 'T12:00:00').toLocaleDateString('es-CL', { day: 'numeric', month: 'short', year: 'numeric' })}</Text>
-          <TouchableOpacity onPress={() => changeDate(1)} style={s.dateBtn}><Text style={s.dateBtnT}>▶</Text></TouchableOpacity>
-        </View>
+        {period !== 'turno' ? (
+          <View style={s.dateNav}>
+            <TouchableOpacity onPress={() => changeDate(-1)} style={s.dateBtn}><Text style={s.dateBtnT}>◀</Text></TouchableOpacity>
+            <Text style={s.dateLabel}>{new Date(date + 'T12:00:00').toLocaleDateString('es-CL', { day: 'numeric', month: 'short', year: 'numeric' })}</Text>
+            <TouchableOpacity onPress={() => changeDate(1)} style={s.dateBtn}><Text style={s.dateBtnT}>▶</Text></TouchableOpacity>
+          </View>
+        ) : (
+          <Text style={{ textAlign: 'center', fontSize: 13, fontWeight: '700', color: COLORS.text, marginTop: 8 }}>
+            {lastArqueo ? 'Desde ' + new Date(lastArqueo.opened_at).toLocaleString('es-CL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) + (lastArqueo.closed_at ? ' hasta ' + new Date(lastArqueo.closed_at).toLocaleString('es-CL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ' (abierto)') : 'Sin arqueo'}
+          </Text>
+        )}
       </View>
 
       <View style={s.summaryRow}>
