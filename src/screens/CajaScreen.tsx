@@ -363,7 +363,7 @@ function VentasTab() {
 
         // By method
         const byMethod: Record<string, number> = {};
-        tipsFromPayments.forEach((p: any) => { byMethod[p.method] = (byMethod[p.method] || 0) + (p.tip_amount || 0); });
+        tipsFromPayments.forEach((p: any) => { const m = (p.method === 'debito' || p.method === 'credito') ? 'tarjeta' : p.method; byMethod[m] = (byMethod[m] || 0) + (p.tip_amount || 0); });
         
         // By waiter
         const byWaiter: Record<string, number> = {};
@@ -383,7 +383,7 @@ function VentasTab() {
             <Text style={{ fontSize: 11, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 6 }}>POR MEDIO DE PAGO</Text>
             {Object.entries(byMethod).map(([method, amount]) => (
               <View key={method} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4, borderBottomWidth: 1, borderBottomColor: COLORS.border }}>
-                <Text style={{ fontSize: 13, color: COLORS.text, textTransform: 'capitalize' }}>{method === 'efectivo' ? '💵' : method === 'transferencia' ? '📱' : '💳'} {method}</Text>
+                <Text style={{ fontSize: 13, color: COLORS.text }}>{method === 'efectivo' ? '💵 Efectivo' : method === 'tarjeta' ? '💳 Tarjeta' : method === 'transferencia' ? '📱 Transferencia' : method === 'pedidosya' ? '🛵 PedidosYa' : method === 'consumo' ? '🍽️ Consumo' : '💳 ' + method}</Text>
                 <Text style={{ fontSize: 13, fontWeight: '700', color: COLORS.warning }}>{fmt(amount as number)}</Text>
               </View>
             ))}
@@ -1498,9 +1498,9 @@ function PropinasTab() {
   const byWaiter: Record<string, number> = {};
   orders.forEach((o: any) => { byWaiter[o.waiter_id] = (byWaiter[o.waiter_id] || 0) + (o.tip_amount || 0); });
 
-  // By method
+  // By method (with alias for legacy debito/credito → tarjeta)
   const byMethod: Record<string, number> = {};
-  payments.forEach((p: any) => { byMethod[p.method] = (byMethod[p.method] || 0) + (p.tip_amount || 0); });
+  payments.forEach((p: any) => { const m = (p.method === 'debito' || p.method === 'credito') ? 'tarjeta' : p.method; byMethod[m] = (byMethod[m] || 0) + (p.tip_amount || 0); });
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 20 }}>
@@ -1543,7 +1543,7 @@ function PropinasTab() {
           <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 8 }}>POR MEDIO DE PAGO</Text>
           {Object.entries(byMethod).map(([method, amount]) => (
             <View key={method} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: COLORS.border }}>
-              <Text style={{ fontSize: 13, color: COLORS.text, textTransform: 'capitalize' }}>{method === 'efectivo' ? '💵' : method === 'transferencia' ? '📱' : '💳'} {method}</Text>
+              <Text style={{ fontSize: 13, color: COLORS.text }}>{method === 'efectivo' ? '💵 Efectivo' : method === 'tarjeta' ? '💳 Tarjeta' : method === 'transferencia' ? '📱 Transferencia' : method === 'pedidosya' ? '🛵 PedidosYa' : method === 'consumo' ? '🍽️ Consumo' : '💳 ' + method}</Text>
               <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.warning }}>{fmt(amount)}</Text>
             </View>
           ))}
