@@ -157,17 +157,33 @@ export default function ProductionScreen() {
           </TouchableOpacity>
         </View>
         <TextInput style={st.sideSearch} placeholder="Buscar..." placeholderTextColor="#999" value={search} onChangeText={setSearch} />
+        {/* Low stock alert */}
+        {(() => {
+          const lowStock = productions.filter(p => p.stock_min > 0 && (p.stock_current || 0) <= p.stock_min);
+          if (lowStock.length === 0) return null;
+          return (
+            <View style={{ backgroundColor: '#E53935', paddingHorizontal: 10, paddingVertical: 6 }}>
+              <Text style={{ fontSize: 10, fontWeight: '700', color: '#fff' }}>⚠ Stock bajo: {lowStock.map(p => p.name).join(', ')}</Text>
+            </View>
+          );
+        })()}
         <ScrollView>
           {filtered.map(p => {
             const isActive = selected?.id === p.id;
             const recCount = recipes.filter(r => r.production_ingredient_id === p.id).length;
+            const isLow = p.stock_min > 0 && (p.stock_current || 0) <= p.stock_min;
             return (
               <TouchableOpacity key={p.id} style={[st.sideItem, isActive && st.sideItemActive]} onPress={() => selectProduction(p)}>
                 <View style={{ flex: 1 }}>
                   <Text style={[st.sideItemT, isActive && st.sideItemTA]}>{p.name}</Text>
-                  <Text style={{ fontSize: 10, color: isActive ? '#ffffffaa' : '#888' }}>Stock: {p.stock_current || 0} {p.unit} · {recCount} ingredientes</Text>
+                  <Text style={{ fontSize: 10, color: isActive ? '#ffffffaa' : isLow ? '#E53935' : '#888' }}>
+                    Stock: {p.stock_current || 0}{p.stock_min > 0 ? '/' + p.stock_min : ''} {p.unit} · {recCount} ing.
+                  </Text>
                 </View>
-                <Text style={{ fontSize: 11, color: isActive ? '#fff' : COLORS.primary, fontWeight: '600' }}>{fmt(p.cost_per_unit || 0)}</Text>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={{ fontSize: 11, color: isActive ? '#fff' : COLORS.primary, fontWeight: '600' }}>{fmt(p.cost_per_unit || 0)}</Text>
+                  {isLow && !isActive && <Text style={{ fontSize: 9, color: '#E53935', fontWeight: '700' }}>⚠ BAJO</Text>}
+                </View>
               </TouchableOpacity>
             );
           })}
@@ -178,14 +194,42 @@ export default function ProductionScreen() {
       <View style={st.detail}>
         {selected ? (
           <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <View>
-                <Text style={{ fontSize: 20, fontWeight: '800', color: COLORS.text }}>{selected.name}</Text>
-                <Text style={{ fontSize: 12, color: COLORS.textMuted }}>Stock: {selected.stock_current || 0} {selected.unit} · Costo: {fmt(selected.cost_per_unit || 0)}</Text>
-              </View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <Text style={{ fontSize: 20, fontWeight: '800', color: COLORS.text }}>{selected.name}</Text>
               <TouchableOpacity style={[st.newBtn, { paddingHorizontal: 16, paddingVertical: 10 }]} onPress={() => setProduceModal(true)}>
                 <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>🏭 Producir</Text>
               </TouchableOpacity>
+            </View>
+
+            {/* Stock info editable */}
+            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16, backgroundColor: COLORS.card, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: COLORS.border }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 10, fontWeight: '700', color: COLORS.textMuted, marginBottom: 4 }}>STOCK ACTUAL</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
+                  <Text style={{ fontSize: 24, fontWeight: '800', color: selected.stock_min > 0 && (selected.stock_current || 0) <= selected.stock_min ? '#E53935' : COLORS.primary }}>{selected.stock_current || 0}</Text>
+                  <Text style={{ fontSize: 12, color: COLORS.textMuted }}>{selected.unit}</Text>
+                </View>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 10, fontWeight: '700', color: COLORS.textMuted, marginBottom: 4 }}>STOCK MÍNIMO</Text>
+                <TextInput
+                  style={{ fontSize: 20, fontWeight: '700', color: COLORS.text, backgroundColor: COLORS.background, borderRadius: 6, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 10, paddingVertical: 4, textAlign: 'center' }}
+                  value={String(selected.stock_min || 0)}
+                  onChangeText={v => {
+                    const val = parseInt(v) || 0;
+                    setSelected((prev: any) => ({ ...prev, stock_min: val }));
+                  }}
+                  onBlur={async () => {
+                    await supabase.from('ingredients').update({ stock_min: selected.stock_min || 0 }).eq('id', selected.id);
+                    await load();
+                  }}
+                  keyboardType="number-pad"
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 10, fontWeight: '700', color: COLORS.textMuted, marginBottom: 4 }}>COSTO UNIT.</Text>
+                <Text style={{ fontSize: 20, fontWeight: '700', color: COLORS.text, textAlign: 'center' }}>{fmt(selected.cost_per_unit || 0)}</Text>
+              </View>
             </View>
 
             {/* Recipe */}
