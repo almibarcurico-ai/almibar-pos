@@ -153,14 +153,16 @@ export default function ProductsScreen() {
     setShowIngSearch(false); setIngSearch(''); await load();
   };
 
-  const saveRecipeItem2 = async (riId: string) => {
+  const saveRecipeItem2 = async (riId: string, overrideUnit?: string) => {
     const update: any = {};
     const qtyVal = localRecipeQty[riId];
-    const unitVal = localRecipeUnit[riId];
+    const unitVal = overrideUnit || localRecipeUnit[riId];
     if (qtyVal !== undefined) { const q = parseFloat(qtyVal) || 0; if (q > 0) update.quantity = q; }
     if (unitVal !== undefined) update.unit = unitVal;
     if (Object.keys(update).length > 0) {
       await supabase.from('recipe_items').update(update).eq('id', riId);
+      setLocalRecipeQty(prev => { const n = { ...prev }; delete n[riId]; return n; });
+      setLocalRecipeUnit(prev => { const n = { ...prev }; delete n[riId]; return n; });
       await load();
     }
   };
@@ -342,7 +344,7 @@ export default function ProductsScreen() {
                     />
                     <View style={{ width: 65, flexDirection: 'row', gap: 1, justifyContent: 'center' }}>
                       {unitOptions.map(u => (
-                        <TouchableOpacity key={u} onPress={() => { setLocalRecipeUnit(prev => ({ ...prev, [ri.id]: u })); setTimeout(() => saveRecipeItem2(ri.id), 100); }}
+                        <TouchableOpacity key={u} onPress={() => { setLocalRecipeUnit(prev => ({ ...prev, [ri.id]: u })); saveRecipeItem2(ri.id, u); }}
                           style={{ paddingHorizontal: 5, paddingVertical: 2, borderRadius: 3, backgroundColor: currentUnit === u ? COLORS.primary : COLORS.background, borderWidth: 1, borderColor: currentUnit === u ? COLORS.primary : COLORS.border }}>
                           <Text style={{ fontSize: 9, fontWeight: '600', color: currentUnit === u ? '#fff' : COLORS.textMuted }}>{u}</Text>
                         </TouchableOpacity>
