@@ -505,11 +505,11 @@ function handler(req, res) {
         const station = name.toLowerCase();
 
         // Ignorar comandas de cocina/barra por /print — el polling se encarga
-        // Ignorar comandas cocina/barra — el polling ya las maneja
-        if ((station === 'cocina' || station === 'barra') && data.length > 0) {
+        // EXCEPTO si viene con force:true (ej: modificadores pendientes)
+        if ((station === 'cocina' || station === 'barra') && data.length > 0 && !job.force) {
           console.log('  ⏭️  /print ' + name + ' ignorado (polling)');
         } else {
-          console.log('\n🖨️  Enviando a ' + name + ' (' + ip + ':' + port + ') — ' + data.length + ' bytes');
+          console.log('\n🖨️  Enviando a ' + name + ' (' + ip + ':' + port + ') — ' + data.length + ' bytes' + (job.force ? ' [FORCE]' : ''));
           queuePrint(name, ip, port, data);
         }
 

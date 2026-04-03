@@ -229,9 +229,9 @@ export function generateBoleta(data: {
 }
 
 // Send to printer via print server
-export async function sendToPrinter(printerIp: string, printerPort: number, data: string, printerName?: string) {
+export async function sendToPrinter(printerIp: string, printerPort: number, data: string, printerName?: string, force?: boolean) {
   try {
-    console.log(`🖨️ sendToPrinter: ${printerName} -> ${printerIp}:${printerPort} (${data.length} bytes) via ${PRINT_SERVER}`);
+    console.log(`🖨️ sendToPrinter: ${printerName} -> ${printerIp}:${printerPort} (${data.length} bytes) via ${PRINT_SERVER}${force ? ' [FORCE]' : ''}`);
     const res = await fetch(PRINT_SERVER, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -240,6 +240,7 @@ export async function sendToPrinter(printerIp: string, printerPort: number, data
         ip: printerIp,
         port: printerPort,
         data,
+        force: !!force,
       }),
     });
     const result = await res.json();
@@ -300,6 +301,45 @@ export async function printOrder(params: {
     console.log(`🖨️ ${printer.name}: ${success ? '✅' : '❌'}`);
   }
 
+  return results;
+}
+// Print directly bypassing polling filter (for modifiers added post-send)
+export async function printOrderForce(params: {
+  table: number | string;
+  waiter: string;
+  items: { name: string; qty: number; category_id: string; notes?: string; modifiers?: string[] }[];
+  printers: { id: string; name: string; station: string; ip_address: string; port: number }[];
+  categoryPrinters: { category_id: string; printer_id: string }[];
+  orderNumber?: number;
+}) {
+  const { table, waiter, items, printers, categoryPrinters, orderNumber } = params;
+  const results: { printer: string; success: boolean }[] = [];
+  const printerItems: Record<string, typeof items> = {};
+
+  for (const item of items) {
+    const mappings = categoryPrinters.filter(cp => cp.category_id === item.category_id);
+    for (const mapping of mappings) {
+      const printer = printers.find(p => p.id === mapping.printer_id);
+      if (!printer || !printer.ip_address) continue;
+      if (!printerItems[printer.id]) printerItems[printer.id] = [];
+      printerItems[printer.id].push(item);
+    }
+  }
+
+  for (const [printerId, pItems] of Object.entries(printerItems)) {
+    const printer = printers.find(p => p.id === printerId);
+    if (!printer) continue;
+    const ticket = generateComanda({
+      table, waiter, station: printer.station,
+      items: pItems.map(i => ({ name: i.name, qty: i.qty, notes: i.notes, modifiers: i.modifiers })),
+      orderNumber,
+    });
+    const override = PRINTER_CONFIG[printer.station] || PRINTER_CONFIG[printer.name?.toLowerCase()];
+    const ip = override?.ip || printer.ip_address;
+    const port = override?.port || printer.port;
+    const success = await sendToPrinter(ip, port, ticket, printer.name, true);
+    results.push({ printer: printer.name, success });
+  }
   return results;
 }
 // build 1774973279

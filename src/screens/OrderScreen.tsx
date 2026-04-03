@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Dimensions } from 'react-native';
 import { supabase } from '../lib/supabase';
-import { printOrder, generateAnulacion, generateBoleta, sendToPrinter, PRINTER_CONFIG } from '../lib/printService';
+import { printOrder, printOrderForce, generateAnulacion, generateBoleta, sendToPrinter, PRINTER_CONFIG } from '../lib/printService';
 import { useAuth } from '../contexts/AuthContext';
 import { TableWithOrder, Category, Product, OrderItem, Order } from '../types';
 import { COLORS } from '../theme';
@@ -286,9 +286,9 @@ export default function OrderScreen({ table, onBack }: Props) {
     if (selections.length === 0) return;
     // Save new modifiers to existing order_item
     await supabase.from('order_item_modifiers').insert(selections.map((m: ModOption) => ({ order_item_id: pendingModItem.id, option_id: m.id, option_name: m.name, price_adjust: m.price_adjust })));
-    // Print comanda for the new modifiers only
+    // Print comanda for the new modifiers only (force=true to bypass polling filter)
     try {
-      await printOrder({
+      await printOrderForce({
         table: table.number, waiter: user.name, orderNumber: order?.order_number,
         items: [{ name: pendingModItem.product.name, qty: 1, category_id: pendingModItem.product.category_id, modifiers: selections.map((m: ModOption) => m.name), notes: undefined }],
         printers, categoryPrinters,
