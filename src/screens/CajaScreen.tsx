@@ -1932,8 +1932,10 @@ function CostosTab() {
       setLoading(false); return;
     }
 
+    // Venta bruta = suma de order.total (ya con descuentos aplicados)
+    const totalVentasFromOrders = orders.reduce((s, o) => s + (o.total || 0), 0);
+
     const orderIds = orders.map(o => o.id);
-    const orderMap = new Map(orders.map(o => [o.id, o]));
     const { data: items } = await supabase
       .from('order_items')
       .select('order_id, product_id, quantity, unit_price, total_price')
@@ -1951,24 +1953,9 @@ function CostosTab() {
 
     const productMap = new Map((products || []).map(p => [p.id, p]));
 
-    // Calcular factor de descuento por orden (total / subtotal)
-    // Para prorratear el descuento a cada item
-    const orderDiscountFactor = new Map<string, number>();
-    const itemsByOrder = new Map<string, typeof items>();
-    for (const item of items) {
-      if (!itemsByOrder.has(item.order_id)) itemsByOrder.set(item.order_id, []);
-      itemsByOrder.get(item.order_id)!.push(item);
-    }
-    for (const [orderId, orderItems] of itemsByOrder) {
-      const subtotal = orderItems.reduce((s, i) => s + (i.total_price || 0), 0);
-      const order = orderMap.get(orderId);
-      const orderTotal = order?.total || 0;
-      orderDiscountFactor.set(orderId, subtotal > 0 ? orderTotal / subtotal : 1);
-    }
-
-    // Agrupar items por producto
+    // Agrupar items por producto (revenue = total_price del item, para desglose por producto)
     const grouped: Record<string, { name: string; qty: number; revenue: number; cost: number }> = {};
-    let totalVentas = 0, totalCosto = 0, totalItems = 0;
+    let totalCosto = 0, totalItems = 0;
 
     for (const item of items) {
       const prod = productMap.get(item.product_id);
@@ -1976,25 +1963,21 @@ function CostosTab() {
 
       const unitCost = calcCost(item.product_id);
       const itemCost = unitCost * item.quantity;
-      // Aplicar factor de descuento de la orden al revenue del item
-      const factor = orderDiscountFactor.get(item.order_id) || 1;
-      const itemRevenue = (item.total_price || 0) * factor;
 
       if (!grouped[item.product_id]) {
         grouped[item.product_id] = { name: prod.name, qty: 0, revenue: 0, cost: 0 };
       }
       grouped[item.product_id].qty += item.quantity;
-      grouped[item.product_id].revenue += itemRevenue;
+      grouped[item.product_id].revenue += item.total_price || 0;
       grouped[item.product_id].cost += itemCost;
 
-      totalVentas += itemRevenue;
       totalCosto += itemCost;
       totalItems += item.quantity;
     }
 
     const dataArr = Object.values(grouped).sort((a, b) => b.cost - a.cost);
     setCostData(dataArr);
-    setSummary({ totalVentas, totalCosto, totalItems });
+    setSummary({ totalVentas: totalVentasFromOrders, totalCosto, totalItems });
     setLoading(false);
   };
 
