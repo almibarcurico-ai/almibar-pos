@@ -112,9 +112,19 @@ function VentasTab() {
 
     const d = new Date(date + 'T12:00:00');
 
-    // Buscar arqueo que abrió en el rango del período para usar su rango real
+    // Buscar arqueos que cubren el período para usar su rango real
+    // Un turno "cubre" un día si abrió ese día, O si abrió antes y cerró después del inicio del día (o sigue abierto)
     const findShiftRange = (rangeStart: string, rangeEnd: string) => {
-      const shifts = allArqueos.filter((a: any) => a.opened_at >= rangeStart && a.opened_at < rangeEnd);
+      const shifts = allArqueos.filter((a: any) => {
+        const opened = a.opened_at;
+        const closed = a.closed_at;
+        // Caso 1: el arqueo abrió dentro del rango del período
+        if (opened >= rangeStart && opened < rangeEnd) return true;
+        // Caso 2: el arqueo abrió ANTES del rango pero cierra DESPUÉS del inicio (o sigue abierto)
+        // Esto cubre el turno del viernes que cierra el sábado de madrugada
+        if (opened < rangeStart && (!closed || closed > rangeStart)) return true;
+        return false;
+      });
       if (shifts.length > 0) {
         const first = shifts[shifts.length - 1]; // oldest in range
         const last = shifts[0]; // newest in range
