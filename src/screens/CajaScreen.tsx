@@ -11,7 +11,7 @@ import PurchasesScreen from './admin/PurchasesScreen';
 const SW = Dimensions.get('window').width;
 
 export default function CajaScreen() {
-  const [tab, setTab] = useState<'ventas' | 'compras' | 'movimientos' | 'arqueos' | 'anulaciones' | 'propinas'>('ventas');
+  const [tab, setTab] = useState<'ventas' | 'compras' | 'movimientos' | 'arqueos' | 'anulaciones' | 'propinas' | 'costos'>('ventas');
   const TABS = [
     { key: 'ventas', label: 'Ventas' },
     { key: 'compras', label: 'Compras' },
@@ -19,6 +19,7 @@ export default function CajaScreen() {
     { key: 'arqueos', label: 'Arqueos' },
     { key: 'anulaciones', label: 'Anulaciones' },
     { key: 'propinas', label: 'Propinas' },
+    { key: 'costos', label: 'Costos' },
   ] as const;
 
   return (
@@ -36,6 +37,7 @@ export default function CajaScreen() {
       {tab === 'arqueos' && <ArqueosTab />}
       {tab === 'anulaciones' && <AnulacionesTab />}
       {tab === 'propinas' && <PropinasTab />}
+      {tab === 'costos' && <CostosTab />}
     </View>
   );
 }
@@ -1800,6 +1802,276 @@ function ARQ({ label, val, bold }: { label: string; val: string; bold?: boolean 
     <Text style={{ fontSize: 13, color: bold ? COLORS.text : COLORS.textSecondary, fontWeight: bold ? '700' : '400' }}>{label}</Text>
     <Text style={{ fontSize: 13, fontWeight: bold ? '800' : '600', color: bold ? COLORS.primary : COLORS.text }}>{val}</Text>
   </View>;
+}
+
+// =====================================================
+// COSTOS TAB - Análisis de food cost por período
+// =====================================================
+const IVA = 0.19;
+
+function CostosTab() {
+  const [period, setPeriod] = useState<'diario' | 'semanal' | 'mensual' | 'anual' | 'rango'>('diario');
+  const [date, setDate] = useState(new Date().toLocaleDateString('en-CA'));
+  const [rangoDesde, setRangoDesde] = useState(new Date().toLocaleDateString('en-CA'));
+  const [rangoHasta, setRangoHasta] = useState(new Date().toLocaleDateString('en-CA'));
+  const [loading, setLoading] = useState(false);
+  const [costData, setCostData] = useState<any[]>([]);
+  const [ingredients, setIngredients] = useState<any[]>([]);
+  const [recipes, setRecipes] = useState<any[]>([]);
+  const [recipeItems, setRecipeItems] = useState<any[]>([]);
+  const [summary, setSummary] = useState({ totalVentas: 0, totalCosto: 0, totalItems: 0 });
+
+  const fmt = (n: number) => `$${Math.round(n).toLocaleString('es-CL')}`;
+  const pct = (n: number) => `${Math.round(n * 100)}%`;
+
+  const calcCost = (productId: string) => {
+    const recipe = recipes.find(r => r.product_id === productId);
+    if (!recipe) return 0;
+    const items = recipeItems.filter(ri => ri.recipe_id === recipe.id);
+    return items.reduce((total, ri) => {
+      const ing = ingredients.find(i => i.id === ri.ingredient_id);
+      if (!ing) return total;
+      const cpu = ing.cost_per_unit || 0;
+      const qty = ri.quantity || 0;
+      const iu = (ing.unit || '').toLowerCase();
+      const ru = (ri.unit || iu).toLowerCase();
+      if (iu === 'kg' && ru === 'g') return total + cpu * qty / 1000;
+      if (iu === 'lt' && ru === 'ml') return total + cpu * qty / 1000;
+      if (iu === 'g' && ru === 'kg') return total + cpu * qty * 1000;
+      if (iu === 'ml' && ru === 'lt') return total + cpu * qty * 1000;
+      return total + cpu * qty;
+    }, 0);
+  };
+
+  const load = async () => {
+    setLoading(true);
+
+    // Cargar recetas e ingredientes
+    const [iR, rR, riR] = await Promise.all([
+      supabase.from('ingredients').select('*').eq('active', true),
+      supabase.from('recipes').select('*'),
+      supabase.from('recipe_items').select('*'),
+    ]);
+    if (iR.data) setIngredients(iR.data);
+    if (rR.data) setRecipes(rR.data);
+    if (riR.data) setRecipeItems(riR.data);
+
+    // Calcular rango de fechas
+    const toChileISO = (dateStr: string) => {
+      const local = new Date(dateStr + 'T00:00:00');
+      const offsetMin = local.getTimezoneOffset();
+      const sign = offsetMin <= 0 ? '+' : '-';
+      const absOff = Math.abs(offsetMin);
+      const hh = String(Math.floor(absOff / 60)).padStart(2, '0');
+      const mm = String(absOff % 60).padStart(2, '0');
+      return dateStr + 'T00:00:00' + sign + hh + ':' + mm;
+    };
+    const addDays = (dateStr: string, days: number) => {
+      const d = new Date(dateStr + 'T12:00:00');
+      d.setDate(d.getDate() + days);
+      return d.toISOString().split('T')[0];
+    };
+
+    let since: string, until: string;
+    const d = new Date(date + 'T12:00:00');
+
+    if (period === 'diario') {
+      since = toChileISO(date); until = toChileISO(addDays(date, 1));
+    } else if (period === 'semanal') {
+      const start = new Date(d); start.setDate(start.getDate() - start.getDay());
+      const startStr = start.toISOString().split('T')[0];
+      since = toChileISO(startStr); until = toChileISO(addDays(startStr, 7));
+    } else if (period === 'mensual') {
+      const startStr = date.substring(0, 7) + '-01';
+      const end = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+      since = toChileISO(startStr); until = toChileISO(end.toISOString().split('T')[0]);
+    } else if (period === 'anual') {
+      since = toChileISO(d.getFullYear() + '-01-01'); until = toChileISO((d.getFullYear() + 1) + '-01-01');
+    } else {
+      since = toChileISO(rangoDesde); until = toChileISO(addDays(rangoHasta, 1));
+    }
+
+    // Buscar order_items de órdenes cerradas en el período (excluir productos eliminados)
+    const { data: orders } = await supabase
+      .from('orders')
+      .select('id, total, status')
+      .eq('status', 'cerrada')
+      .gte('closed_at', since)
+      .lt('closed_at', until);
+
+    if (!orders || orders.length === 0) {
+      setCostData([]); setSummary({ totalVentas: 0, totalCosto: 0, totalItems: 0 });
+      setLoading(false); return;
+    }
+
+    const orderIds = orders.map(o => o.id);
+    const { data: items } = await supabase
+      .from('order_items')
+      .select('product_id, quantity, unit_price, total_price')
+      .in('order_id', orderIds)
+      .not('product_id', 'is', null);
+
+    if (!items) { setCostData([]); setLoading(false); return; }
+
+    // Obtener productos activos (los eliminados no tendrán match y se ignoran)
+    const productIds = [...new Set(items.map(i => i.product_id).filter(Boolean))];
+    const { data: products } = await supabase
+      .from('products')
+      .select('id, name, price, category_id')
+      .in('id', productIds);
+
+    const productMap = new Map((products || []).map(p => [p.id, p]));
+
+    // Agrupar items por producto
+    const grouped: Record<string, { name: string; qty: number; revenue: number; cost: number }> = {};
+    let totalVentas = 0, totalCosto = 0, totalItems = 0;
+
+    for (const item of items) {
+      const prod = productMap.get(item.product_id);
+      if (!prod) continue; // Producto eliminado — ignorar
+
+      const unitCost = calcCost(item.product_id);
+      const itemCost = unitCost * item.quantity;
+      const itemRevenue = item.total_price || 0;
+
+      if (!grouped[item.product_id]) {
+        grouped[item.product_id] = { name: prod.name, qty: 0, revenue: 0, cost: 0 };
+      }
+      grouped[item.product_id].qty += item.quantity;
+      grouped[item.product_id].revenue += itemRevenue;
+      grouped[item.product_id].cost += itemCost;
+
+      totalVentas += itemRevenue;
+      totalCosto += itemCost;
+      totalItems += item.quantity;
+    }
+
+    const dataArr = Object.values(grouped).sort((a, b) => b.cost - a.cost);
+    setCostData(dataArr);
+    setSummary({ totalVentas, totalCosto, totalItems });
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, [period, date, rangoDesde, rangoHasta]);
+  // Reload when recipe data is ready
+  useEffect(() => { if (recipes.length > 0 && recipeItems.length > 0) load(); }, [recipes.length, recipeItems.length]);
+
+  const ventasNeto = summary.totalVentas / (1 + IVA);
+  const foodCostPct = ventasNeto > 0 ? summary.totalCosto / ventasNeto : 0;
+  const margenNeto = ventasNeto - summary.totalCosto;
+
+  const periods = [
+    { key: 'diario', label: 'Diario' }, { key: 'semanal', label: 'Semanal' },
+    { key: 'mensual', label: 'Mensual' }, { key: 'anual', label: 'Anual' },
+    { key: 'rango', label: 'Rango' },
+  ] as const;
+
+  const changeDate = (dir: number) => {
+    const d = new Date(date + 'T12:00:00');
+    if (period === 'diario') d.setDate(d.getDate() + dir);
+    else if (period === 'semanal') d.setDate(d.getDate() + dir * 7);
+    else if (period === 'mensual') d.setMonth(d.getMonth() + dir);
+    else if (period === 'anual') d.setFullYear(d.getFullYear() + dir);
+    setDate(d.toISOString().split('T')[0]);
+  };
+
+  const dateLabel = () => {
+    const d = new Date(date + 'T12:00:00');
+    if (period === 'diario') return d.toLocaleDateString('es-CL', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+    if (period === 'semanal') { const s = new Date(d); s.setDate(s.getDate() - s.getDay()); const e = new Date(s); e.setDate(e.getDate() + 6); return `${s.getDate()}/${s.getMonth()+1} - ${e.getDate()}/${e.getMonth()+1}`; }
+    if (period === 'mensual') return d.toLocaleDateString('es-CL', { month: 'long', year: 'numeric' });
+    if (period === 'anual') return String(d.getFullYear());
+    return `${rangoDesde} — ${rangoHasta}`;
+  };
+
+  return (
+    <ScrollView style={{ flex: 1, backgroundColor: COLORS.background }}>
+      <View style={{ padding: 16 }}>
+        {/* Period selector */}
+        <View style={{ flexDirection: 'row', gap: 6, marginBottom: 12 }}>
+          {periods.map(p => (
+            <TouchableOpacity key={p.key} onPress={() => setPeriod(p.key)}
+              style={{ paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: period === p.key ? COLORS.primary : COLORS.card, borderWidth: 1, borderColor: period === p.key ? COLORS.primary : COLORS.border }}>
+              <Text style={{ fontSize: 13, fontWeight: period === p.key ? '700' : '500', color: period === p.key ? '#fff' : COLORS.textMuted }}>{p.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Date navigator */}
+        {period !== 'rango' ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16, marginBottom: 16 }}>
+            <TouchableOpacity onPress={() => changeDate(-1)} style={{ padding: 8 }}><Text style={{ fontSize: 20 }}>◀</Text></TouchableOpacity>
+            <Text style={{ fontSize: 15, fontWeight: '600', color: COLORS.text }}>{dateLabel()}</Text>
+            <TouchableOpacity onPress={() => changeDate(1)} style={{ padding: 8 }}><Text style={{ fontSize: 20 }}>▶</Text></TouchableOpacity>
+          </View>
+        ) : (
+          <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16, alignItems: 'center' }}>
+            <TextInput value={rangoDesde} onChangeText={setRangoDesde} placeholder="YYYY-MM-DD" style={{ flex: 1, borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, padding: 8, color: COLORS.text, backgroundColor: COLORS.card }} placeholderTextColor={COLORS.textMuted} />
+            <Text style={{ color: COLORS.textMuted }}>a</Text>
+            <TextInput value={rangoHasta} onChangeText={setRangoHasta} placeholder="YYYY-MM-DD" style={{ flex: 1, borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, padding: 8, color: COLORS.text, backgroundColor: COLORS.card }} placeholderTextColor={COLORS.textMuted} />
+          </View>
+        )}
+
+        {loading ? <Text style={{ textAlign: 'center', color: COLORS.textMuted, padding: 40 }}>Calculando costos...</Text> : (
+          <>
+            {/* Summary cards */}
+            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+              <View style={{ flex: 1, minWidth: 140, backgroundColor: COLORS.card, borderRadius: 10, padding: 14, borderWidth: 1, borderColor: COLORS.border }}>
+                <Text style={{ fontSize: 11, color: COLORS.textMuted, marginBottom: 4 }}>Venta Bruta</Text>
+                <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.text }}>{fmt(summary.totalVentas)}</Text>
+                <Text style={{ fontSize: 10, color: COLORS.textMuted }}>Neto: {fmt(ventasNeto)}</Text>
+              </View>
+              <View style={{ flex: 1, minWidth: 140, backgroundColor: COLORS.card, borderRadius: 10, padding: 14, borderWidth: 1, borderColor: COLORS.border }}>
+                <Text style={{ fontSize: 11, color: COLORS.textMuted, marginBottom: 4 }}>Costo Total</Text>
+                <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.error }}>{fmt(summary.totalCosto)}</Text>
+                <Text style={{ fontSize: 10, color: COLORS.textMuted }}>{summary.totalItems} items vendidos</Text>
+              </View>
+              <View style={{ flex: 1, minWidth: 140, backgroundColor: COLORS.card, borderRadius: 10, padding: 14, borderWidth: 1, borderColor: COLORS.border }}>
+                <Text style={{ fontSize: 11, color: COLORS.textMuted, marginBottom: 4 }}>Food Cost</Text>
+                <Text style={{ fontSize: 18, fontWeight: '700', color: foodCostPct > 0.35 ? COLORS.error : foodCostPct > 0.30 ? COLORS.warning : COLORS.success }}>{pct(foodCostPct)}</Text>
+                <Text style={{ fontSize: 10, color: COLORS.textMuted }}>Objetivo: 30%</Text>
+              </View>
+              <View style={{ flex: 1, minWidth: 140, backgroundColor: COLORS.card, borderRadius: 10, padding: 14, borderWidth: 1, borderColor: COLORS.border }}>
+                <Text style={{ fontSize: 11, color: COLORS.textMuted, marginBottom: 4 }}>Margen Neto</Text>
+                <Text style={{ fontSize: 18, fontWeight: '700', color: margenNeto > 0 ? COLORS.success : COLORS.error }}>{fmt(margenNeto)}</Text>
+                <Text style={{ fontSize: 10, color: COLORS.textMuted }}>{ventasNeto > 0 ? pct(margenNeto / ventasNeto) : '0%'} del neto</Text>
+              </View>
+            </View>
+
+            {/* Product cost table */}
+            {costData.length > 0 && (
+              <View style={{ backgroundColor: COLORS.card, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, overflow: 'hidden' }}>
+                <View style={{ flexDirection: 'row', backgroundColor: COLORS.cardHover, paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border }}>
+                  <Text style={{ flex: 2, fontSize: 11, fontWeight: '700', color: COLORS.textSecondary }}>Producto</Text>
+                  <Text style={{ width: 40, fontSize: 11, fontWeight: '700', color: COLORS.textSecondary, textAlign: 'right' }}>Qty</Text>
+                  <Text style={{ width: 80, fontSize: 11, fontWeight: '700', color: COLORS.textSecondary, textAlign: 'right' }}>Venta</Text>
+                  <Text style={{ width: 80, fontSize: 11, fontWeight: '700', color: COLORS.textSecondary, textAlign: 'right' }}>Costo</Text>
+                  <Text style={{ width: 55, fontSize: 11, fontWeight: '700', color: COLORS.textSecondary, textAlign: 'right' }}>FC%</Text>
+                </View>
+                {costData.map((item, i) => {
+                  const revenueNeto = item.revenue / (1 + IVA);
+                  const fc = revenueNeto > 0 ? item.cost / revenueNeto : 0;
+                  return (
+                    <View key={i} style={{ flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border, backgroundColor: i % 2 === 0 ? COLORS.card : COLORS.background }}>
+                      <Text style={{ flex: 2, fontSize: 12, color: COLORS.text }} numberOfLines={1}>{item.name}</Text>
+                      <Text style={{ width: 40, fontSize: 12, color: COLORS.textMuted, textAlign: 'right' }}>{item.qty}</Text>
+                      <Text style={{ width: 80, fontSize: 12, color: COLORS.text, textAlign: 'right' }}>{fmt(item.revenue)}</Text>
+                      <Text style={{ width: 80, fontSize: 12, color: COLORS.error, textAlign: 'right' }}>{fmt(item.cost)}</Text>
+                      <Text style={{ width: 55, fontSize: 12, fontWeight: '600', textAlign: 'right', color: fc > 0.35 ? COLORS.error : fc > 0.30 ? COLORS.warning : COLORS.success }}>{item.cost > 0 ? pct(fc) : '-'}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+
+            {costData.length === 0 && !loading && (
+              <Text style={{ textAlign: 'center', color: COLORS.textMuted, padding: 40 }}>Sin ventas en este período</Text>
+            )}
+          </>
+        )}
+      </View>
+    </ScrollView>
+  );
 }
 
 // =====================================================

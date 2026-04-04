@@ -34,7 +34,7 @@ type DetailScreen =
   | { type: 'inventory'; sub: string }
   | null;
 
-type ProdSub = 'menu' | 'productos' | 'produccion' | 'ingredientes' | 'modificadores' | 'costos' | 'inventario';
+type ProdSub = 'menu' | 'productos' | 'produccion' | 'ingredientes' | 'modificadores' | 'inventario';
 
 function ProductosHub() {
   const [sub, setSub] = useState<ProdSub>('menu');
@@ -43,7 +43,6 @@ function ProductosHub() {
     { key: 'produccion', label: 'Producción', icon: '🏭' },
     { key: 'ingredientes', label: 'Ingredientes', icon: '🥩' },
     { key: 'modificadores', label: 'Modificadores', icon: '🎛️' },
-    { key: 'costos', label: 'Costos', icon: '💰' },
     { key: 'inventario', label: 'Inventario', icon: '📦' },
   ];
 
@@ -62,7 +61,6 @@ function ProductosHub() {
       {sub === 'produccion' && <ProductionScreen />}
       {sub === 'ingredientes' && <IngredientsScreen />}
       {sub === 'modificadores' && <ModifiersScreen />}
-      {sub === 'costos' && <CostScreen />}
       {sub === 'inventario' && <InventoryCountScreen />}
       {sub === 'menu' && <ProductsScreen />}
     </View>
