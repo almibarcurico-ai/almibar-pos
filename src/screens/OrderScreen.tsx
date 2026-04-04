@@ -232,10 +232,16 @@ export default function OrderScreen({ table, onBack }: Props) {
       }
     }
     const allMods = Object.values(modPickerSelections).flat();
-    const modKey = allMods.map(m => m.id).sort().join(',');
-    const existing = cart.find(c => c.product.id === modPickerProduct.id && c.modifiers.map(m => m.id).sort().join(',') === modKey);
-    if (existing) setCart(prev => prev.map(c => c.id === existing.id ? { ...c, quantity: c.quantity + 1 } : c));
-    else setCart(prev => [...prev, { id: `c-${Date.now()}-${Math.random()}`, product: modPickerProduct, quantity: 1, notes: '', modifiers: allMods, client_slot: activeClientSlot }]);
+    // Productos con grupo multi (ej: 3x2 Schop) siempre como items separados
+    const hasMultiGroup = groups.some(g => g.type === 'multi' && g.max_select > 1);
+    if (hasMultiGroup) {
+      setCart(prev => [...prev, { id: `c-${Date.now()}-${Math.random()}`, product: modPickerProduct, quantity: 1, notes: '', modifiers: allMods, client_slot: activeClientSlot }]);
+    } else {
+      const modKey = allMods.map(m => m.id).sort().join(',');
+      const existing = cart.find(c => c.product.id === modPickerProduct.id && c.modifiers.map(m => m.id).sort().join(',') === modKey);
+      if (existing) setCart(prev => prev.map(c => c.id === existing.id ? { ...c, quantity: c.quantity + 1 } : c));
+      else setCart(prev => [...prev, { id: `c-${Date.now()}-${Math.random()}`, product: modPickerProduct, quantity: 1, notes: '', modifiers: allMods, client_slot: activeClientSlot }]);
+    }
     setModPickerProduct(null);
   };
 
