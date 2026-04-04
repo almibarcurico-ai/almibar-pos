@@ -836,7 +836,7 @@ export default function OrderScreen({ table, onBack }: Props) {
                   </Text>
                 </View>
                 {(() => {
-                  const allowRepeat = group.type === 'multi' && group.max_select > group.options.length;
+                  const allowRepeat = group.type === 'multi' && group.max_select > 1;
                   const selections = modPickerSelections[group.id] || [];
                   const totalSelected = selections.length;
                   if (allowRepeat) {
