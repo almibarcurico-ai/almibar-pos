@@ -88,6 +88,23 @@ Tablas principales:
 - Happy Hour: Lun-Sáb 17:00-21:00 (excepto miércoles)
 - Los productos HH ya tienen precio reducido en la tabla products
 
+### Blindaje Caja (CajaScreen.tsx) — LEER ANTES DE MODIFICAR
+Las fórmulas financieras de CajaScreen están blindadas. **NO cambiar sin entender estas reglas:**
+
+1. **Turnos**: Ventas pertenecen al día que se ABRIÓ el arqueo. `findShiftRange()` es la única fuente de verdad. VentasTab, PropinasTab y CostosTab usan la misma lógica. Si no hay arqueo en un día → 0 ventas.
+
+2. **Consumo**: NO es dinero real. Nunca sumarlo al TOTAL GENERAL. `ventasNetasSinConsumo` y `propinasSinConsumo` son los valores reales.
+
+3. **Cierre arqueo** (handleClose):
+   - `total_cash/debit/credit/transfer` = `totalByMethod.X` (incluyen propinas)
+   - `total_sales` = `ventasNetasSinConsumo` (ventas netas sin consumo)
+   - `total_tips` = `propinasSinConsumo`
+   - `closing_amount` = conteo manual del usuario
+
+4. **Historial diff**: `sysTotal = opening + cash + debit + credit + transfer + cash_in - expenses`. Esto equivale a `opening + ventasNetasSinConsumo + propinasSinConsumo + ingresos - gastos` porque cash+debit+etc ya incluyen propinas.
+
+5. **Costos**: Solo órdenes con `total > 0`. Costo = receta real (los ingredientes se consumieron). Venta = `orders.total` (con descuentos).
+
 ## App Cliente (AlmibarApp)
 - Repo: `~/AlmibarApp/` — PWA desplegada en `almibarcurico-ai.github.io`
 - Tema: **Arena Nikkei** (claro cálido: fondo `#FAF6F0`, cards blancas, texto oscuro `#2D2A26`, dorado `#C8952A`)
