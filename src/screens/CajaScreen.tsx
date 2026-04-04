@@ -814,13 +814,17 @@ function ArqueosTab() {
   const totals = {
     ventas: totalByMethod.efectivo + totalByMethod.tarjeta + totalByMethod.transferencia + totalByMethod.pedidosya + totalByMethod.consumo,
     ventasNetas: ventaNetaByMethod.efectivo + ventaNetaByMethod.tarjeta + ventaNetaByMethod.transferencia + ventaNetaByMethod.pedidosya + ventaNetaByMethod.consumo,
+    // Ventas netas SIN consumo — solo dinero real que entra a la caja
+    ventasNetasSinConsumo: ventaNetaByMethod.efectivo + ventaNetaByMethod.tarjeta + ventaNetaByMethod.transferencia + ventaNetaByMethod.pedidosya,
+    propinasSinConsumo: totalPropinas - (tipByMethod.consumo || 0),
+    consumo: ventaNetaByMethod.consumo,
     propinas: totalPropinas,
     gastos: movements.filter(m => m.type === 'gasto').reduce((a, m) => a + m.amount, 0),
     ingresos: movements.filter(m => m.type === 'ingreso').reduce((a, m) => a + m.amount, 0),
   };
   // Efectivo en caja: apertura + todo el efectivo recibido (con propina) + ingresos - egresos
   const saldoActual = (cashRegister?.opening_amount || 0) + totalByMethod.efectivo + totals.ingresos - totals.gastos;
-  const totalTarjetas = totalByMethod.tarjeta + totalByMethod.transferencia + totalByMethod.pedidosya + totalByMethod.consumo;
+  const totalTarjetas = totalByMethod.tarjeta + totalByMethod.transferencia + totalByMethod.pedidosya;
 
   const handleOpen = async () => {
     if (!user) return;
@@ -847,7 +851,7 @@ function ArqueosTab() {
   const handleClose = async () => {
     if (!cashRegister || !user) return;
     const userTotal = (parseInt(cEfectivo)||0) + (parseInt(cDebito)||0) + (parseInt(cTransferencia)||0) + (parseInt(cCredito)||0) + (parseInt(cConsumo)||0);
-    const totalGeneral = (cashRegister?.opening_amount || 0) + totals.ventasNetas + totals.propinas + totals.ingresos - totals.gastos;
+    const totalGeneral = (cashRegister?.opening_amount || 0) + totals.ventasNetasSinConsumo + totals.propinasSinConsumo + totals.ingresos - totals.gastos;
     const consumoTotal = totals.ventasNetas;
     await supabase.from('cash_registers').update({
       closed_at: new Date().toISOString(), closed_by: user.id,
@@ -1212,9 +1216,10 @@ function ArqueosTab() {
               )}
 
               <View style={{ borderTopWidth: 2, borderTopColor: COLORS.warning, marginTop: 8, paddingTop: 8 }}>
-                <ARQ label="TOTAL GENERAL" val={fmt((cashRegister?.opening_amount || 0) + totals.ventasNetas + totals.propinas + totals.ingresos - totals.gastos)} bold />
+                <ARQ label="TOTAL GENERAL" val={fmt((cashRegister?.opening_amount || 0) + totals.ventasNetasSinConsumo + totals.propinasSinConsumo + totals.ingresos - totals.gastos)} bold />
                 <Text style={{ fontSize: 10, color: COLORS.textMuted, marginTop: 2 }}>
-                  Inicial ({fmt(cashRegister?.opening_amount || 0)}) + Ventas ({fmt(totals.ventasNetas)}) + Propinas ({fmt(totals.propinas)}) + Ingresos ({fmt(totals.ingresos)}) - Egresos ({fmt(totals.gastos)})
+                  Inicial ({fmt(cashRegister?.opening_amount || 0)}) + Ventas ({fmt(totals.ventasNetasSinConsumo)}) + Propinas ({fmt(totals.propinasSinConsumo)}) + Ingresos ({fmt(totals.ingresos)}) - Egresos ({fmt(totals.gastos)})
+                  {totals.consumo > 0 ? `\nConsumo personal: ${fmt(totals.consumo)} (no incluido en total)` : ''}
                 </Text>
               </View>
             </View>
