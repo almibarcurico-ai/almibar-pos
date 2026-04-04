@@ -881,9 +881,19 @@ export default function OrderScreen({ table, onBack }: Props) {
             ))}
           </ScrollView>
           <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
-            <TouchableOpacity style={s.bC} onPress={() => setModPickerProduct(null)}>
-              <Text style={s.bCT}>Cancelar</Text>
-            </TouchableOpacity>
+            {(() => {
+              const groups = modPickerProduct ? (productModGroups[modPickerProduct.id] || []) : [];
+              const allOptional = groups.every(g => !g.required && (g.min_select || 0) === 0);
+              return allOptional ? (
+                <TouchableOpacity style={s.bC} onPress={() => { if (modPickerProduct) { setCart(prev => [...prev, { id: `c-${Date.now()}-${Math.random()}`, product: modPickerProduct, quantity: 1, notes: '', modifiers: [], client_slot: activeClientSlot }]); } setModPickerProduct(null); }}>
+                  <Text style={s.bCT}>Sin agregados</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity style={s.bC} onPress={() => setModPickerProduct(null)}>
+                  <Text style={s.bCT}>Cancelar</Text>
+                </TouchableOpacity>
+              );
+            })()}
             <TouchableOpacity style={s.bOk} onPress={confirmModifiers}>
               <Text style={s.bOkT}>Agregar</Text>
             </TouchableOpacity>
