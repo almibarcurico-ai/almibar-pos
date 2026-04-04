@@ -1919,15 +1919,18 @@ function CostosTab() {
       until = toChileISO(addDays(rangoHasta, 1));
     }
 
-    // Buscar order_items de órdenes cerradas en el período (excluir productos eliminados)
-    const { data: orders } = await supabase
+    // Buscar órdenes cerradas en el período
+    // Excluir órdenes con total = 0 (pruebas, 100% descuento) — no generaron consumo real
+    const { data: allOrders } = await supabase
       .from('orders')
       .select('id, total, status')
       .eq('status', 'cerrada')
+      .gt('total', 0)
       .gte('closed_at', since)
       .lt('closed_at', until);
 
-    if (!orders || orders.length === 0) {
+    const orders = allOrders || [];
+    if (orders.length === 0) {
       setCostData([]); setSummary({ totalVentas: 0, totalCosto: 0, totalItems: 0 });
       setLoading(false); return;
     }
