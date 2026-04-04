@@ -1,5 +1,43 @@
 // src/screens/CajaScreen.tsx
-// v4 - Fudo-style: Ventas table + Arqueos list
+// v5 - Fudo-style: Ventas table + Arqueos list
+//
+// ██████  ██      ██ ███    ██ ██████   █████       ██ ███████
+// ██   ██ ██      ██ ████   ██ ██   ██ ██   ██      ██ ██
+// ██████  ██      ██ ██ ██  ██ ██   ██ ███████      ██ █████
+// ██   ██ ██      ██ ██  ██ ██ ██   ██ ██   ██ ██   ██ ██
+// ██████  ███████ ██ ██   ████ ██████  ██   ██  █████  ███████
+//
+// REGLAS DE BLINDAJE — NO MODIFICAR SIN ENTENDER:
+//
+// 1. TURNOS: Las ventas pertenecen al día en que se ABRIÓ el arqueo.
+//    findShiftRange() busca arqueos que abrieron en el rango del día.
+//    Si no hay arqueo → 0 ventas (NO caer a fecha calendario).
+//    VentasTab, PropinasTab y CostosTab usan la MISMA lógica.
+//
+// 2. PAGOS: payment.amount = venta + propina (total que pagó el cliente).
+//    totalByMethod.X = suma de payments con ese método (INCLUYE propinas).
+//    ventaNetaByMethod.X = totalByMethod.X - tipByMethod.X
+//
+// 3. CONSUMO: No es dinero real. NUNCA sumarlo al TOTAL GENERAL.
+//    ventasNetasSinConsumo = ventas reales (sin consumo personal).
+//    propinasSinConsumo = propinas reales.
+//    TOTAL GENERAL = apertura + ventasNetasSinConsumo + propinasSinConsumo + ingresos - gastos.
+//
+// 4. CIERRE ARQUEO: Lo que se guarda en cash_registers:
+//    total_cash/debit/credit/transfer = totalByMethod (INCLUYEN propinas)
+//    total_sales = ventasNetasSinConsumo (solo ventas netas reales)
+//    total_tips = propinasSinConsumo (solo propinas reales)
+//    closing_amount = conteo manual del usuario
+//
+// 5. HISTORIAL DIFF: sysTotal = opening + cash + debit + credit + transfer + cash_in - expenses
+//    diff = closing_amount - sysTotal
+//    Esto funciona porque cash+debit+etc ya incluyen propinas reales.
+//    sysTotal == TOTAL GENERAL mostrado al cierre.
+//
+// 6. COSTOS: Solo órdenes con total > 0 (excluye pruebas y 100% descuento).
+//    Costo = costo real de receta (los ingredientes se consumieron aunque haya descuento).
+//    Venta bruta = suma de orders.total (con descuentos ya aplicados).
+//
 
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Dimensions } from 'react-native';
@@ -854,16 +892,20 @@ function ArqueosTab() {
     if (!cashRegister || !user) return;
     const userTotal = (parseInt(cEfectivo)||0) + (parseInt(cDebito)||0) + (parseInt(cTransferencia)||0) + (parseInt(cCredito)||0) + (parseInt(cConsumo)||0);
     const totalGeneral = (cashRegister?.opening_amount || 0) + totals.ventasNetasSinConsumo + totals.propinasSinConsumo + totals.ingresos - totals.gastos;
-    const consumoTotal = totals.ventasNetas;
     await supabase.from('cash_registers').update({
       closed_at: new Date().toISOString(), closed_by: user.id,
       closing_amount: userTotal,
+      // BLINDAJE: total_cash/debit/etc incluyen propinas (payment.amount = venta + propina)
+      // total_sales = ventas netas SIN consumo (solo dinero real)
+      // total_tips = propinas SIN consumo
+      // sysTotal historial = opening + cash + debit + credit + transfer + cash_in - expenses
+      //                    = opening + (ventas+propinas reales) + ingresos - gastos
       total_cash: totalByMethod.efectivo,
       total_debit: totalByMethod.tarjeta,
       total_credit: totalByMethod.pedidosya,
       total_transfer: totalByMethod.transferencia,
-      total_sales: consumoTotal,
-      total_tips: totals.propinas,
+      total_sales: totals.ventasNetasSinConsumo,
+      total_tips: totals.propinasSinConsumo,
       total_orders: todayOrders.length, total_expenses: totals.gastos, total_cash_in: totals.ingresos,
       notes: cNotas || null,
     }).eq('id', cashRegister.id);
