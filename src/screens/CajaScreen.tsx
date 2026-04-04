@@ -112,45 +112,41 @@ function VentasTab() {
 
     const d = new Date(date + 'T12:00:00');
 
-    // Buscar arqueos que cubren el período para usar su rango real
-    // Un turno "cubre" un día si abrió ese día, O si abrió antes y cerró después del inicio del día (o sigue abierto)
+    // Buscar arqueos que ABRIERON en el rango del período para usar su rango real
+    // Las ventas pertenecen al día en que se abrió el arqueo, sin importar cuándo se cerraron
     const findShiftRange = (rangeStart: string, rangeEnd: string) => {
-      const shifts = allArqueos.filter((a: any) => {
-        const opened = a.opened_at;
-        const closed = a.closed_at;
-        // Caso 1: el arqueo abrió dentro del rango del período
-        if (opened >= rangeStart && opened < rangeEnd) return true;
-        // Caso 2: el arqueo abrió ANTES del rango pero cierra DESPUÉS del inicio (o sigue abierto)
-        // Esto cubre el turno del viernes que cierra el sábado de madrugada
-        if (opened < rangeStart && (!closed || closed > rangeStart)) return true;
-        return false;
-      });
+      const shifts = allArqueos.filter((a: any) => a.opened_at >= rangeStart && a.opened_at < rangeEnd);
       if (shifts.length > 0) {
         const first = shifts[shifts.length - 1]; // oldest in range
         const last = shifts[0]; // newest in range
         return { since: first.opened_at, until: last.closed_at || new Date(Date.now() + 86400000).toISOString() };
       }
-      return { since: rangeStart, until: rangeEnd };
+      // Si no hay arqueo que abrió en este rango, no mostrar ventas (evita duplicar ventas de otro turno)
+      return null;
     };
 
     if (period === 'diario') {
       const dayStart = toChileISO(date);
       const dayEnd = toChileISO(addDays(date, 1));
       const shift = findShiftRange(dayStart, dayEnd);
-      since = shift.since; until = shift.until;
+      if (shift) { since = shift.since; until = shift.until; }
+      else { since = dayStart; until = dayStart; } // rango vacío = 0 ventas
     } else if (period === 'semanal') {
       const start = new Date(d); start.setDate(start.getDate() - start.getDay());
       const startStr = start.toISOString().split('T')[0];
       const shift = findShiftRange(toChileISO(startStr), toChileISO(addDays(startStr, 7)));
-      since = shift.since; until = shift.until;
+      if (shift) { since = shift.since; until = shift.until; }
+      else { since = toChileISO(startStr); until = toChileISO(startStr); }
     } else if (period === 'mensual') {
       const startStr = date.substring(0, 7) + '-01';
       const end = new Date(d.getFullYear(), d.getMonth() + 1, 1);
       const shift = findShiftRange(toChileISO(startStr), toChileISO(end.toISOString().split('T')[0]));
-      since = shift.since; until = shift.until;
+      if (shift) { since = shift.since; until = shift.until; }
+      else { since = toChileISO(startStr); until = toChileISO(startStr); }
     } else if (period === 'anual') {
       const shift = findShiftRange(toChileISO(d.getFullYear() + '-01-01'), toChileISO((d.getFullYear() + 1) + '-01-01'));
-      since = shift.since; until = shift.until;
+      if (shift) { since = shift.since; until = shift.until; }
+      else { since = toChileISO(d.getFullYear() + '-01-01'); until = toChileISO(d.getFullYear() + '-01-01'); }
     } else if (period === 'rango') {
       since = toChileISO(rangoDesde);
       until = toChileISO(addDays(rangoHasta, 1));
