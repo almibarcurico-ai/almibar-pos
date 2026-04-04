@@ -1816,6 +1816,7 @@ function CostosTab() {
   const [rangoHasta, setRangoHasta] = useState(new Date().toLocaleDateString('en-CA'));
   const [loading, setLoading] = useState(false);
   const [costData, setCostData] = useState<any[]>([]);
+  const [allArqueos, setAllArqueos] = useState<any[]>([]);
   const [ingredients, setIngredients] = useState<any[]>([]);
   const [recipes, setRecipes] = useState<any[]>([]);
   const [recipeItems, setRecipeItems] = useState<any[]>([]);
@@ -1843,6 +1844,11 @@ function CostosTab() {
     }, 0);
   };
 
+  useEffect(() => {
+    supabase.from('cash_registers').select('*').order('opened_at', { ascending: false }).limit(50)
+      .then(({ data }) => { if (data) setAllArqueos(data); });
+  }, []);
+
   const load = async () => {
     setLoading(true);
 
@@ -1856,7 +1862,7 @@ function CostosTab() {
     if (rR.data) setRecipes(rR.data);
     if (riR.data) setRecipeItems(riR.data);
 
-    // Calcular rango de fechas
+    // Misma lógica de rango que VentasTab: basada en turnos de arqueo
     const toChileISO = (dateStr: string) => {
       const local = new Date(dateStr + 'T00:00:00');
       const offsetMin = local.getTimezoneOffset();
@@ -1872,23 +1878,45 @@ function CostosTab() {
       return d.toISOString().split('T')[0];
     };
 
+    // Buscar arqueos que ABRIERON en el rango (misma lógica que VentasTab)
+    const findShiftRange = (rangeStart: string, rangeEnd: string) => {
+      const shifts = allArqueos.filter((a: any) => a.opened_at >= rangeStart && a.opened_at < rangeEnd);
+      if (shifts.length > 0) {
+        const first = shifts[shifts.length - 1];
+        const last = shifts[0];
+        return { since: first.opened_at, until: last.closed_at || new Date(Date.now() + 86400000).toISOString() };
+      }
+      return null;
+    };
+
     let since: string, until: string;
     const d = new Date(date + 'T12:00:00');
 
     if (period === 'diario') {
-      since = toChileISO(date); until = toChileISO(addDays(date, 1));
+      const dayStart = toChileISO(date);
+      const dayEnd = toChileISO(addDays(date, 1));
+      const shift = findShiftRange(dayStart, dayEnd);
+      if (shift) { since = shift.since; until = shift.until; }
+      else { since = dayStart; until = dayStart; }
     } else if (period === 'semanal') {
       const start = new Date(d); start.setDate(start.getDate() - start.getDay());
       const startStr = start.toISOString().split('T')[0];
-      since = toChileISO(startStr); until = toChileISO(addDays(startStr, 7));
+      const shift = findShiftRange(toChileISO(startStr), toChileISO(addDays(startStr, 7)));
+      if (shift) { since = shift.since; until = shift.until; }
+      else { since = toChileISO(startStr); until = toChileISO(startStr); }
     } else if (period === 'mensual') {
       const startStr = date.substring(0, 7) + '-01';
       const end = new Date(d.getFullYear(), d.getMonth() + 1, 1);
-      since = toChileISO(startStr); until = toChileISO(end.toISOString().split('T')[0]);
+      const shift = findShiftRange(toChileISO(startStr), toChileISO(end.toISOString().split('T')[0]));
+      if (shift) { since = shift.since; until = shift.until; }
+      else { since = toChileISO(startStr); until = toChileISO(startStr); }
     } else if (period === 'anual') {
-      since = toChileISO(d.getFullYear() + '-01-01'); until = toChileISO((d.getFullYear() + 1) + '-01-01');
+      const shift = findShiftRange(toChileISO(d.getFullYear() + '-01-01'), toChileISO((d.getFullYear() + 1) + '-01-01'));
+      if (shift) { since = shift.since; until = shift.until; }
+      else { since = toChileISO(d.getFullYear() + '-01-01'); until = toChileISO(d.getFullYear() + '-01-01'); }
     } else {
-      since = toChileISO(rangoDesde); until = toChileISO(addDays(rangoHasta, 1));
+      since = toChileISO(rangoDesde);
+      until = toChileISO(addDays(rangoHasta, 1));
     }
 
     // Buscar order_items de órdenes cerradas en el período (excluir productos eliminados)
@@ -1952,9 +1980,7 @@ function CostosTab() {
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, [period, date, rangoDesde, rangoHasta]);
-  // Reload when recipe data is ready
-  useEffect(() => { if (recipes.length > 0 && recipeItems.length > 0) load(); }, [recipes.length, recipeItems.length]);
+  useEffect(() => { if (allArqueos.length > 0) load(); }, [period, date, rangoDesde, rangoHasta, allArqueos]);
 
   const ventasNeto = summary.totalVentas / (1 + IVA);
   const foodCostPct = ventasNeto > 0 ? summary.totalCosto / ventasNeto : 0;
