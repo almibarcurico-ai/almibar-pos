@@ -80,7 +80,7 @@ function OfflineBanner() {
 }
 
 function AppContent() {
-  const { user, loading } = useAuth();
+  const { user, loading, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('mesas');
   const [cocSub, setCocSub] = useState<'inventario' | 'produccion'>('inventario');
   const [detail, setDetail] = useState<DetailScreen>(null);
@@ -117,14 +117,14 @@ function AppContent() {
             </TouchableOpacity>
           ))}
           <View style={{ flex: 1 }} />
-          <TouchableOpacity onPress={() => { supabase.from('users').select('id').limit(0); setDetail(null); (async()=>{await supabase.auth.signOut().catch(()=>{});})(); }} style={{ justifyContent: 'center', paddingHorizontal: 12 }}>
-            <Text style={{ fontSize: 12, color: COLORS.textMuted, fontWeight: '600' }}>Salir</Text>
+          <TouchableOpacity onPress={() => logout()} style={{ justifyContent: 'center', paddingHorizontal: 12 }}>
+            <Text style={{ fontSize: 12, color: COLORS.error || '#E53935', fontWeight: '600' }}>Salir</Text>
           </TouchableOpacity>
         </View>
-        <View style={{ flex: 1 }}>
+        <ScrollView horizontal style={{ flex: 1 }}><View style={{ minWidth: 700, flex: 1 }}>
           {cocSub === 'inventario' && <InventoryCountScreen />}
           {cocSub === 'produccion' && <ProductionScreen />}
-        </View>
+        </View></ScrollView>
       </View>
     );
   }
@@ -137,13 +137,13 @@ function AppContent() {
           <View style={{ paddingVertical: 12, paddingHorizontal: 18, borderBottomWidth: 3, borderBottomColor: COLORS.primary }}>
             <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.text }}>📦 Inventario Barra</Text>
           </View>
-          <TouchableOpacity onPress={() => { (async()=>{await supabase.auth.signOut().catch(()=>{});})(); }} style={{ justifyContent: 'center', paddingHorizontal: 12 }}>
-            <Text style={{ fontSize: 12, color: COLORS.textMuted, fontWeight: '600' }}>Salir</Text>
+          <TouchableOpacity onPress={() => logout()} style={{ justifyContent: 'center', paddingHorizontal: 12 }}>
+            <Text style={{ fontSize: 12, color: COLORS.error || '#E53935', fontWeight: '600' }}>Salir</Text>
           </TouchableOpacity>
         </View>
-        <View style={{ flex: 1 }}>
+        <ScrollView horizontal style={{ flex: 1 }}><View style={{ minWidth: 700, flex: 1 }}>
           <InventoryCountScreen />
-        </View>
+        </View></ScrollView>
       </View>
     );
   }
