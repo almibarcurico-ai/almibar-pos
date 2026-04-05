@@ -5,6 +5,20 @@ import { useAuth } from '../../contexts/AuthContext';
 import { COLORS } from '../../theme';
 import * as XLSX from 'xlsx';
 
+const COCINA_CATS = ['Carnes','Pescados','Mariscos','Lácteos','Verduras','Frutas','Insumos','Especias'];
+const BARRA_CATS = ['Licores','Cervezas','Destilados'];
+const isBarraOtros = (name: string) => {
+  const n = name.toLowerCase();
+  return /red bull|pepsi|crush|cachantun|perrier|ginger|tonica|limon soda|kem |pap |bilz|fentiman|sol$|heineken|kunstm|austral|schop|calafate|cristal|dolbek|viña mar|castillo molina|misiones|gran torobayo|vino |jugo /.test(n);
+};
+const getStation = (i: any): 'cocina' | 'barra' | 'ambos' => {
+  if (i.is_production) return 'cocina';
+  if (COCINA_CATS.includes(i.category)) return 'cocina';
+  if (BARRA_CATS.includes(i.category)) return 'barra';
+  if (i.category === 'Otros') return isBarraOtros(i.name) ? 'barra' : 'ambos';
+  return 'ambos';
+};
+
 const alert = (t: string, m?: string) => typeof window !== 'undefined' ? window.alert(t + (m ? '\n' + m : '')) : null;
 const confirm = (m: string) => typeof window !== 'undefined' ? window.confirm(m) : true;
 const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-CL');
@@ -48,22 +62,28 @@ export default function InventoryCountScreen() {
     alert('✅', 'Conteo eliminado');
   };
 
-  // STEP 1: Download current stock as Excel
+  // STEP 1: Download current stock as Excel (2 hojas: Cocina y Barra)
   const downloadStock = () => {
-    const data = ingredients.map(i => ({
+    const toRow = (i: any) => ({
       Nombre: i.name,
       Unidad: i.unit,
       Categoria: i.category || '',
       Stock_Sistema: i.stock_current,
       Stock_Contado: '',
       Costo_Unidad: i.cost_per_unit,
-    }));
-    const ws = XLSX.utils.json_to_sheet(data);
-    ws['!cols'] = [{ wch: 30 }, { wch: 8 }, { wch: 15 }, { wch: 14 }, { wch: 14 }, { wch: 12 }];
+    });
+    const cols = [{ wch: 30 }, { wch: 8 }, { wch: 15 }, { wch: 14 }, { wch: 14 }, { wch: 12 }];
+    const cocina = ingredients.filter(i => { const s = getStation(i); return s === 'cocina' || s === 'ambos'; }).map(toRow);
+    const barra = ingredients.filter(i => { const s = getStation(i); return s === 'barra' || s === 'ambos'; }).map(toRow);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Inventario');
-    XLSX.writeFile(wb, `inventario_${new Date().toISOString().split('T')[0]}.xlsx`);
-    alert('📥 Descargado', 'Completa la columna "Stock_Contado" y sube el archivo');
+    const wsCocina = XLSX.utils.json_to_sheet(cocina);
+    wsCocina['!cols'] = cols;
+    XLSX.utils.book_append_sheet(wb, wsCocina, 'Cocina');
+    const wsBarra = XLSX.utils.json_to_sheet(barra);
+    wsBarra['!cols'] = cols;
+    XLSX.utils.book_append_sheet(wb, wsBarra, 'Barra');
+    XLSX.writeFile(wb, `inventario_${new Date().toLocaleDateString('en-CA')}.xlsx`);
+    alert('📥 Descargado', 'Excel con 2 hojas: Cocina y Barra.\nCompleta "Stock_Contado" y sube el archivo.');
   };
 
   // STEP 2: Upload counted Excel
@@ -75,8 +95,16 @@ export default function InventoryCountScreen() {
       try {
         const data = new Uint8Array(ev.target?.result as ArrayBuffer);
         const wb = XLSX.read(data, { type: 'array' });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const rows: any[] = XLSX.utils.sheet_to_json(ws);
+        // Read all sheets (Cocina + Barra) and merge rows
+        const rows: any[] = [];
+        const seen = new Set<string>();
+        for (const sheetName of wb.SheetNames) {
+          const sheetRows: any[] = XLSX.utils.sheet_to_json(wb.Sheets[sheetName]);
+          for (const r of sheetRows) {
+            const name = (r.Nombre || r.nombre || '').trim().toLowerCase();
+            if (name && !seen.has(name)) { seen.add(name); rows.push(r); }
+          }
+        }
 
         if (rows.length === 0) { alert('Error', 'Archivo vacío'); return; }
 
