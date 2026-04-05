@@ -105,8 +105,8 @@ function AppContent() {
   }
   if (!user) return <LoginScreen />;
 
-  // Bloquear si no hay arqueo abierto (solo para cajero/admin en PC)
-  if (hasOpenArqueo === false && (user.role === 'cajero' || user.role === 'admin') && Dimensions.get('window').width >= 600) {
+  // Bloquear si no hay arqueo abierto (solo para cajero/admin en PC, excepto Admin y Caja)
+  if (hasOpenArqueo === false && (user.role === 'cajero' || user.role === 'admin') && Dimensions.get('window').width >= 600 && activeTab !== 'admin' && activeTab !== 'caja' && activeTab !== 'productos') {
     return (
       <View style={[s.loading, { gap: 16 }]}>
         <Text style={{ fontSize: 40 }}>🔒</Text>
