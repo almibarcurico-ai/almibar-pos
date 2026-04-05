@@ -105,6 +105,49 @@ function AppContent() {
   }
   if (!user) return <LoginScreen />;
 
+  // Cocina: solo inventario + producción
+  if (user.role === 'cocina') {
+    const [cocSub, setCocSub] = useState<'inventario' | 'produccion'>('inventario');
+    return (
+      <View style={s.container}>
+        <View style={{ flexDirection: 'row', backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingHorizontal: 8 }}>
+          {[{k:'inventario',l:'📦 Inventario'},{k:'produccion',l:'🏭 Producción'}].map(t => (
+            <TouchableOpacity key={t.k} onPress={() => setCocSub(t.k as any)} style={{ paddingVertical: 12, paddingHorizontal: 18, borderBottomWidth: 3, borderBottomColor: cocSub === t.k ? COLORS.primary : 'transparent' }}>
+              <Text style={{ fontSize: 14, fontWeight: cocSub === t.k ? '700' : '500', color: cocSub === t.k ? COLORS.text : COLORS.textMuted }}>{t.l}</Text>
+            </TouchableOpacity>
+          ))}
+          <View style={{ flex: 1 }} />
+          <TouchableOpacity onPress={() => { supabase.from('users').select('id').limit(0); setDetail(null); (async()=>{await supabase.auth.signOut().catch(()=>{});})(); }} style={{ justifyContent: 'center', paddingHorizontal: 12 }}>
+            <Text style={{ fontSize: 12, color: COLORS.textMuted, fontWeight: '600' }}>Salir</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={{ flex: 1 }}>
+          {cocSub === 'inventario' && <InventoryCountScreen />}
+          {cocSub === 'produccion' && <ProductionScreen />}
+        </View>
+      </View>
+    );
+  }
+
+  // Barra: solo inventario
+  if (user.role === 'barra') {
+    return (
+      <View style={s.container}>
+        <View style={{ flexDirection: 'row', backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingHorizontal: 8, justifyContent: 'space-between' }}>
+          <View style={{ paddingVertical: 12, paddingHorizontal: 18, borderBottomWidth: 3, borderBottomColor: COLORS.primary }}>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.text }}>📦 Inventario Barra</Text>
+          </View>
+          <TouchableOpacity onPress={() => { (async()=>{await supabase.auth.signOut().catch(()=>{});})(); }} style={{ justifyContent: 'center', paddingHorizontal: 12 }}>
+            <Text style={{ fontSize: 12, color: COLORS.textMuted, fontWeight: '600' }}>Salir</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={{ flex: 1 }}>
+          <InventoryCountScreen />
+        </View>
+      </View>
+    );
+  }
+
   // Bloqueo de arqueo: se muestra DENTRO del contenido, no bloquea la navegación
   const needsArqueo = hasOpenArqueo === false && (user.role === 'cajero' || user.role === 'admin') && Dimensions.get('window').width >= 600
     && activeTab !== 'admin' && activeTab !== 'caja' && activeTab !== 'productos' && activeTab !== 'reportes';
