@@ -2,7 +2,7 @@
 // v2 - Router with Phase B modules
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Switch, Linking } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Switch, Linking, Image } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { COLORS } from '../theme';
@@ -242,6 +242,9 @@ function ClientesEnLocal() {
   const [clientes, setClientes] = useState<any[]>([]);
   const [promoActiva, setPromoActiva] = useState(false);
   const [enviados, setEnviados] = useState<Set<string>>(new Set());
+  const [qrModal, setQrModal] = useState(false);
+  const [qrQueue, setQrQueue] = useState<any[]>([]);
+  const [qrIndex, setQrIndex] = useState(0);
 
   useEffect(() => { load(); const i = setInterval(load, 15000); return () => clearInterval(i); }, []);
 
@@ -264,24 +267,33 @@ function ClientesEnLocal() {
     setClientes(list);
   };
 
-  const enviarPromo = (c: any) => {
-    if (!c.phone) { Alert.alert('Sin teléfono', 'Este cliente no tiene teléfono registrado.'); return; }
+  const getWaLink = (c: any) => {
     const tel = c.phone.replace(/[^0-9]/g, '');
     const telWA = tel.startsWith('56') ? tel : '56' + tel;
     const nombre = c.nombre.split(' ')[0];
     const msg = `¡Hola ${nombre}! 🔥\n\n*PROMO FLASH solo para ti en Almíbar* ⚡\n\n🥃 Shot de Tequila *$1.000*\n🍺 Schop Patagonia *$2.500*\n🍹 Mojito Cubano *$2.500*\n\nVálido por 5 minutos. Pide desde la app o muestra este mensaje a tu garzón.\n\n👉 https://almibarcurico-ai.github.io/\n\n¡Salud! 🥂`;
-    Linking.openURL(`https://wa.me/${telWA}?text=${encodeURIComponent(msg)}`);
-    setEnviados(prev => new Set([...prev, c.orderId]));
+    return `https://wa.me/${telWA}?text=${encodeURIComponent(msg)}`;
+  };
+
+  const enviarPromo = (c: any) => {
+    if (!c.phone) { Alert.alert('Sin teléfono', 'Este cliente no tiene teléfono registrado.'); return; }
+    setQrQueue([c]);
+    setQrIndex(0);
+    setQrModal(true);
   };
 
   const enviarATodos = () => {
     const conTel = clientes.filter(c => c.phone && !enviados.has(c.orderId));
     if (conTel.length === 0) { Alert.alert('Sin destinatarios', 'No hay clientes con teléfono o ya se envió a todos.'); return; }
-    Alert.alert(
-      'Promo Flash a ' + conTel.length + ' mesas',
-      'Se abrirá WhatsApp para cada cliente. ¿Continuar?',
-      [{ text: 'Cancelar' }, { text: 'Enviar', onPress: () => { conTel.forEach((c, i) => setTimeout(() => enviarPromo(c), i * 1500)); } }]
-    );
+    setQrQueue(conTel);
+    setQrIndex(0);
+    setQrModal(true);
+  };
+
+  const qrNext = () => {
+    setEnviados(prev => new Set([...prev, qrQueue[qrIndex].orderId]));
+    if (qrIndex < qrQueue.length - 1) setQrIndex(qrIndex + 1);
+    else setQrModal(false);
   };
 
   const togglePromo = async () => {
@@ -302,12 +314,14 @@ function ClientesEnLocal() {
         await supabase.from('promo_banners').update({ active: false }).eq('title', 'PROMO FLASH');
         setPromoActiva(false);
       }, 5 * 60 * 1000);
-      // Auto-enviar WhatsApp a socios con mesas activas
-      await load(); // refresh client list
+      // Mostrar QRs para enviar WhatsApp desde el celular
+      await load();
       const conTel = clientes.filter(c => c.phone && !enviados.has(c.orderId));
       if (conTel.length > 0) {
-        conTel.forEach((c, i) => setTimeout(() => enviarPromo(c), i * 1500));
-        Alert.alert('⚡ Promo Flash activada', `3 productos en promo por 5 minutos.\nShot Tequila $1.000\nSchop Patagonia $2.500\nMojito Cubano $2.500\n\n📱 Enviando WhatsApp a ${conTel.length} socio${conTel.length > 1 ? 's' : ''} en el local`);
+        setQrQueue(conTel);
+        setQrIndex(0);
+        setQrModal(true);
+        Alert.alert('⚡ Promo Flash activada', `3 productos en promo por 5 minutos.\n\n📱 Escanea los QR para enviar WhatsApp a ${conTel.length} socio${conTel.length > 1 ? 's' : ''}`);
       } else {
         Alert.alert('⚡ Promo Flash activada', '3 productos en promo por 5 minutos.\nShot Tequila $1.000\nSchop Patagonia $2.500\nMojito Cubano $2.500\n\nNo hay socios con teléfono en mesas activas.');
       }
@@ -355,6 +369,32 @@ function ClientesEnLocal() {
           );
         })}
       </ScrollView>
+
+      {/* QR Modal para enviar WhatsApp desde celular */}
+      <Modal visible={qrModal} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: COLORS.overlay, justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ backgroundColor: COLORS.card, borderRadius: 16, padding: 24, width: 340, alignItems: 'center' }}>
+            {qrQueue[qrIndex] && (<>
+              <Text style={{ fontSize: 16, fontWeight: '800', color: COLORS.text, marginBottom: 4 }}>📱 Escanea con tu celular</Text>
+              <Text style={{ fontSize: 12, color: COLORS.textMuted, marginBottom: 16 }}>{qrIndex + 1} de {qrQueue.length} · Mesa {qrQueue[qrIndex].mesa}</Text>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: COLORS.primary, marginBottom: 12 }}>{qrQueue[qrIndex].nombre}</Text>
+              <Image
+                source={{ uri: `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(getWaLink(qrQueue[qrIndex]))}` }}
+                style={{ width: 220, height: 220, marginBottom: 16 }}
+              />
+              <Text style={{ fontSize: 10, color: COLORS.textMuted, textAlign: 'center', marginBottom: 16 }}>Escanea → se abre WhatsApp → envía el mensaje</Text>
+              <View style={{ flexDirection: 'row', gap: 10, width: '100%' }}>
+                <TouchableOpacity style={{ flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center' }} onPress={() => setQrModal(false)}>
+                  <Text style={{ color: COLORS.textSecondary, fontWeight: '600' }}>Cerrar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={{ flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: '#25D366', alignItems: 'center' }} onPress={qrNext}>
+                  <Text style={{ color: '#fff', fontWeight: '700' }}>{qrIndex < qrQueue.length - 1 ? 'Siguiente →' : '✅ Listo'}</Text>
+                </TouchableOpacity>
+              </View>
+            </>)}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
