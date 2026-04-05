@@ -105,21 +105,9 @@ function AppContent() {
   }
   if (!user) return <LoginScreen />;
 
-  // Bloquear si no hay arqueo abierto (solo para cajero/admin en PC, excepto Admin y Caja)
-  if (hasOpenArqueo === false && (user.role === 'cajero' || user.role === 'admin') && Dimensions.get('window').width >= 600 && activeTab !== 'admin' && activeTab !== 'caja' && activeTab !== 'productos') {
-    return (
-      <View style={[s.loading, { gap: 16 }]}>
-        <Text style={{ fontSize: 40 }}>🔒</Text>
-        <Text style={{ fontSize: 22, fontWeight: '800', color: COLORS.text }}>Arqueo de Caja Requerido</Text>
-        <Text style={{ fontSize: 14, color: COLORS.textSecondary, textAlign: 'center', maxWidth: 400 }}>
-          Debes abrir un arqueo de caja antes de iniciar el turno. Ve a Caja → Arqueos para abrir uno.
-        </Text>
-        <TouchableOpacity onPress={() => { setActiveTab('caja'); setHasOpenArqueo(true); }} style={{ backgroundColor: COLORS.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8, marginTop: 8 }}>
-          <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Ir a Caja</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
+  // Bloqueo de arqueo: se muestra DENTRO del contenido, no bloquea la navegación
+  const needsArqueo = hasOpenArqueo === false && (user.role === 'cajero' || user.role === 'admin') && Dimensions.get('window').width >= 600
+    && activeTab !== 'admin' && activeTab !== 'caja' && activeTab !== 'productos' && activeTab !== 'reportes';
 
   // Mobile view for phones (< 600px) — solo garzones ven vista simplificada
   const isMobile = Dimensions.get('window').width < 600;
@@ -161,6 +149,18 @@ function AppContent() {
       <OfflineBanner />
       <TabNavigator activeTab={activeTab} onChangeTab={setActiveTab} role={user.role} />
       <View style={s.content}>
+        {needsArqueo ? (
+          <View style={[s.loading, { gap: 16 }]}>
+            <Text style={{ fontSize: 40 }}>🔒</Text>
+            <Text style={{ fontSize: 22, fontWeight: '800', color: COLORS.text }}>Arqueo de Caja Requerido</Text>
+            <Text style={{ fontSize: 14, color: COLORS.textSecondary, textAlign: 'center', maxWidth: 400 }}>
+              Debes abrir un arqueo de caja antes de operar. Ve a Caja → Arqueos.
+            </Text>
+            <TouchableOpacity onPress={() => setActiveTab('caja')} style={{ backgroundColor: COLORS.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8, marginTop: 8 }}>
+              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Ir a Caja</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (<>
         {activeTab === 'mesas' && (
           <TableMapScreen
             onOpenOrder={navigateToOrder}
@@ -174,6 +174,7 @@ function AppContent() {
         {activeTab === 'productos' && <ProductosHub />}
         {activeTab === 'reportes' && <ReportsScreen />}
         {activeTab === 'admin' && <AdminScreen onOpenEditor={navigateToEditor} onOpenInventory={navigateToInventory} />}
+        </>)}
       </View>
     </View>
   );
