@@ -82,6 +82,7 @@ function OfflineBanner() {
 function AppContent() {
   const { user, loading } = useAuth();
   const [activeTab, setActiveTab] = useState('mesas');
+  const [cocSub, setCocSub] = useState<'inventario' | 'produccion'>('inventario');
   const [detail, setDetail] = useState<DetailScreen>(null);
   const [hasOpenArqueo, setHasOpenArqueo] = useState<boolean | null>(null);
 
@@ -107,7 +108,6 @@ function AppContent() {
 
   // Cocina: solo inventario + producción
   if (user.role === 'cocina') {
-    const [cocSub, setCocSub] = useState<'inventario' | 'produccion'>('inventario');
     return (
       <View style={s.container}>
         <View style={{ flexDirection: 'row', backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingHorizontal: 8 }}>
