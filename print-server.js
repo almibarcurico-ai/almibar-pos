@@ -332,10 +332,12 @@ async function pollNewModifiers() {
       const { data: waiter } = await supabase.from('users').select('name').eq('id', order.created_by).single();
 
       const catId = item.product?.category_id;
-      const stations = categoryPrinterMap[catId] || [];
+      let stations = categoryPrinterMap[catId] || [];
+      // Modificadores pendientes son bebidas → solo barra si hay múltiples impresoras
+      if (stations.length > 1 && stations.includes('barra')) stations = ['barra'];
       const tableNum = tableData?.number || '?';
 
-      console.log('\n🖨️  Nuevos modificadores Mesa ' + tableNum + ' — ' + item.product?.name + ' +' + nuevos.length + ' mods');
+      console.log('\n🖨️  Nuevos modificadores Mesa ' + tableNum + ' — ' + item.product?.name + ' +' + nuevos.length + ' mods → ' + stations.join(','));
 
       for (const station of stations) {
         const printer = PRINTER_IPS[station];

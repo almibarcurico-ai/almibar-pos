@@ -293,11 +293,15 @@ export default function OrderScreen({ table, onBack }: Props) {
     // Save new modifiers to existing order_item
     await supabase.from('order_item_modifiers').insert(selections.map((m: ModOption) => ({ order_item_id: pendingModItem.id, option_id: m.id, option_name: m.name, price_adjust: m.price_adjust })));
     // Print comanda for the new modifiers only (force=true to bypass polling filter)
+    // Para mods pendientes, solo enviar a barra (los mods son bebidas, no comida)
     try {
+      const barraPrinters = printers.filter(p => p.station === 'barra');
+      const barraCp = categoryPrinters.filter(cp => barraPrinters.some(bp => bp.id === cp.printer_id));
       await printOrderForce({
         table: table.number, waiter: user.name, orderNumber: order?.order_number,
         items: [{ name: pendingModItem.product.name, qty: 1, category_id: pendingModItem.product.category_id, modifiers: selections.map((m: ModOption) => m.name), notes: undefined }],
-        printers, categoryPrinters,
+        printers: barraPrinters.length > 0 ? barraPrinters : printers,
+        categoryPrinters: barraPrinters.length > 0 ? barraCp : categoryPrinters,
       });
     } catch (e) { console.log('Print error:', e); }
     setPendingModItem(null); setModPickerSelections({});
