@@ -121,10 +121,10 @@ function AppContent() {
             <Text style={{ fontSize: 12, color: COLORS.error || '#E53935', fontWeight: '600' }}>Salir</Text>
           </TouchableOpacity>
         </View>
-        <ScrollView horizontal style={{ flex: 1 }}><View style={{ minWidth: 700, flex: 1 }}>
+        <View style={{ flex: 1 }}>
           {cocSub === 'inventario' && <InventoryCountScreen />}
           {cocSub === 'produccion' && <ProductionScreen />}
-        </View></ScrollView>
+        </View>
       </View>
     );
   }
@@ -141,9 +141,9 @@ function AppContent() {
             <Text style={{ fontSize: 12, color: COLORS.error || '#E53935', fontWeight: '600' }}>Salir</Text>
           </TouchableOpacity>
         </View>
-        <ScrollView horizontal style={{ flex: 1 }}><View style={{ minWidth: 700, flex: 1 }}>
+        <View style={{ flex: 1 }}>
           <InventoryCountScreen />
-        </View></ScrollView>
+        </View>
       </View>
     );
   }
