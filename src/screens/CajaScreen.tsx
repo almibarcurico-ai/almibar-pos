@@ -172,7 +172,7 @@ function VentasTab() {
       if (shift) { since = shift.since; until = shift.until; }
       else { since = dayStart; until = dayStart; } // rango vacío = 0 ventas
     } else if (period === 'semanal') {
-      const start = new Date(d); start.setDate(start.getDate() - start.getDay());
+      const start = new Date(d); start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
       const startStr = start.toISOString().split('T')[0];
       const shift = findShiftRange(toChileISO(startStr), toChileISO(addDays(startStr, 7)));
       if (shift) { since = shift.since; until = shift.until; }
@@ -1591,7 +1591,7 @@ function AnulacionesTab() {
     let since: string, until: string;
     const d = new Date(date + 'T12:00:00');
     if (period === 'diario') { since = toChileISO(date); until = toChileISO(addDays(date, 1)); }
-    else if (period === 'semanal') { const st = new Date(d); st.setDate(st.getDate() - st.getDay()); const ss = st.toLocaleDateString('en-CA'); since = toChileISO(ss); until = toChileISO(addDays(ss, 7)); }
+    else if (period === 'semanal') { const st = new Date(d); st.setDate(st.getDate() - ((st.getDay() + 6) % 7)); const ss = st.toLocaleDateString('en-CA'); since = toChileISO(ss); until = toChileISO(addDays(ss, 7)); }
     else { const ss = date.substring(0,7) + '-01'; const en = new Date(d.getFullYear(), d.getMonth() + 1, 1); since = toChileISO(ss); until = toChileISO(en.toLocaleDateString('en-CA')); }
 
     const { data } = await supabase.from('order_logs').select('*').eq('action', 'item_anulado').gte('created_at', since).lt('created_at', until).order('created_at', { ascending: false });
@@ -1699,7 +1699,7 @@ function PropinasTab() {
       const shift = findShiftRange(toChileISO(date), toChileISO(addDays(date, 1)));
       since = shift.since; until = shift.until;
     } else if (period === 'semanal') {
-      const st = new Date(d); st.setDate(st.getDate() - st.getDay()); const ss = st.toLocaleDateString('en-CA');
+      const st = new Date(d); st.setDate(st.getDate() - ((st.getDay() + 6) % 7)); const ss = st.toLocaleDateString('en-CA');
       const shift = findShiftRange(toChileISO(ss), toChileISO(addDays(ss, 7)));
       since = shift.since; until = shift.until;
     } else {
@@ -1941,7 +1941,7 @@ function CostosTab() {
       if (shift) { since = shift.since; until = shift.until; }
       else { since = dayStart; until = dayStart; }
     } else if (period === 'semanal') {
-      const start = new Date(d); start.setDate(start.getDate() - start.getDay());
+      const start = new Date(d); start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
       const startStr = start.toISOString().split('T')[0];
       const shift = findShiftRange(toChileISO(startStr), toChileISO(addDays(startStr, 7)));
       if (shift) { since = shift.since; until = shift.until; }
@@ -2050,7 +2050,7 @@ function CostosTab() {
   const dateLabel = () => {
     const d = new Date(date + 'T12:00:00');
     if (period === 'diario') return d.toLocaleDateString('es-CL', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
-    if (period === 'semanal') { const s = new Date(d); s.setDate(s.getDate() - s.getDay()); const e = new Date(s); e.setDate(e.getDate() + 6); return `${s.getDate()}/${s.getMonth()+1} - ${e.getDate()}/${e.getMonth()+1}`; }
+    if (period === 'semanal') { const s = new Date(d); s.setDate(s.getDate() - ((s.getDay() + 6) % 7)); const e = new Date(s); e.setDate(e.getDate() + 6); return `${s.getDate()}/${s.getMonth()+1} - ${e.getDate()}/${e.getMonth()+1}`; }
     if (period === 'mensual') return d.toLocaleDateString('es-CL', { month: 'long', year: 'numeric' });
     if (period === 'anual') return String(d.getFullYear());
     return `${rangoDesde} — ${rangoHasta}`;

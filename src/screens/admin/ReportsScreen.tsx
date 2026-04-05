@@ -47,7 +47,7 @@ export default function ReportsScreen() {
       return { since: toChileISO(toLocal(from)), until: toChileEnd(toLocal(new Date())) };
     }
     if (period === 'diario') return { since: toChileISO(date), until: toChileEnd(date) };
-    if (period === 'semanal') { const s = new Date(d); s.setDate(s.getDate() - s.getDay()); const e = new Date(s); e.setDate(e.getDate() + 6); return { since: toChileISO(toLocal(s)), until: toChileEnd(toLocal(e)) }; }
+    if (period === 'semanal') { const s = new Date(d); s.setDate(s.getDate() - ((s.getDay() + 6) % 7)); const e = new Date(s); e.setDate(e.getDate() + 6); return { since: toChileISO(toLocal(s)), until: toChileEnd(toLocal(e)) }; }
     if (period === 'mensual') { const s = new Date(d.getFullYear(), d.getMonth(), 1); const e = new Date(d.getFullYear(), d.getMonth() + 1, 0); return { since: toChileISO(toLocal(s)), until: toChileEnd(toLocal(e)) }; }
     return { since: toChileISO(`${d.getFullYear()}-01-01`), until: toChileEnd(`${d.getFullYear()}-12-31`) };
   };
