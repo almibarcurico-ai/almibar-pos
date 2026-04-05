@@ -32,6 +32,9 @@ export default function InventoryCountScreen() {
   const [diffModal, setDiffModal] = useState(false);
   const [diffRows, setDiffRows] = useState<any[]>([]);
   const [pendingCountId, setPendingCountId] = useState<string | null>(null);
+  const [reconteoMode, setReconteoMode] = useState(false);
+  const [reconteoValues, setReconteoValues] = useState<Record<string, string>>({});
+  const [reconteoPhase, setReconteoPhase] = useState<'initial' | 'recount' | 'final'>('initial');
   const fileRef = useRef<any>(null);
 
   const load = useCallback(async () => {
@@ -175,6 +178,8 @@ export default function InventoryCountScreen() {
 
         setPendingCountId(countData.id);
         setDiffRows(diffs.sort((a, b) => a.diff - b.diff)); // Worst merma first
+        setReconteoPhase('initial');
+        setReconteoValues({});
         setDiffModal(true);
         await load();
       } catch (e: any) { alert('Error', e.message); }
@@ -340,70 +345,166 @@ export default function InventoryCountScreen() {
         </View>
       )}
 
-      {/* DIFF MODAL — preview before applying */}
+      {/* DIFF MODAL — 3 phases: initial → recount → final */}
       <Modal visible={diffModal} transparent animationType="fade">
         <View style={s.ov}><View style={[s.md, { maxWidth: 750, maxHeight: '90%' as any }]}>
-          <Text style={s.mdT}>📊 Resultado del Conteo</Text>
 
-          {/* Summary */}
-          <View style={{ flexDirection: 'row', gap: 10, marginBottom: 14 }}>
-            <View style={[s.sumCard, { flex: 1 }]}>
-              <Text style={s.sumLabel}>Items contados</Text>
-              <Text style={s.sumValue}>{diffRows.length}</Text>
-            </View>
-            <View style={[s.sumCard, { flex: 1, borderColor: '#E5393540' }]}>
-              <Text style={s.sumLabel}>🔻 Merma</Text>
-              <Text style={[s.sumValue, { color: '#E53935' }]}>{fmt(diffRows.filter(d => d.diff < 0).reduce((s, d) => s + d.mermaValue, 0))}</Text>
-              <Text style={{ fontSize: 10, color: '#E53935' }}>{diffRows.filter(d => d.diff < 0).length} items</Text>
-            </View>
-            <View style={[s.sumCard, { flex: 1, borderColor: '#4CAF5040' }]}>
-              <Text style={s.sumLabel}>🔺 Sobrante</Text>
-              <Text style={[s.sumValue, { color: '#4CAF50' }]}>{fmt(diffRows.filter(d => d.diff > 0).reduce((s, d) => s + d.sobranteValue, 0))}</Text>
-              <Text style={{ fontSize: 10, color: '#4CAF50' }}>{diffRows.filter(d => d.diff > 0).length} items</Text>
-            </View>
-            <View style={[s.sumCard, { flex: 1 }]}>
-              <Text style={s.sumLabel}>Sin cambio</Text>
-              <Text style={s.sumValue}>{diffRows.filter(d => d.diff === 0).length}</Text>
-            </View>
-          </View>
+          {/* PHASE 1: Mostrar diferencias y pedir reconteo de mermas */}
+          {reconteoPhase === 'initial' && (<>
+            <Text style={s.mdT}>📊 Diferencias Detectadas</Text>
+            <Text style={{ textAlign: 'center', fontSize: 13, color: '#E53935', fontWeight: '600', marginBottom: 12 }}>
+              Se encontraron {diffRows.filter(d => d.diff !== 0).length} items con diferencia. Recuenta las mermas para confirmar.
+            </Text>
 
-          {/* Table */}
-          <ScrollView style={{ maxHeight: 400 }}>
-            <View style={{ flexDirection: 'row', paddingVertical: 6, paddingHorizontal: 8, backgroundColor: COLORS.background, borderRadius: 6, marginBottom: 4 }}>
-              <Text style={[s.th, { flex: 1 }]}>Ingrediente</Text>
-              <Text style={[s.th, { width: 50 }]}>Unid.</Text>
-              <Text style={[s.th, { width: 70, textAlign: 'right' }]}>Sistema</Text>
-              <Text style={[s.th, { width: 70, textAlign: 'right' }]}>Contado</Text>
-              <Text style={[s.th, { width: 60, textAlign: 'right' }]}>Dif.</Text>
-              <Text style={[s.th, { width: 80, textAlign: 'right' }]}>Merma $</Text>
-            </View>
-            {diffRows.map((d, i) => (
-              <View key={i} style={{ flexDirection: 'row', paddingVertical: 6, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border, backgroundColor: d.diff < 0 ? '#F59E0B10' : d.diff > 0 ? '#4CAF5010' : COLORS.card }}>
-                <Text style={{ flex: 1, fontSize: 12, fontWeight: '600', color: COLORS.text }}>{d.name}</Text>
-                <Text style={{ width: 50, fontSize: 11, color: COLORS.textSecondary }}>{d.unit}</Text>
-                <Text style={{ width: 70, textAlign: 'right', fontSize: 11, color: COLORS.textSecondary }}>{Math.round(d.systemStock)}</Text>
-                <Text style={{ width: 70, textAlign: 'right', fontSize: 12, fontWeight: '600' }}>{Math.round(d.counted)}</Text>
-                <Text style={{ width: 60, textAlign: 'right', fontSize: 12, fontWeight: '700', color: d.diff < 0 ? '#E53935' : d.diff > 0 ? '#4CAF50' : COLORS.textMuted }}>
-                  {d.diff > 0 ? '+' : ''}{Math.round(d.diff)}
-                </Text>
-                <Text style={{ width: 80, textAlign: 'right', fontSize: 12, fontWeight: '700', color: d.mermaValue > 0 ? '#E53935' : COLORS.textMuted }}>
-                  {d.mermaValue > 0 ? '-' + fmt(d.mermaValue) : '—'}
-                </Text>
+            <ScrollView style={{ maxHeight: 350 }}>
+              <View style={{ flexDirection: 'row', paddingVertical: 6, paddingHorizontal: 8, backgroundColor: COLORS.background, borderRadius: 6, marginBottom: 4 }}>
+                <Text style={[s.th, { flex: 1 }]}>Ingrediente</Text>
+                <Text style={[s.th, { width: 50 }]}>Unid.</Text>
+                <Text style={[s.th, { width: 70, textAlign: 'right' }]}>Sistema</Text>
+                <Text style={[s.th, { width: 70, textAlign: 'right' }]}>Contado</Text>
+                <Text style={[s.th, { width: 60, textAlign: 'right' }]}>Dif.</Text>
               </View>
-            ))}
-          </ScrollView>
+              {diffRows.filter(d => d.diff !== 0).map((d, i) => (
+                <View key={i} style={{ flexDirection: 'row', paddingVertical: 6, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border, backgroundColor: d.diff < 0 ? '#F59E0B10' : '#4CAF5010' }}>
+                  <Text style={{ flex: 1, fontSize: 12, fontWeight: '600', color: COLORS.text }}>{d.name}</Text>
+                  <Text style={{ width: 50, fontSize: 11, color: COLORS.textSecondary }}>{d.unit}</Text>
+                  <Text style={{ width: 70, textAlign: 'right', fontSize: 11, color: COLORS.textSecondary }}>{parseFloat(d.systemStock.toFixed(2))}</Text>
+                  <Text style={{ width: 70, textAlign: 'right', fontSize: 12, fontWeight: '600' }}>{parseFloat(d.counted.toFixed(2))}</Text>
+                  <Text style={{ width: 60, textAlign: 'right', fontSize: 12, fontWeight: '700', color: d.diff < 0 ? '#E53935' : '#4CAF50' }}>
+                    {d.diff > 0 ? '+' : ''}{parseFloat(d.diff.toFixed(2))}
+                  </Text>
+                </View>
+              ))}
+            </ScrollView>
 
-          <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
-            <TouchableOpacity style={[s.bCancel, { flex: 1 }]} onPress={() => setDiffModal(false)}>
-              <Text style={s.bCancelT}>Cerrar</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[s.btn, { flex: 1, backgroundColor: '#42A5F5', paddingVertical: 14, borderRadius: 10, alignItems: 'center' as any }]} onPress={exportDiffReport}>
-              <Text style={s.btnT}>📤 Exportar Reporte</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[s.bSave, { flex: 1 }]} onPress={applyCount}>
-              <Text style={s.bSaveT}>✅ Aplicar al Stock</Text>
-            </TouchableOpacity>
-          </View>
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
+              <TouchableOpacity style={[s.bCancel, { flex: 1 }]} onPress={() => { setDiffModal(false); setReconteoPhase('initial'); }}>
+                <Text style={s.bCancelT}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[s.bSave, { flex: 1, backgroundColor: '#F57C00' }]} onPress={() => {
+                const vals: Record<string, string> = {};
+                diffRows.filter(d => d.diff !== 0).forEach(d => { vals[d.name] = ''; });
+                setReconteoValues(vals);
+                setReconteoPhase('recount');
+              }}>
+                <Text style={s.bSaveT}>🔄 Recontar Mermas</Text>
+              </TouchableOpacity>
+            </View>
+          </>)}
+
+          {/* PHASE 2: Ingresar reconteo */}
+          {reconteoPhase === 'recount' && (<>
+            <Text style={s.mdT}>🔄 Reconteo de Mermas</Text>
+            <Text style={{ textAlign: 'center', fontSize: 12, color: COLORS.textMuted, marginBottom: 12 }}>
+              Vuelve a contar cada item y escribe el valor real. Solo una oportunidad.
+            </Text>
+
+            <ScrollView style={{ maxHeight: 400 }}>
+              {diffRows.filter(d => d.diff !== 0).map((d, i) => (
+                <View key={i} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border, backgroundColor: i % 2 === 0 ? COLORS.card : COLORS.background }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.text }}>{d.name}</Text>
+                    <Text style={{ fontSize: 10, color: COLORS.textMuted }}>Sistema: {parseFloat(d.systemStock.toFixed(2))} {d.unit} · 1er conteo: {parseFloat(d.counted.toFixed(2))}</Text>
+                  </View>
+                  {Platform.OS === 'web' && (
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder={String(d.counted)}
+                      value={reconteoValues[d.name] || ''}
+                      onChange={(e: any) => setReconteoValues(prev => ({ ...prev, [d.name]: e.target.value }))}
+                      style={{ width: 90, padding: '6px 10px', borderRadius: 8, border: '1.5px solid ' + COLORS.border, fontSize: 14, fontWeight: '700', textAlign: 'right' } as any}
+                    />
+                  )}
+                  <Text style={{ width: 40, textAlign: 'center', fontSize: 11, color: COLORS.textMuted }}>{d.unit}</Text>
+                </View>
+              ))}
+            </ScrollView>
+
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
+              <TouchableOpacity style={[s.bCancel, { flex: 1 }]} onPress={() => setReconteoPhase('initial')}>
+                <Text style={s.bCancelT}>← Volver</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[s.bSave, { flex: 1 }]} onPress={() => {
+                // Aplicar reconteo: actualizar diffRows con los nuevos valores
+                const updated = diffRows.map(d => {
+                  const reVal = reconteoValues[d.name];
+                  if (reVal !== undefined && reVal !== '') {
+                    const newCounted = parseFloat(reVal);
+                    if (!isNaN(newCounted)) {
+                      const newDiff = newCounted - d.systemStock;
+                      return { ...d, counted: newCounted, diff: newDiff, mermaValue: newDiff < 0 ? Math.abs(newDiff) * d.costPerUnit : 0, sobranteValue: newDiff > 0 ? newDiff * d.costPerUnit : 0 };
+                    }
+                  }
+                  return d; // Sin reconteo, mantener valor original
+                });
+                setDiffRows(updated.sort((a, b) => a.diff - b.diff));
+                setReconteoPhase('final');
+              }}>
+                <Text style={s.bSaveT}>✅ Confirmar Reconteo</Text>
+              </TouchableOpacity>
+            </View>
+          </>)}
+
+          {/* PHASE 3: Resultado final con valores */}
+          {reconteoPhase === 'final' && (<>
+            <Text style={s.mdT}>📋 Resultado Final</Text>
+
+            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 14 }}>
+              <View style={[s.sumCard, { flex: 1 }]}>
+                <Text style={s.sumLabel}>Items contados</Text>
+                <Text style={s.sumValue}>{diffRows.length}</Text>
+              </View>
+              <View style={[s.sumCard, { flex: 1, borderColor: '#E5393540' }]}>
+                <Text style={s.sumLabel}>🔻 Merma</Text>
+                <Text style={[s.sumValue, { color: '#E53935' }]}>{fmt(diffRows.filter(d => d.diff < 0).reduce((acc, d) => acc + d.mermaValue, 0))}</Text>
+                <Text style={{ fontSize: 10, color: '#E53935' }}>{diffRows.filter(d => d.diff < 0).length} items</Text>
+              </View>
+              <View style={[s.sumCard, { flex: 1, borderColor: '#4CAF5040' }]}>
+                <Text style={s.sumLabel}>🔺 Sobrante</Text>
+                <Text style={[s.sumValue, { color: '#4CAF50' }]}>{fmt(diffRows.filter(d => d.diff > 0).reduce((acc, d) => acc + d.sobranteValue, 0))}</Text>
+                <Text style={{ fontSize: 10, color: '#4CAF50' }}>{diffRows.filter(d => d.diff > 0).length} items</Text>
+              </View>
+            </View>
+
+            <ScrollView style={{ maxHeight: 350 }}>
+              <View style={{ flexDirection: 'row', paddingVertical: 6, paddingHorizontal: 8, backgroundColor: COLORS.background, borderRadius: 6, marginBottom: 4 }}>
+                <Text style={[s.th, { flex: 1 }]}>Ingrediente</Text>
+                <Text style={[s.th, { width: 45 }]}>Unid.</Text>
+                <Text style={[s.th, { width: 60, textAlign: 'right' }]}>Sistema</Text>
+                <Text style={[s.th, { width: 60, textAlign: 'right' }]}>Final</Text>
+                <Text style={[s.th, { width: 55, textAlign: 'right' }]}>Dif.</Text>
+                <Text style={[s.th, { width: 75, textAlign: 'right' }]}>Valor</Text>
+              </View>
+              {diffRows.filter(d => d.diff !== 0).map((d, i) => (
+                <View key={i} style={{ flexDirection: 'row', paddingVertical: 6, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border, backgroundColor: d.diff < 0 ? '#E5393508' : '#4CAF5008' }}>
+                  <Text style={{ flex: 1, fontSize: 12, fontWeight: '600', color: COLORS.text }} numberOfLines={1}>{d.name}</Text>
+                  <Text style={{ width: 45, fontSize: 11, color: COLORS.textSecondary }}>{d.unit}</Text>
+                  <Text style={{ width: 60, textAlign: 'right', fontSize: 11, color: COLORS.textSecondary }}>{parseFloat(d.systemStock.toFixed(2))}</Text>
+                  <Text style={{ width: 60, textAlign: 'right', fontSize: 12, fontWeight: '700' }}>{parseFloat(d.counted.toFixed(2))}</Text>
+                  <Text style={{ width: 55, textAlign: 'right', fontSize: 12, fontWeight: '700', color: d.diff < 0 ? '#E53935' : '#4CAF50' }}>
+                    {d.diff > 0 ? '+' : ''}{parseFloat(d.diff.toFixed(2))}
+                  </Text>
+                  <Text style={{ width: 75, textAlign: 'right', fontSize: 12, fontWeight: '700', color: d.diff < 0 ? '#E53935' : '#4CAF50' }}>
+                    {d.diff < 0 ? '-' : '+'}{fmt(d.diff < 0 ? d.mermaValue : d.sobranteValue)}
+                  </Text>
+                </View>
+              ))}
+            </ScrollView>
+
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
+              <TouchableOpacity style={[s.bCancel, { flex: 1 }]} onPress={() => { setDiffModal(false); setReconteoPhase('initial'); }}>
+                <Text style={s.bCancelT}>Cerrar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[s.btn, { flex: 1, backgroundColor: '#42A5F5', paddingVertical: 14, borderRadius: 10, alignItems: 'center' as any }]} onPress={exportDiffReport}>
+                <Text style={s.btnT}>📤 Exportar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[s.bSave, { flex: 1 }]} onPress={() => { applyCount(); setReconteoPhase('initial'); }}>
+                <Text style={s.bSaveT}>✅ Aplicar al Stock</Text>
+              </TouchableOpacity>
+            </View>
+          </>)}
+
         </View></View>
       </Modal>
     </View>
