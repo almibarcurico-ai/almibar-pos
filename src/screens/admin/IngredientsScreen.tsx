@@ -7,6 +7,13 @@ import { COLORS } from '../../theme';
 import * as XLSX from 'xlsx';
 
 const CATS = ['Carnes','Pescados','Mariscos','Lácteos','Verduras','Frutas','Licores','Cervezas','Destilados','Insumos','Especias','Otros'];
+const COCINA_CATS = ['Carnes','Pescados','Mariscos','Lácteos','Verduras','Frutas','Insumos','Especias'];
+const BARRA_CATS = ['Licores','Cervezas','Destilados'];
+// Ingredientes de "Otros" que son de barra (bebidas, cervezas, vinos, etc.)
+const isBarraOtros = (name: string) => {
+  const n = name.toLowerCase();
+  return /red bull|pepsi|crush|cachantun|perrier|ginger|tonica|limon soda|kem |pap |bilz|fentiman|sol$|heineken|kunstm|austral|schop|calafate|cristal|dolbek|viña mar|castillo molina|misiones|gran torobayo|vino |jugo /.test(n);
+};
 const UNITS = ['gr','kg','ml','lt','unidad'];
 const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-CL');
 const alert = (title: string, msg?: string) => typeof window !== 'undefined' ? window.alert(title + (msg ? '\n' + msg : '')) : null;
@@ -18,6 +25,7 @@ export default function IngredientsScreen() {
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   const [filterCat, setFilterCat] = useState('all');
+  const [filterStation, setFilterStation] = useState<'all'|'cocina'|'barra'>('all');
   const [filterSupplier, setFilterSupplier] = useState('all');
   const [modal, setModal] = useState(false);
   const [ed, setEd] = useState<any>({});
@@ -41,11 +49,23 @@ export default function IngredientsScreen() {
 
   useEffect(() => { load(); }, [load]);
 
+  const getIngStation = (i: any): 'cocina' | 'barra' | 'ambos' => {
+    if (i.is_production) return 'cocina';
+    if (COCINA_CATS.includes(i.category)) return 'cocina';
+    if (BARRA_CATS.includes(i.category)) return 'barra';
+    if (i.category === 'Otros') return isBarraOtros(i.name) ? 'barra' : 'ambos';
+    return 'ambos';
+  };
+
   const filtered = items.filter(i => {
     const ms = !search || i.name.toLowerCase().includes(search.toLowerCase());
     const mc = filterCat === 'all' || i.category === filterCat;
     const msp = filterSupplier === 'all' || (filterSupplier === 'sin' ? !i.default_supplier_id : i.default_supplier_id === filterSupplier);
-    return ms && mc && msp;
+    const mst = filterStation === 'all' || (() => {
+      const st = getIngStation(i);
+      return st === filterStation || st === 'ambos';
+    })();
+    return ms && mc && msp && mst;
   });
   const supplierName = (id: string | null) => id ? (suppliers.find(s => s.id === id)?.name || '-') : '-';
 
@@ -255,9 +275,17 @@ export default function IngredientsScreen() {
       <View style={{ flex: 1, flexDirection: 'row' }}>
         {/* Sidebar categorías */}
         <View style={{ width: 200, backgroundColor: '#3C3C3C' }}>
+          {/* Filtro estación */}
+          <View style={{ flexDirection: 'row', padding: 8, gap: 4 }}>
+            {([['all', 'Todos'], ['cocina', '🍳 Cocina'], ['barra', '🍸 Barra']] as const).map(([key, label]) => (
+              <TouchableOpacity key={key} onPress={() => setFilterStation(key as any)} style={{ flex: 1, paddingVertical: 6, borderRadius: 6, backgroundColor: filterStation === key ? (key === 'cocina' ? '#E65100' : key === 'barra' ? '#1565C0' : COLORS.primary) : '#4A4A4A', alignItems: 'center' }}>
+                <Text style={{ fontSize: 10, fontWeight: '700', color: '#fff' }}>{label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
           <TouchableOpacity style={[s.sideItem, filterCat === 'all' && s.sideItemA]} onPress={() => setFilterCat('all')}>
             <Text style={[s.sideItemT, filterCat === 'all' && s.sideItemTA]}>Todos</Text>
-            <Text style={s.sideCount}>{items.length}</Text>
+            <Text style={s.sideCount}>{filtered.length}</Text>
           </TouchableOpacity>
           <ScrollView>
             {CATS.map(c => {
