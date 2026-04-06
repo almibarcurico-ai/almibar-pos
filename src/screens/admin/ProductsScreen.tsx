@@ -52,6 +52,8 @@ export default function ProductsScreen() {
   // Recipe add
   const [ingSearch, setIngSearch] = useState('');
   const [showIngSearch, setShowIngSearch] = useState(false);
+  const [prodSearch, setProdSearch] = useState('');
+  const [showProdSearch, setShowProdSearch] = useState(false);
   // Mod group add
   const [showModAdd, setShowModAdd] = useState(false);
 
@@ -323,26 +325,35 @@ export default function ProductsScreen() {
             <View style={s.dBlock}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Text style={s.dBlockTitle}>Receta</Text>
-                <TouchableOpacity onPress={() => setShowIngSearch(!showIngSearch)}>
-                  <Text style={{ color: COLORS.primary, fontSize: 13, fontWeight: '600' }}>{showIngSearch ? '✕ Cerrar' : '+ Agregar'}</Text>
-                </TouchableOpacity>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <TouchableOpacity onPress={() => { setShowIngSearch(!showIngSearch); setShowProdSearch(false); setIngSearch(''); }}>
+                    <Text style={{ color: COLORS.primary, fontSize: 12, fontWeight: '600' }}>{showIngSearch ? '✕' : '+ Ingrediente'}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => { setShowProdSearch(!showProdSearch); setShowIngSearch(false); setProdSearch(''); }}>
+                    <Text style={{ color: '#E65100', fontSize: 12, fontWeight: '600' }}>{showProdSearch ? '✕' : '+ Producto'}</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
 
               {showIngSearch && (
                 <View style={{ marginBottom: 8 }}>
-                  <TextInput style={s.fInput} placeholder="Buscar ingrediente o producto..." placeholderTextColor={COLORS.textMuted} value={ingSearch} onChangeText={setIngSearch} />
-                  {filteredIngredients.length > 0 && <Text style={{ fontSize: 10, fontWeight: '700', color: COLORS.textMuted, paddingHorizontal: 8, paddingTop: 6 }}>INGREDIENTES</Text>}
+                  <TextInput style={s.fInput} placeholder="Buscar ingrediente..." placeholderTextColor={COLORS.textMuted} value={ingSearch} onChangeText={setIngSearch} autoFocus />
                   {filteredIngredients.map(ing => (
-                    <TouchableOpacity key={ing.id} style={{ padding: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border }} onPress={() => addIngredient(ing)}>
+                    <TouchableOpacity key={ing.id} style={{ padding: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border }} onPress={() => { addIngredient(ing); setShowIngSearch(false); }}>
                       <Text style={{ color: COLORS.text, fontSize: 13 }}>🥩 {ing.name} <Text style={{ color: COLORS.textSecondary }}>({ing.unit} · {fmt(ing.cost_per_unit)})</Text></Text>
                     </TouchableOpacity>
                   ))}
-                  {filteredProducts.length > 0 && <Text style={{ fontSize: 10, fontWeight: '700', color: COLORS.textMuted, paddingHorizontal: 8, paddingTop: 6 }}>PRODUCTOS</Text>}
-                  {filteredProducts.map(prod => {
+                </View>
+              )}
+
+              {showProdSearch && (
+                <View style={{ marginBottom: 8 }}>
+                  <TextInput style={s.fInput} placeholder="Buscar producto..." placeholderTextColor={COLORS.textMuted} value={prodSearch} onChangeText={setProdSearch} autoFocus />
+                  {products.filter(p => p.id !== selectedProduct?.id && prodSearch.length >= 2 && p.name.toLowerCase().includes(prodSearch.toLowerCase())).slice(0, 8).map(prod => {
                     const cost = getSubProductCost(prod.id);
                     return (
-                      <TouchableOpacity key={'p-' + prod.id} style={{ padding: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border }} onPress={() => addSubProduct(prod)}>
-                        <Text style={{ color: COLORS.text, fontSize: 13 }}>🍕 {prod.name} <Text style={{ color: COLORS.textSecondary }}>(costo: {fmt(cost)})</Text></Text>
+                      <TouchableOpacity key={prod.id} style={{ padding: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border }} onPress={() => { addSubProduct(prod); setShowProdSearch(false); }}>
+                        <Text style={{ color: COLORS.text, fontSize: 13 }}>🍕 {prod.name} <Text style={{ color: COLORS.textSecondary }}>(costo: {cost > 0 ? fmt(cost) : 'sin receta'})</Text></Text>
                       </TouchableOpacity>
                     );
                   })}
@@ -426,8 +437,8 @@ export default function ProductsScreen() {
                   <Text style={{ fontSize: 13, fontWeight: '800', color: COLORS.primary }}>{fmt(recipeCost)}</Text>
                 </View>
               )}
-              {productRecipeItems.length === 0 && !showIngSearch && (
-                <Text style={{ color: COLORS.textMuted, fontSize: 12, paddingVertical: 12 }}>Sin receta. Agrega ingredientes para calcular food cost.</Text>
+              {productRecipeItems.length === 0 && !showIngSearch && !showProdSearch && (
+                <Text style={{ color: COLORS.textMuted, fontSize: 12, paddingVertical: 12 }}>Sin receta. Agrega ingredientes o productos para calcular food cost.</Text>
               )}
             </View>
           )}
