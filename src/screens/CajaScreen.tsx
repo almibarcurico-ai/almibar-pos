@@ -1983,11 +1983,49 @@ function CostosTab() {
     const orderIds = orders.map(o => o.id);
     const { data: items } = await supabase
       .from('order_items')
-      .select('order_id, product_id, quantity, unit_price, total_price')
+      .select('id, order_id, product_id, quantity, unit_price, total_price')
       .in('order_id', orderIds)
       .not('product_id', 'is', null);
 
     if (!items) { setCostData([]); setLoading(false); return; }
+
+    // Traer modificadores de los items para calcular su costo
+    const itemIds = items.map(i => i.id);
+    const { data: itemMods } = await supabase
+      .from('order_item_modifiers')
+      .select('order_item_id, option_id')
+      .in('order_item_id', itemIds);
+
+    // Traer opciones de modificador con su ingrediente para obtener costo
+    const optionIds = [...new Set((itemMods || []).map(m => m.option_id).filter(Boolean))];
+    let modOptionCosts = new Map<string, number>();
+    if (optionIds.length > 0) {
+      const { data: modOpts } = await supabase
+        .from('modifier_options')
+        .select('id, ingredient_id, quantity, unit')
+        .in('id', optionIds);
+      if (modOpts) {
+        for (const mo of modOpts) {
+          if (mo.ingredient_id) {
+            const ing = ingredients.find(i => i.id === mo.ingredient_id);
+            if (ing) {
+              const cpu = ing.cost_per_unit || 0;
+              const qty = mo.quantity || 1;
+              modOptionCosts.set(mo.id, cpu * qty);
+            }
+          }
+        }
+      }
+    }
+
+    // Agrupar modificadores por order_item_id
+    const modsByItem = new Map<string, string[]>();
+    if (itemMods) {
+      for (const m of itemMods) {
+        if (!modsByItem.has(m.order_item_id)) modsByItem.set(m.order_item_id, []);
+        modsByItem.get(m.order_item_id)!.push(m.option_id);
+      }
+    }
 
     // Obtener productos activos (los eliminados no tendrán match y se ignoran)
     const productIds = [...new Set(items.map(i => i.product_id).filter(Boolean))];
@@ -1998,7 +2036,8 @@ function CostosTab() {
 
     const productMap = new Map((products || []).map(p => [p.id, p]));
 
-    // Agrupar items por producto (revenue = total_price del item, para desglose por producto)
+    // Agrupar items por producto
+    // Costo = receta del producto + costo de ingredientes de sus modificadores
     const grouped: Record<string, { name: string; qty: number; revenue: number; cost: number }> = {};
     let totalCosto = 0, totalItems = 0;
 
@@ -2006,7 +2045,15 @@ function CostosTab() {
       const prod = productMap.get(item.product_id);
       if (!prod) continue; // Producto eliminado — ignorar
 
-      const unitCost = calcCost(item.product_id);
+      // Costo base del producto (receta)
+      let unitCost = calcCost(item.product_id);
+
+      // Sumar costo de los modificadores de este item
+      const mods = modsByItem.get(item.id) || [];
+      for (const optId of mods) {
+        unitCost += modOptionCosts.get(optId) || 0;
+      }
+
       const itemCost = unitCost * item.quantity;
 
       if (!grouped[item.product_id]) {
