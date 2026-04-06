@@ -20,6 +20,7 @@ export default function PurchasesScreen({ onBack }: { onBack?: () => void }) {
   const [invoices, setInvoices] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [ingredients, setIngredients] = useState<any[]>([]);
+  const [aliases, setAliases] = useState<any[]>([]);
   const [detailInvoice, setDetailInvoice] = useState<any>(null);
 
   // Scanner state
@@ -48,15 +49,17 @@ export default function PurchasesScreen({ onBack }: { onBack?: () => void }) {
   useEffect(() => { load(); }, []);
 
   const load = async () => {
-    const [{ data: inv }, { data: sup }, { data: ing }, { data: arq }] = await Promise.all([
+    const [{ data: inv }, { data: sup }, { data: ing }, { data: arq }, { data: al }] = await Promise.all([
       supabase.from('purchase_invoices').select('*, supplier:supplier_id(name), items:purchase_items(*, ingredient:ingredient_id(name,unit,cost_per_unit,stock_current))').order('created_at', { ascending: false }),
       supabase.from('suppliers').select('*').eq('active', true).order('name'),
       supabase.from('ingredients').select('*').eq('active', true).order('name'),
       supabase.from('cash_registers').select('*').is('closed_at', null).order('opened_at', { ascending: false }).limit(1),
+      supabase.from('ingredient_aliases').select('*'),
     ]);
     if (inv) setInvoices(inv);
     if (sup) setSuppliers(sup);
     if (ing) setIngredients(ing);
+    if (al) setAliases(al);
     setCurrentArqueo(arq?.[0] || null);
   };
 
@@ -93,8 +96,12 @@ export default function PurchasesScreen({ onBack }: { onBack?: () => void }) {
         const desc = normalize(item.descripcion || '');
         const descWords = keyWords(item.descripcion || '');
 
+        // 0. Alias match — aprendido de asignaciones manuales previas
+        const aliasMatch = aliases.find(a => normalize(a.alias) === desc);
+        let match = aliasMatch ? ingredients.find(i => i.id === aliasMatch.ingredient_id) : null;
+
         // 1. Exact name match
-        let match = ingredients.find(i => normalize(i.name) === desc);
+        if (!match) match = ingredients.find(i => normalize(i.name) === desc);
 
         // 2. Ingredient name is fully contained in description (or vice versa)
         if (!match) {
@@ -142,7 +149,15 @@ export default function PurchasesScreen({ onBack }: { onBack?: () => void }) {
   };
 
   const assignIngredient = (idx: number, ing: any) => {
-    setScannedItems(prev => prev.map((item, i) => i === idx ? { ...item, matched: ing, is_new: false, create_new: false } : item));
+    const item = scannedItems[idx];
+    setScannedItems(prev => prev.map((it, i) => i === idx ? { ...it, matched: ing, is_new: false, create_new: false } : it));
+    // Guardar alias para próximas compras
+    if (item?.descripcion) {
+      const desc = item.descripcion.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+      supabase.from('ingredient_aliases').upsert({ alias: desc, ingredient_id: ing.id }, { onConflict: 'alias' }).then(() => {
+        setAliases(prev => [...prev.filter(a => a.alias !== desc), { alias: desc, ingredient_id: ing.id }]);
+      });
+    }
   };
 
   const saveScannedInvoice = async () => {
@@ -210,6 +225,12 @@ export default function PurchasesScreen({ onBack }: { onBack?: () => void }) {
           quantity: qty, unit_price: unitPrice, purchase_unit: item.unidad || '',
           total_price: totalPrice, descripcion: item.descripcion, categoria: item.categoria || '',
         });
+
+        // Guardar alias para futuras compras
+        if (ingredientId && item.descripcion) {
+          const aliasKey = (item.descripcion || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+          await supabase.from('ingredient_aliases').upsert({ alias: aliasKey, ingredient_id: ingredientId }, { onConflict: 'alias' }).catch(() => {});
+        }
 
         // Update ingredient stock + detect price change
         if (ingredientId) {
@@ -394,12 +415,16 @@ export default function PurchasesScreen({ onBack }: { onBack?: () => void }) {
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                   <TextInput style={[s.inp, { flex: 1, fontWeight: '600', fontSize: 14 }]} value={item.descripcion} onChangeText={v => updateScannedItem(idx, 'descripcion', v)} />
                   {item.matched ? (
-                    <TouchableOpacity style={{ backgroundColor: COLORS.success + '20', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, flexDirection: 'row', alignItems: 'center', gap: 4 }} onPress={() => { setSearchIdx(idx); setSearchText(''); }}>
-                      <Text style={{ fontSize: 10, fontWeight: '700', color: COLORS.success }}>✓ {item.matched.name}</Text>
-                      <Text style={{ fontSize: 9, color: COLORS.success }}>✏️</Text>
+                    <TouchableOpacity style={{ backgroundColor: COLORS.success + '20', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 6 }} onPress={() => { setSearchIdx(idx); setSearchText(''); }}>
+                      <Text style={{ fontSize: 13, fontWeight: '800', color: COLORS.success }}>→ {item.matched.name}</Text>
+                      <Text style={{ fontSize: 10, color: COLORS.success }}>({item.matched.stock_current} {item.matched.unit})</Text>
+                      <Text style={{ fontSize: 11, color: COLORS.textMuted }}>✏️</Text>
                     </TouchableOpacity>
                   ) : (
-                    <View style={{ backgroundColor: COLORS.warning + '20', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}><Text style={{ fontSize: 9, fontWeight: '700', color: COLORS.warning }}>Nuevo</Text></View>
+                    <TouchableOpacity style={{ backgroundColor: COLORS.warning + '20', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 4 }} onPress={() => { setSearchIdx(idx); setSearchText(''); }}>
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.warning }}>⚠ Sin asignar</Text>
+                      <Text style={{ fontSize: 11, color: COLORS.textMuted }}>Asignar</Text>
+                    </TouchableOpacity>
                   )}
                 </View>
                 {/* Búsqueda manual de ingrediente */}
