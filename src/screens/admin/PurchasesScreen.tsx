@@ -206,25 +206,28 @@ export default function PurchasesScreen({ onBack }: { onBack?: () => void }) {
         const totalPrice = parseFloat(item.precio_total) || 0;
 
         // Create new ingredient if no match
-        if (!ingredientId && item.create_new) {
+        if (!ingredientId) {
+          // Siempre crear ingrediente si no tiene match (create_new por defecto true)
           const cat = item.categoria || 'Otros';
           const catMap: Record<string, string> = { 'carnes': 'Carnes', 'pescados': 'Pescados', 'mariscos': 'Mariscos', 'lacteos': 'Lácteos', 'verduras': 'Verduras', 'frutas': 'Frutas', 'licores': 'Licores', 'cervezas': 'Cervezas', 'destilados': 'Destilados', 'insumos': 'Insumos', 'especias': 'Especias' };
           const mappedCat = catMap[cat.toLowerCase()] || 'Otros';
           const suppId2 = scannedData.proveedor ? suppliers.find(s => s.name.toLowerCase().includes(scannedData.proveedor.toLowerCase().slice(0, 10)))?.id : null;
-          const { data: newIng } = await supabase.from('ingredients').insert({
+          const { data: newIng, error: newErr } = await supabase.from('ingredients').insert({
             name: item.descripcion, unit: item.unidad || 'unidad',
             stock_current: 0, stock_min: 0, cost_per_unit: unitPrice,
             category: mappedCat, default_supplier_id: suppId2 || null, active: true,
           }).select('id').single();
+          if (newErr) console.error('Error creando ingrediente:', item.descripcion, newErr.message);
           if (newIng) ingredientId = newIng.id;
         }
 
-        // Insert purchase item
-        await supabase.from('purchase_items').insert({
+        // Insert purchase item (ingredient_id puede ser null si falló la creación)
+        const { error: piErr } = await supabase.from('purchase_items').insert({
           invoice_id: inv.id, ingredient_id: ingredientId,
           quantity: qty, unit_price: unitPrice, purchase_unit: item.unidad || '',
           total_price: totalPrice, descripcion: item.descripcion, categoria: item.categoria || '',
         });
+        if (piErr) console.error('Error guardando item:', item.descripcion, piErr.message);
 
         // Guardar alias para futuras compras
         if (ingredientId && item.descripcion) {
