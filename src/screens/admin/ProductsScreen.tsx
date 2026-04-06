@@ -1,6 +1,6 @@
 // src/screens/admin/ProductsScreen.tsx
 // Fudo-style: sidebar categories + product detail with recipes & modifiers
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Component, ErrorInfo } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, TextInput, Alert, StyleSheet } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { COLORS } from '../../theme';
@@ -31,6 +31,16 @@ const SECTIONS = [
     'd0000000-0000-0000-0000-000000000010','d0000000-0000-0000-0000-000000000030',
   ]},
 ];
+
+class RecipeErrorBoundary extends Component<{children: any}, {error: string|null}> {
+  state = { error: null as string|null };
+  static getDerivedStateFromError(e: Error) { return { error: e.message }; }
+  componentDidCatch(e: Error, info: ErrorInfo) { console.error('RecipeEB:', e, info); }
+  render() {
+    if (this.state.error) return <View style={{padding:20,backgroundColor:'#FEE2E2',borderRadius:8,margin:8}}><Text style={{color:'#DC2626',fontWeight:'700'}}>Error en receta:</Text><Text style={{color:'#DC2626',fontSize:12}}>{this.state.error}</Text><TouchableOpacity onPress={()=>this.setState({error:null})} style={{marginTop:8}}><Text style={{color:'#2563EB',fontWeight:'600'}}>Reintentar</Text></TouchableOpacity></View>;
+    return this.props.children;
+  }
+}
 
 export default function ProductsScreen() {
   const [products, setProducts] = useState<any[]>([]);
@@ -163,10 +173,13 @@ export default function ProductsScreen() {
 
   const addSubProduct = async (prod: any) => {
     if (!selectedProduct?.id) return;
-    const recipe = await ensureRecipe();
-    if (!recipe) return;
-    await supabase.from('recipe_items').insert({ recipe_id: recipe.id, sub_product_id: prod.id, ingredient_id: null, quantity: 1, unit: 'unidad' });
-    setShowProdSearch(false); setProdSearch(''); await load();
+    try {
+      const recipe = await ensureRecipe();
+      if (!recipe) { console.error('addSubProduct: no recipe'); return; }
+      const { error } = await supabase.from('recipe_items').insert({ recipe_id: recipe.id, sub_product_id: prod.id, quantity: 1, unit: 'unidad' });
+      if (error) { console.error('addSubProduct insert error:', error); alert('Error', error.message); return; }
+      setShowProdSearch(false); setProdSearch(''); await load();
+    } catch (e: any) { console.error('addSubProduct crash:', e); alert('Error', e.message); }
   };
 
   const saveRecipeItem2 = async (riId: string, overrideUnit?: string) => {
@@ -325,7 +338,7 @@ export default function ProductsScreen() {
 
           {/* Recipe */}
           {!isNew && selectedProduct.id && (
-            <View style={s.dBlock}>
+            <RecipeErrorBoundary><View style={s.dBlock}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Text style={s.dBlockTitle}>Receta</Text>
                 <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -443,7 +456,7 @@ export default function ProductsScreen() {
               {productRecipeItems.length === 0 && !showIngSearch && !showProdSearch && (
                 <Text style={{ color: COLORS.textMuted, fontSize: 12, paddingVertical: 12 }}>Sin receta. Agrega ingredientes o productos para calcular food cost.</Text>
               )}
-            </View>
+            </View></RecipeErrorBoundary>
           )}
 
           {/* Modifier Groups */}
