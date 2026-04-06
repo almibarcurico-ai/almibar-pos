@@ -60,6 +60,7 @@ export default function ProductsScreen() {
   const [editDesc, setEditDesc] = useState('');
   const [editCatId, setEditCatId] = useState('');
   const [isNew, setIsNew] = useState(false);
+  const [catDropOpen, setCatDropOpen] = useState(false);
   // Recipe add
   const [ingSearch, setIngSearch] = useState('');
   const [showIngSearch, setShowIngSearch] = useState(false);
@@ -95,7 +96,7 @@ export default function ProductsScreen() {
 
   const selectProduct = (p: any) => {
     setSelectedProduct(p); setEditName(p.name); setEditPrice(String(p.price)); setEditDesc(p.description || ''); setEditCatId(p.category_id);
-    setIsNew(false); setShowIngSearch(false); setShowProdSearch(false); setShowModAdd(false);
+    setIsNew(false); setShowIngSearch(false); setShowProdSearch(false); setShowModAdd(false); setCatDropOpen(false);
     setLocalRecipeQty({}); setLocalRecipeUnit({});
   };
 
@@ -320,18 +321,31 @@ export default function ProductsScreen() {
             <View style={s.field}><Text style={s.fLabel}>Precio *</Text><TextInput style={s.fInput} value={editPrice} onChangeText={setEditPrice} keyboardType="number-pad" /></View>
             <View style={s.field}>
               <Text style={s.fLabel}>Categoría *</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexDirection: 'row' }}>
-                {SECTIONS.map(sec => sec.ids.map(id => {
-                  const cat = categories.find(c => c.id === id);
-                  if (!cat) return null;
-                  const active = editCatId === id;
-                  return (
-                    <TouchableOpacity key={id} style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4, marginRight: 4, backgroundColor: active ? '#C8952A' : '#2A2318', borderWidth: 1, borderColor: active ? '#C8952A' : '#2A2318' }} onPress={() => setEditCatId(id)}>
-                      <Text style={{ fontSize: 10, color: active ? '#0A0908' : '#8A7A5A' }}>{cat.name}</Text>
-                    </TouchableOpacity>
-                  );
-                }))}
-              </ScrollView>
+              <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 }} onPress={() => setCatDropOpen(!catDropOpen)}>
+                <Text style={{ flex: 1, fontSize: 13, color: editCatId ? COLORS.text : COLORS.textMuted }}>{editCatId ? catName(editCatId) : 'Seleccionar categoría'}</Text>
+                <Text style={{ color: COLORS.textMuted }}>{catDropOpen ? '▲' : '▼'}</Text>
+              </TouchableOpacity>
+              {catDropOpen && (
+                <View style={{ backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, marginTop: 4, maxHeight: 250 }}>
+                  <ScrollView nestedScrollEnabled>
+                    {SECTIONS.map(sec => (
+                      <View key={sec.label}>
+                        <Text style={{ fontSize: 10, fontWeight: '700', color: COLORS.textMuted, paddingHorizontal: 12, paddingTop: 8, paddingBottom: 2, letterSpacing: 0.5 }}>{sec.label}</Text>
+                        {sec.ids.map(id => {
+                          const cat = categories.find(c => c.id === id);
+                          if (!cat) return null;
+                          const active = editCatId === id;
+                          return (
+                            <TouchableOpacity key={id} style={{ paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border, backgroundColor: active ? COLORS.primary : 'transparent' }} onPress={() => { setEditCatId(id); setCatDropOpen(false); }}>
+                              <Text style={{ fontSize: 13, color: active ? '#fff' : COLORS.text, fontWeight: active ? '700' : '400' }}>{cat.name}</Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
             </View>
             {!isNew && recipeCost > 0 && (
               <View style={s.field}>
