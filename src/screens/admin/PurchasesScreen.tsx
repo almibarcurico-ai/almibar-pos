@@ -463,9 +463,20 @@ export default function PurchasesScreen({ onBack }: { onBack?: () => void }) {
                     </Text>
                   </View>
                 )}
-                {/* Stock info */}
+                {/* Stock info + unidad */}
                 {item.matched && (
-                  <Text style={{ fontSize: 10, color: COLORS.textMuted, marginTop: 4 }}>Stock actual: {item.matched.stock_current} {item.matched.unit} → después: {(item.matched.stock_current + (parseFloat(item.cantidad) || 0)).toFixed(1)} {item.matched.unit}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6, gap: 8, flexWrap: 'wrap' }}>
+                    <Text style={{ fontSize: 11, color: COLORS.textMuted }}>Stock: <Text style={{ fontWeight: '700', color: COLORS.text }}>{item.matched.stock_current} {item.matched.unit}</Text> → <Text style={{ fontWeight: '700', color: COLORS.primary }}>{(item.matched.stock_current + (parseFloat(item.cantidad) || 0)).toFixed(1)}</Text></Text>
+                    <View style={{ flexDirection: 'row', gap: 3, alignItems: 'center' }}>
+                      <Text style={{ fontSize: 10, color: COLORS.textMuted }}>Unidad:</Text>
+                      {['unidad', 'kg', 'gr', 'lt', 'ml'].map(u => (
+                        <TouchableOpacity key={u} onPress={() => updateScannedItem(idx, 'unidad', u)}
+                          style={{ paddingHorizontal: 7, paddingVertical: 3, borderRadius: 5, backgroundColor: (item.unidad || '').toLowerCase() === u ? COLORS.primary : COLORS.background, borderWidth: 1, borderColor: (item.unidad || '').toLowerCase() === u ? COLORS.primary : COLORS.border }}>
+                          <Text style={{ fontSize: 10, fontWeight: '700', color: (item.unidad || '').toLowerCase() === u ? '#fff' : COLORS.textMuted }}>{u}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
                 )}
                 {/* Assign / create */}
                 {item.is_new && (
