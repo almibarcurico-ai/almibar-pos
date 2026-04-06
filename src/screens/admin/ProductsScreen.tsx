@@ -84,7 +84,8 @@ export default function ProductsScreen() {
 
   const selectProduct = (p: any) => {
     setSelectedProduct(p); setEditName(p.name); setEditPrice(String(p.price)); setEditDesc(p.description || ''); setEditCatId(p.category_id);
-    setIsNew(false); setShowIngSearch(false); setShowModAdd(false);
+    setIsNew(false); setShowIngSearch(false); setShowProdSearch(false); setShowModAdd(false);
+    setLocalRecipeQty({}); setLocalRecipeUnit({});
   };
 
   const openNew = () => {
@@ -165,7 +166,7 @@ export default function ProductsScreen() {
     const recipe = await ensureRecipe();
     if (!recipe) return;
     await supabase.from('recipe_items').insert({ recipe_id: recipe.id, sub_product_id: prod.id, ingredient_id: null, quantity: 1, unit: 'unidad' });
-    setShowIngSearch(false); setIngSearch(''); await load();
+    setShowProdSearch(false); setProdSearch(''); await load();
   };
 
   const saveRecipeItem2 = async (riId: string, overrideUnit?: string) => {
@@ -217,11 +218,13 @@ export default function ProductsScreen() {
   const filteredIngredients = ingredients.filter(i => !ingSearch || i.name.toLowerCase().includes(ingSearch.toLowerCase())).slice(0, 8);
   const filteredProducts = ingSearch.length >= 2 ? products.filter(p => p.id !== selectedProduct?.id && p.name.toLowerCase().includes(ingSearch.toLowerCase())).slice(0, 5) : [];
 
-  const getSubProductCost = (prodId: string): number => {
+  const getSubProductCost = (prodId: string, visited: Set<string> = new Set()): number => {
+    if (visited.has(prodId)) return 0;
+    visited.add(prodId);
     const r = recipes.find(rc => rc.product_id === prodId);
     if (!r) return 0;
     return recipeItems.filter(ri => ri.recipe_id === r.id).reduce((s, ri) => {
-      if (ri.sub_product_id) return s + getSubProductCost(ri.sub_product_id) * (ri.quantity || 1);
+      if (ri.sub_product_id) return s + getSubProductCost(ri.sub_product_id, visited) * (ri.quantity || 1);
       const ing = ingredients.find(x => x.id === ri.ingredient_id);
       if (!ing) return s;
       return s + calcIngCost(ing, ri.quantity || 0, ri.unit);
