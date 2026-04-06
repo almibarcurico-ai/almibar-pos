@@ -84,28 +84,50 @@ export default function PurchasesScreen({ onBack }: { onBack?: () => void }) {
       const data = await res.json();
       setScannedData(data);
 
-      // Match items with ingredients (priorizar coincidencia de nombre + unidad)
+      // Match items with ingredients — matching estricto
+      const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+      const stopWords = new Set(['de','la','el','en','con','para','por','los','las','del','una','un','formato','bolsa','barra','bidon','paquete','caja']);
+      const keyWords = (s: string) => normalize(s).split(/[\s\-\/]+/).filter(w => w.length > 2 && !stopWords.has(w));
+
       const items: ScannedItem[] = (data.items || []).map((item: any) => {
-        const desc = (item.descripcion || '').toLowerCase().trim();
-        const itemUnit = (item.unidad || '').toLowerCase();
+        const desc = normalize(item.descripcion || '');
+        const descWords = keyWords(item.descripcion || '');
+
         // 1. Exact name match
-        let match = ingredients.find(i => i.name.toLowerCase() === desc);
-        // 2. Contains match — prefer same unit
+        let match = ingredients.find(i => normalize(i.name) === desc);
+
+        // 2. Ingredient name is fully contained in description (or vice versa)
         if (!match) {
-          const candidates = ingredients.filter(i => desc.includes(i.name.toLowerCase()) || i.name.toLowerCase().includes(desc));
-          match = candidates.find(c => c.unit?.toLowerCase() === itemUnit) || candidates[0];
-        }
-        // 3. Word match — prefer same unit, require 2+ common words
-        if (!match) {
-          const words = desc.split(/\s+/).filter((w: string) => w.length > 3);
           const candidates = ingredients.filter(i => {
-            const iw = i.name.toLowerCase().split(/\s+/);
-            const common = words.filter((w: string) => iw.some((x: string) => x.includes(w) || w.includes(x)));
-            return common.length >= 2;
+            const n = normalize(i.name);
+            return desc.includes(n) || n.includes(desc);
           });
-          match = candidates.find(c => c.unit?.toLowerCase() === itemUnit) || candidates[0];
+          if (candidates.length === 1) match = candidates[0];
+          else if (candidates.length > 1) {
+            // Pick the longest name match (most specific)
+            match = candidates.sort((a, b) => b.name.length - a.name.length)[0];
+          }
         }
-        return { ...item, matched: match || null, is_new: !match, create_new: false };
+
+        // 3. Keyword scoring — need >60% overlap of ingredient keywords in description
+        if (!match) {
+          let bestScore = 0;
+          let bestIng: any = null;
+          for (const ing of ingredients) {
+            const ingWords = keyWords(ing.name);
+            if (ingWords.length === 0) continue;
+            const matched = ingWords.filter(iw => descWords.some(dw => dw.includes(iw) || iw.includes(dw)));
+            const score = matched.length / ingWords.length;
+            if (score > 0.6 && score > bestScore) {
+              bestScore = score;
+              bestIng = ing;
+            }
+          }
+          match = bestIng;
+        }
+
+        // Sin match → marcar para crear automáticamente
+        return { ...item, matched: match || null, is_new: !match, create_new: !match };
       });
       setScannedItems(items);
       setScanning(false);
@@ -168,11 +190,16 @@ export default function PurchasesScreen({ onBack }: { onBack?: () => void }) {
         const unitPrice = parseFloat(item.precio_unitario) || 0;
         const totalPrice = parseFloat(item.precio_total) || 0;
 
-        // Create new ingredient if flagged
-        if (item.is_new && item.create_new && !ingredientId) {
+        // Create new ingredient if no match
+        if (!ingredientId && item.create_new) {
+          const cat = item.categoria || 'Otros';
+          const catMap: Record<string, string> = { 'carnes': 'Carnes', 'pescados': 'Pescados', 'mariscos': 'Mariscos', 'lacteos': 'Lácteos', 'verduras': 'Verduras', 'frutas': 'Frutas', 'licores': 'Licores', 'cervezas': 'Cervezas', 'destilados': 'Destilados', 'insumos': 'Insumos', 'especias': 'Especias' };
+          const mappedCat = catMap[cat.toLowerCase()] || 'Otros';
+          const suppId2 = scannedData.proveedor ? suppliers.find(s => s.name.toLowerCase().includes(scannedData.proveedor.toLowerCase().slice(0, 10)))?.id : null;
           const { data: newIng } = await supabase.from('ingredients').insert({
-            name: item.descripcion, unit: item.unidad || 'un',
-            stock_current: 0, stock_min: 0, cost_per_unit: unitPrice, active: true,
+            name: item.descripcion, unit: item.unidad || 'unidad',
+            stock_current: 0, stock_min: 0, cost_per_unit: unitPrice,
+            category: mappedCat, default_supplier_id: suppId2 || null, active: true,
           }).select('id').single();
           if (newIng) ingredientId = newIng.id;
         }
