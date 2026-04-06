@@ -159,7 +159,7 @@ export default function ProductsScreen() {
       const ru = localRecipeUnit[ri.id] || ri.unit || ing.unit || 'g';
       return s + calcIngCost(ing, q, ru);
     }, 0);
-  } catch (e: any) { console.error('recipeCost error:', e); setRenderError?.('recipeCost: ' + e?.message); }
+  } catch (e: any) { console.error('recipeCost error:', e); }
 
   const ensureRecipe = async () => {
     if (productRecipe) return productRecipe;
