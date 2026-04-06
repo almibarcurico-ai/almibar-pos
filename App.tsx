@@ -22,6 +22,7 @@ import ModifiersScreen from './src/screens/admin/ModifiersScreen';
 import InventoryCountScreen from './src/screens/admin/InventoryCountScreen';
 import ProductionScreen from './src/screens/admin/ProductionScreen';
 import CostScreen from './src/screens/admin/CostScreen';
+import PedidosScreen from './src/screens/admin/PedidosScreen';
 import KDSScreen from './src/screens/KDSScreen';
 import TabNavigator from './src/components/TabNavigator';
 import MobileTableScreen from './src/screens/MobileTableScreen';
@@ -34,7 +35,7 @@ type DetailScreen =
   | { type: 'inventory'; sub: string }
   | null;
 
-type ProdSub = 'menu' | 'productos' | 'produccion' | 'ingredientes' | 'modificadores' | 'inventario';
+type ProdSub = 'menu' | 'productos' | 'produccion' | 'ingredientes' | 'modificadores' | 'inventario' | 'pedidos';
 
 function ProductosHub() {
   const [sub, setSub] = useState<ProdSub>('menu');
@@ -44,6 +45,7 @@ function ProductosHub() {
     { key: 'ingredientes', label: 'Ingredientes', icon: '🥩' },
     { key: 'modificadores', label: 'Modificadores', icon: '🎛️' },
     { key: 'inventario', label: 'Inventario', icon: '📦' },
+    { key: 'pedidos', label: 'Pedidos', icon: '🛒' },
   ];
 
   return (
@@ -62,6 +64,7 @@ function ProductosHub() {
       {sub === 'ingredientes' && <IngredientsScreen />}
       {sub === 'modificadores' && <ModifiersScreen />}
       {sub === 'inventario' && <InventoryCountScreen />}
+      {sub === 'pedidos' && <PedidosScreen />}
       {sub === 'menu' && <ProductsScreen />}
     </View>
   );
