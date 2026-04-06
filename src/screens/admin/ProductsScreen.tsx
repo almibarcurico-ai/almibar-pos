@@ -239,8 +239,16 @@ export default function ProductsScreen() {
     if (visited.has(prodId)) return 0;
     visited.add(prodId);
     const r = recipes.find(rc => rc.product_id === prodId);
-    if (!r) return 0;
-    return recipeItems.filter(ri => ri.recipe_id === r.id).reduce((s, ri) => {
+    if (!r) {
+      const prod = products.find(p => p.id === prodId);
+      return prod?.price || 0;
+    }
+    const ris = recipeItems.filter(ri => ri.recipe_id === r.id);
+    if (ris.length === 0) {
+      const prod = products.find(p => p.id === prodId);
+      return prod?.price || 0;
+    }
+    return ris.reduce((s, ri) => {
       if (ri.sub_product_id) return s + getSubProductCost(ri.sub_product_id, visited) * (ri.quantity || 1);
       const ing = ingredients.find(x => x.id === ri.ingredient_id);
       if (!ing) return s;
@@ -287,7 +295,10 @@ export default function ProductsScreen() {
           {displayed.map((p, i) => {
             const rec = recipes.find(r => r.product_id === p.id);
             const ris = rec ? recipeItems.filter(ri => ri.recipe_id === rec.id) : [];
-            const cost = ris.reduce((s, ri) => { const ing = ingredients.find(x => x.id === ri.ingredient_id); if (!ing) return s; return s + calcIngCost(ing, ri.quantity, ri.unit || ing.unit); }, 0);
+            const cost = ris.reduce((s, ri) => {
+              if (ri.sub_product_id) return s + getSubProductCost(ri.sub_product_id) * (ri.quantity || 1);
+              const ing = ingredients.find(x => x.id === ri.ingredient_id); if (!ing) return s; return s + calcIngCost(ing, ri.quantity, ri.unit || ing.unit);
+            }, 0);
             const isActive = selectedProduct?.id === p.id;
             return (
               <TouchableOpacity key={p.id} style={[s.tRow, i % 2 === 0 && s.tRowA, isActive && { backgroundColor: COLORS.primary + '18', borderLeftWidth: 3, borderLeftColor: COLORS.primary }]} onPress={() => selectProduct(p)}>
