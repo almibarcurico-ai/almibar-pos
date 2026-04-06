@@ -480,19 +480,38 @@ export default function PurchasesScreen({ onBack }: { onBack?: () => void }) {
                 )}
                 {/* Assign / create */}
                 {item.is_new && (
-                  <View style={{ flexDirection: 'row', gap: 6, marginTop: 6, alignItems: 'center' }}>
-                    <TouchableOpacity style={{ backgroundColor: item.create_new ? COLORS.primary : COLORS.card, borderWidth: 1, borderColor: item.create_new ? COLORS.primary : COLORS.border, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 }} onPress={() => updateScannedItem(idx, 'create_new', !item.create_new)}>
-                      <Text style={{ fontSize: 10, fontWeight: '600', color: item.create_new ? '#fff' : COLORS.text }}>+ Crear</Text>
-                    </TouchableOpacity>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
-                      <View style={{ flexDirection: 'row', gap: 4 }}>
-                        {ingredients.filter(i => item.descripcion.toLowerCase().split(' ').some((w: string) => w.length > 3 && i.name.toLowerCase().includes(w))).slice(0, 5).map(i => (
-                          <TouchableOpacity key={i.id} style={{ backgroundColor: COLORS.info + '15', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 3 }} onPress={() => assignIngredient(idx, i)}>
-                            <Text style={{ fontSize: 9, color: COLORS.info, fontWeight: '600' }}>{i.name}</Text>
+                  <View style={{ marginTop: 6, backgroundColor: '#FFF7ED', borderRadius: 8, padding: 8, borderWidth: 1, borderColor: '#FDBA7440' }}>
+                    <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', marginBottom: 6 }}>
+                      <TouchableOpacity style={{ backgroundColor: item.create_new ? COLORS.primary : COLORS.card, borderWidth: 1.5, borderColor: item.create_new ? COLORS.primary : COLORS.border, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 7 }} onPress={() => updateScannedItem(idx, 'create_new', !item.create_new)}>
+                        <Text style={{ fontSize: 13, fontWeight: '800', color: item.create_new ? '#fff' : COLORS.text }}>{item.create_new ? '✓ Se creará ingrediente' : '+ Crear ingrediente'}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={{ backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 }} onPress={() => { setSearchIdx(idx); setSearchText(''); }}>
+                        <Text style={{ fontSize: 12, fontWeight: '600', color: COLORS.primary }}>🔍 Asignar existente</Text>
+                      </TouchableOpacity>
+                    </View>
+                    {item.create_new && (
+                      <View style={{ flexDirection: 'row', gap: 3, alignItems: 'center' }}>
+                        <Text style={{ fontSize: 10, color: COLORS.textMuted }}>Unidad:</Text>
+                        {['unidad', 'kg', 'gr', 'lt', 'ml'].map(u => (
+                          <TouchableOpacity key={u} onPress={() => updateScannedItem(idx, 'unidad', u)}
+                            style={{ paddingHorizontal: 7, paddingVertical: 3, borderRadius: 5, backgroundColor: (item.unidad || '').toLowerCase() === u ? COLORS.primary : '#fff', borderWidth: 1, borderColor: (item.unidad || '').toLowerCase() === u ? COLORS.primary : COLORS.border }}>
+                            <Text style={{ fontSize: 10, fontWeight: '700', color: (item.unidad || '').toLowerCase() === u ? '#fff' : COLORS.textMuted }}>{u}</Text>
                           </TouchableOpacity>
                         ))}
                       </View>
-                    </ScrollView>
+                    )}
+                    {!item.create_new && (
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                        <View style={{ flexDirection: 'row', gap: 4 }}>
+                          <Text style={{ fontSize: 10, color: COLORS.textMuted, alignSelf: 'center' }}>Sugerencias:</Text>
+                          {ingredients.filter(i => item.descripcion.toLowerCase().split(' ').some((w: string) => w.length > 3 && i.name.toLowerCase().includes(w))).slice(0, 5).map(i => (
+                            <TouchableOpacity key={i.id} style={{ backgroundColor: '#E0F2FE', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 }} onPress={() => assignIngredient(idx, i)}>
+                              <Text style={{ fontSize: 11, color: '#0369A1', fontWeight: '600' }}>{i.name}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      </ScrollView>
+                    )}
                   </View>
                 )}
               </View>
