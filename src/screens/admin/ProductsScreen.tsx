@@ -134,22 +134,35 @@ export default function ProductsScreen() {
   const productRecipe = selectedProduct?.id ? recipes.find(r => r.product_id === selectedProduct.id) : null;
   const productRecipeItems = productRecipe ? recipeItems.filter(ri => ri.recipe_id === productRecipe.id) : [];
   const recipeCost = productRecipeItems.reduce((s, ri) => {
+    const q = parseFloat(localRecipeQty[ri.id] !== undefined ? localRecipeQty[ri.id] : String(ri.quantity)) || 0;
+    if (ri.sub_product_id) {
+      return s + getSubProductCost(ri.sub_product_id) * q;
+    }
     const ing = ingredients.find(i => i.id === ri.ingredient_id);
     if (!ing) return s;
     const ru = localRecipeUnit[ri.id] || ri.unit || ing.unit || 'g';
-    const q = parseFloat(localRecipeQty[ri.id] !== undefined ? localRecipeQty[ri.id] : String(ri.quantity)) || 0;
     return s + calcIngCost(ing, q, ru);
   }, 0);
 
+  const ensureRecipe = async () => {
+    if (productRecipe) return productRecipe;
+    const { data } = await supabase.from('recipes').insert({ product_id: selectedProduct.id, yield_portions: 1 }).select('*').single();
+    return data;
+  };
+
   const addIngredient = async (ing: any) => {
     if (!selectedProduct?.id) return;
-    let recipe = productRecipe;
-    if (!recipe) {
-      const { data } = await supabase.from('recipes').insert({ product_id: selectedProduct.id, yield_portions: 1 }).select('*').single();
-      recipe = data;
-    }
+    const recipe = await ensureRecipe();
     if (!recipe) return;
     await supabase.from('recipe_items').insert({ recipe_id: recipe.id, ingredient_id: ing.id, quantity: 1 });
+    setShowIngSearch(false); setIngSearch(''); await load();
+  };
+
+  const addSubProduct = async (prod: any) => {
+    if (!selectedProduct?.id) return;
+    const recipe = await ensureRecipe();
+    if (!recipe) return;
+    await supabase.from('recipe_items').insert({ recipe_id: recipe.id, sub_product_id: prod.id, ingredient_id: null, quantity: 1, unit: 'unidad' });
     setShowIngSearch(false); setIngSearch(''); await load();
   };
 
@@ -200,6 +213,18 @@ export default function ProductsScreen() {
   });
 
   const filteredIngredients = ingredients.filter(i => !ingSearch || i.name.toLowerCase().includes(ingSearch.toLowerCase())).slice(0, 8);
+  const filteredProducts = ingSearch.length >= 2 ? products.filter(p => p.id !== selectedProduct?.id && p.name.toLowerCase().includes(ingSearch.toLowerCase())).slice(0, 5) : [];
+
+  const getSubProductCost = (prodId: string): number => {
+    const r = recipes.find(rc => rc.product_id === prodId);
+    if (!r) return 0;
+    return recipeItems.filter(ri => ri.recipe_id === r.id).reduce((s, ri) => {
+      if (ri.sub_product_id) return s + getSubProductCost(ri.sub_product_id) * (ri.quantity || 1);
+      const ing = ingredients.find(x => x.id === ri.ingredient_id);
+      if (!ing) return s;
+      return s + calcIngCost(ing, ri.quantity || 0, ri.unit);
+    }, 0);
+  };
 
   return (
     <View style={s.wrap}>
@@ -299,18 +324,28 @@ export default function ProductsScreen() {
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Text style={s.dBlockTitle}>Receta</Text>
                 <TouchableOpacity onPress={() => setShowIngSearch(!showIngSearch)}>
-                  <Text style={{ color: COLORS.primary, fontSize: 13, fontWeight: '600' }}>{showIngSearch ? '✕ Cerrar' : '+ Ingrediente'}</Text>
+                  <Text style={{ color: COLORS.primary, fontSize: 13, fontWeight: '600' }}>{showIngSearch ? '✕ Cerrar' : '+ Agregar'}</Text>
                 </TouchableOpacity>
               </View>
 
               {showIngSearch && (
                 <View style={{ marginBottom: 8 }}>
-                  <TextInput style={s.fInput} placeholder="Buscar ingrediente..." placeholderTextColor={COLORS.textMuted} value={ingSearch} onChangeText={setIngSearch} />
+                  <TextInput style={s.fInput} placeholder="Buscar ingrediente o producto..." placeholderTextColor={COLORS.textMuted} value={ingSearch} onChangeText={setIngSearch} />
+                  {filteredIngredients.length > 0 && <Text style={{ fontSize: 10, fontWeight: '700', color: COLORS.textMuted, paddingHorizontal: 8, paddingTop: 6 }}>INGREDIENTES</Text>}
                   {filteredIngredients.map(ing => (
                     <TouchableOpacity key={ing.id} style={{ padding: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border }} onPress={() => addIngredient(ing)}>
-                      <Text style={{ color: COLORS.text, fontSize: 13 }}>{ing.name} <Text style={{ color: COLORS.textSecondary }}>({ing.unit} · {fmt(ing.cost_per_unit)})</Text></Text>
+                      <Text style={{ color: COLORS.text, fontSize: 13 }}>🥩 {ing.name} <Text style={{ color: COLORS.textSecondary }}>({ing.unit} · {fmt(ing.cost_per_unit)})</Text></Text>
                     </TouchableOpacity>
                   ))}
+                  {filteredProducts.length > 0 && <Text style={{ fontSize: 10, fontWeight: '700', color: COLORS.textMuted, paddingHorizontal: 8, paddingTop: 6 }}>PRODUCTOS</Text>}
+                  {filteredProducts.map(prod => {
+                    const cost = getSubProductCost(prod.id);
+                    return (
+                      <TouchableOpacity key={'p-' + prod.id} style={{ padding: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border }} onPress={() => addSubProduct(prod)}>
+                        <Text style={{ color: COLORS.text, fontSize: 13 }}>🍕 {prod.name} <Text style={{ color: COLORS.textSecondary }}>(costo: {fmt(cost)})</Text></Text>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
               )}
 
@@ -325,6 +360,34 @@ export default function ProductsScreen() {
                 </View>
               )}
               {productRecipeItems.map(ri => {
+                // Sub-producto
+                if (ri.sub_product_id) {
+                  const prod = products.find(p => p.id === ri.sub_product_id);
+                  if (!prod) return null;
+                  const currentQty = parseFloat(localRecipeQty[ri.id] !== undefined ? localRecipeQty[ri.id] : String(ri.quantity)) || 0;
+                  const unitCost = getSubProductCost(prod.id);
+                  const cost = unitCost * currentQty;
+                  return (
+                    <View key={ri.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: COLORS.border }}>
+                      <Text style={{ flex: 1, fontSize: 12, color: COLORS.text }}>🍕 {prod.name}</Text>
+                      <TextInput
+                        style={{ width: 60, fontSize: 12, color: COLORS.text, backgroundColor: COLORS.card, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2, textAlign: 'center', borderWidth: 1, borderColor: COLORS.border }}
+                        value={localRecipeQty[ri.id] !== undefined ? localRecipeQty[ri.id] : String(ri.quantity)}
+                        onChangeText={t => setLocalRecipeQty(prev => ({ ...prev, [ri.id]: t }))}
+                        onBlur={() => saveRecipeItem2(ri.id)}
+                        keyboardType="decimal-pad"
+                      />
+                      <View style={{ width: 65, alignItems: 'center' }}>
+                        <Text style={{ fontSize: 10, color: COLORS.textMuted }}>unidad</Text>
+                      </View>
+                      <Text style={{ width: 70, fontSize: 12, color: COLORS.primary, textAlign: 'right' }}>{fmt(cost)}</Text>
+                      <TouchableOpacity style={{ width: 30, alignItems: 'center' }} onPress={() => removeRecipeItem(ri.id)}>
+                        <Text style={{ color: COLORS.error, fontSize: 14 }}>✕</Text>
+                      </TouchableOpacity>
+                    </View>
+                  );
+                }
+                // Ingrediente normal
                 const ing = ingredients.find(x => x.id === ri.ingredient_id);
                 if (!ing) return null;
                 const currentUnit = localRecipeUnit[ri.id] || ri.unit || ing.unit || 'g';
