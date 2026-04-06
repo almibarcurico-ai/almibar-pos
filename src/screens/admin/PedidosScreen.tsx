@@ -127,38 +127,15 @@ export default function PedidosScreen() {
       <View style={{ flex: 1 }}>
         {selectedSup ? (
           <>
-            {/* Header */}
-            <View style={{ padding: 12, backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.border }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: isMobile ? 16 : 20, fontWeight: '800', color: COLORS.text }}>{selectedSup.name}</Text>
-                  {selectedSup.phone && <Text style={{ fontSize: 11, color: COLORS.textMuted }}>{selectedSup.phone}{selectedSup.email ? ' · ' + selectedSup.email : ''}</Text>}
-                </View>
-                <View style={{ flexDirection: 'row', gap: 6 }}>
-                  <TouchableOpacity style={{ backgroundColor: '#42A5F5', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 }} onPress={fillMinStock}>
-                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 11 }}>Llenar mínimos</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={{ backgroundColor: COLORS.border, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 }} onPress={clearAll}>
-                    <Text style={{ color: COLORS.textSecondary, fontWeight: '700', fontSize: 11 }}>Limpiar</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              {/* Resumen */}
-              <View style={{ flexDirection: 'row', gap: 12 }}>
-                <View style={{ flex: 1, backgroundColor: COLORS.background, borderRadius: 8, padding: 10, borderWidth: 1, borderColor: COLORS.border }}>
-                  <Text style={{ fontSize: 10, fontWeight: '700', color: COLORS.textMuted }}>INGREDIENTES</Text>
-                  <Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.text }}>{supIngredients.length}</Text>
-                </View>
-                <View style={{ flex: 1, backgroundColor: COLORS.background, borderRadius: 8, padding: 10, borderWidth: 1, borderColor: COLORS.border }}>
-                  <Text style={{ fontSize: 10, fontWeight: '700', color: COLORS.textMuted }}>EN PEDIDO</Text>
-                  <Text style={{ fontSize: 18, fontWeight: '800', color: totalItems > 0 ? COLORS.primary : COLORS.text }}>{totalItems}</Text>
-                </View>
-                <View style={{ flex: 1, backgroundColor: COLORS.background, borderRadius: 8, padding: 10, borderWidth: 1, borderColor: COLORS.border }}>
-                  <Text style={{ fontSize: 10, fontWeight: '700', color: COLORS.textMuted }}>TOTAL EST.</Text>
-                  <Text style={{ fontSize: 18, fontWeight: '800', color: totalCost > 0 ? COLORS.primary : COLORS.text }}>{fmt(totalCost)}</Text>
-                </View>
-              </View>
+            {/* Header compacto */}
+            <View style={{ padding: 10, backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.border, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text style={{ fontSize: isMobile ? 15 : 18, fontWeight: '800', color: COLORS.text, flex: 1 }}>{selectedSup.name}</Text>
+              <TouchableOpacity style={{ backgroundColor: '#42A5F5', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8 }} onPress={fillMinStock}>
+                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 11 }}>Llenar mínimos</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ backgroundColor: COLORS.border, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8 }} onPress={clearAll}>
+                <Text style={{ color: COLORS.textSecondary, fontWeight: '700', fontSize: 11 }}>Limpiar</Text>
+              </TouchableOpacity>
             </View>
 
             {/* Buscar */}
@@ -187,19 +164,19 @@ export default function PedidosScreen() {
                 return (
                   <View key={i.id} style={[st.row, idx % 2 === 0 && { backgroundColor: COLORS.card + '40' }, qty > 0 && { backgroundColor: '#05966910' }]}>
                     <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.text }} numberOfLines={1}>{i.name}</Text>
+                      <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.text }} numberOfLines={1}>{i.name}</Text>
                       {isMobile && <Text style={{ fontSize: 10, color: COLORS.textMuted }}>{i.unit}{i.stock_min > 0 ? ` · mín ${i.stock_min}` : ''}</Text>}
                     </View>
-                    {!isMobile && <Text style={{ width: 60, fontSize: 11, textAlign: 'center', color: COLORS.textSecondary }}>{i.unit}</Text>}
-                    <Text style={{ width: isMobile ? 50 : 70, fontSize: 12, fontWeight: '600', textAlign: 'right', color: isLow ? '#E53935' : COLORS.text }}>
+                    {!isMobile && <Text style={{ width: 60, fontSize: 13, fontWeight: '600', textAlign: 'center', color: COLORS.textSecondary }}>{i.unit}</Text>}
+                    <Text style={{ width: isMobile ? 50 : 70, fontSize: isMobile ? 15 : 16, fontWeight: '800', textAlign: 'right', color: isLow ? '#E53935' : COLORS.text }}>
                       {Math.round(i.stock_current)}
                     </Text>
                     {!isMobile && (
-                      <Text style={{ width: 50, fontSize: 11, textAlign: 'right', color: i.stock_min > 0 ? COLORS.textSecondary : COLORS.textMuted }}>
+                      <Text style={{ width: 50, fontSize: 14, fontWeight: '700', textAlign: 'right', color: i.stock_min > 0 ? COLORS.textSecondary : COLORS.textMuted }}>
                         {i.stock_min > 0 ? Math.round(i.stock_min) : '-'}
                       </Text>
                     )}
-                    <Text style={{ width: isMobile ? 60 : 80, fontSize: 12, textAlign: 'right', fontWeight: '600', color: COLORS.primary }}>
+                    <Text style={{ width: isMobile ? 60 : 80, fontSize: isMobile ? 14 : 15, textAlign: 'right', fontWeight: '800', color: COLORS.primary }}>
                       {fmt(i.cost_per_unit)}
                     </Text>
                     <View style={{ width: isMobile ? 70 : 90, alignItems: 'center' }}>
@@ -213,7 +190,7 @@ export default function PedidosScreen() {
                       />
                     </View>
                     {!isMobile && (
-                      <Text style={{ width: 80, fontSize: 12, fontWeight: '700', textAlign: 'right', color: sub > 0 ? COLORS.text : COLORS.textMuted }}>
+                      <Text style={{ width: 80, fontSize: 14, fontWeight: '800', textAlign: 'right', color: sub > 0 ? COLORS.text : COLORS.textMuted }}>
                         {sub > 0 ? fmt(sub) : '-'}
                       </Text>
                     )}
