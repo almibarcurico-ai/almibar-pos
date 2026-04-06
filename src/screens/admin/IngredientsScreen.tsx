@@ -33,6 +33,12 @@ export default function IngredientsScreen() {
   const [historyModal, setHistoryModal] = useState(false);
   const [history, setHistory] = useState<any[]>([]);
   const [historyName, setHistoryName] = useState('');
+  const [selected, setSelected] = useState<any>(null);
+  const [catOpen, setCatOpen] = useState(false);
+  const [supOpen, setSupOpen] = useState(false);
+  const [newCat, setNewCat] = useState('');
+  const [newSup, setNewSup] = useState('');
+  const [customCats, setCustomCats] = useState<string[]>([]);
   const fileRef = useRef<any>(null);
   const [diffModal, setDiffModal] = useState(false);
   const [diffRows, setDiffRows] = useState<any[]>([]);
@@ -43,7 +49,11 @@ export default function IngredientsScreen() {
       supabase.from('ingredients').select('*').eq('active', true).order('name'),
       supabase.from('suppliers').select('*').order('name'),
     ]);
-    if (data) setItems(data);
+    if (data) {
+      setItems(data);
+      const extra = data.map((i: any) => i.category).filter((c: string) => c && !CATS.includes(c));
+      setCustomCats([...new Set(extra)] as string[]);
+    }
     if (sups) setSuppliers(sups);
   }, []);
 
@@ -73,11 +83,11 @@ export default function IngredientsScreen() {
 
   const openNew = () => {
     setEd({ name: '', unit: 'gr', stock_current: 0, stock_min: 0, cost_per_unit: 0, category: 'Otros' });
-    setIsNew(true); setModal(true);
+    setIsNew(true); setCatOpen(false); setSupOpen(false); setNewCat(''); setNewSup(''); setModal(true);
   };
 
   const openEdit = (i: any) => {
-    setEd({ ...i }); setIsNew(false); setModal(true);
+    setEd({ ...i }); setIsNew(false); setCatOpen(false); setSupOpen(false); setNewCat(''); setNewSup(''); setModal(true);
   };
 
   const save = async () => {
@@ -106,6 +116,9 @@ export default function IngredientsScreen() {
         await supabase.from('ingredients').update(payload).eq('id', ed.id);
       }
       setModal(false); await load();
+      if (!isNew && selected?.id === ed.id) {
+        setSelected({ ...ed, ...payload });
+      }
     } catch (e: any) { alert('Error', e.message); }
   };
 
@@ -339,6 +352,45 @@ export default function IngredientsScreen() {
 
         {/* Tabla */}
         <View style={{ flex: 1 }}>
+          {/* Tarjeta detalle — igual que Producción */}
+          {selected && (
+            <View style={{ backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.border, padding: 12 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <Text style={{ fontSize: 16, fontWeight: '800', color: COLORS.text }}>{selected.name}</Text>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <TouchableOpacity style={{ backgroundColor: COLORS.primary, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20 }} onPress={() => openEdit(selected)}>
+                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>✏️ Editar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={{ backgroundColor: COLORS.border, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20 }} onPress={() => setSelected(null)}>
+                    <Text style={{ color: COLORS.textSecondary, fontWeight: '700', fontSize: 12 }}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+              <View style={{ flexDirection: 'row', gap: 12, backgroundColor: COLORS.background, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: COLORS.border }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 10, fontWeight: '700', color: COLORS.textMuted, marginBottom: 4 }}>STOCK ACTUAL</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
+                    <Text style={{ fontSize: 24, fontWeight: '800', color: selected.stock_min > 0 && (selected.stock_current || 0) <= selected.stock_min ? '#E53935' : COLORS.primary }}>{selected.stock_current || 0}</Text>
+                    <Text style={{ fontSize: 12, color: COLORS.textMuted }}>{selected.unit}</Text>
+                  </View>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 10, fontWeight: '700', color: COLORS.textMuted, marginBottom: 4 }}>STOCK MÍNIMO</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
+                    <Text style={{ fontSize: 24, fontWeight: '800', color: COLORS.text }}>{selected.stock_min || 0}</Text>
+                    <Text style={{ fontSize: 12, color: COLORS.textMuted }}>{selected.unit}</Text>
+                  </View>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 10, fontWeight: '700', color: COLORS.textMuted, marginBottom: 4 }}>COSTO UNIT.</Text>
+                  <Text style={{ fontSize: 24, fontWeight: '800', color: COLORS.text }}>{fmt(selected.cost_per_unit || 0)}</Text>
+                </View>
+              </View>
+              {selected.default_supplier_id && (
+                <Text style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 6 }}>Proveedor: {supplierName(selected.default_supplier_id)} · Categoría: {selected.category}</Text>
+              )}
+            </View>
+          )}
           <View style={s.tHead}>
             <Text style={[s.th, { flex: 1 }]}>Ingrediente</Text>
             <Text style={[s.th, { width: 90 }]}>Proveedor</Text>
@@ -351,8 +403,9 @@ export default function IngredientsScreen() {
           <ScrollView>
             {filtered.map((i, idx) => {
               const isLow = i.stock_current <= i.stock_min && i.stock_min > 0;
+              const isSelected = selected?.id === i.id;
               return (
-                <TouchableOpacity key={i.id} style={[s.tRow, idx % 2 === 0 && s.tRowAlt]} onPress={() => openEdit(i)}>
+                <TouchableOpacity key={i.id} style={[s.tRow, idx % 2 === 0 && s.tRowAlt, isSelected && { backgroundColor: '#05966915' }]} onPress={() => setSelected(isSelected ? null : i)}>
                   <Text style={[s.td, { flex: 1, fontWeight: '600' }]}>{i.name}</Text>
                   <Text style={[s.td, { width: 90, fontSize: 11, color: i.default_supplier_id ? COLORS.text : COLORS.textMuted }]}>{supplierName(i.default_supplier_id)}</Text>
                   <Text style={[s.td, { width: 60, textAlign: 'center', fontSize: 11, color: COLORS.textSecondary }]}>{i.unit}</Text>
@@ -385,15 +438,66 @@ export default function IngredientsScreen() {
           <TextInput style={s.inp} value={ed.name || ''} onChangeText={t => setEd((e: any) => ({ ...e, name: t }))} placeholder="Ej: Salmón fresco" placeholderTextColor={COLORS.textMuted} />
 
           <Text style={s.lb}>Categoría</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 36 }}>
-            {CATS.map(c => <Chip key={c} label={c} active={ed.category === c} onPress={() => setEd((e: any) => ({ ...e, category: c }))} />)}
-          </ScrollView>
+          <TouchableOpacity style={s.dropdown} onPress={() => { setCatOpen(!catOpen); setSupOpen(false); }}>
+            <Text style={{ fontSize: 13, color: ed.category ? COLORS.text : COLORS.textMuted, flex: 1 }}>{ed.category || 'Seleccionar categoría'}</Text>
+            <Text style={{ color: COLORS.textMuted }}>{catOpen ? '▲' : '▼'}</Text>
+          </TouchableOpacity>
+          {catOpen && (
+            <View style={s.dropList}>
+              <ScrollView style={{ maxHeight: 180 }} nestedScrollEnabled>
+                {[...CATS, ...customCats].map(c => (
+                  <TouchableOpacity key={c} style={[s.dropItem, ed.category === c && s.dropItemActive]} onPress={() => { setEd((e: any) => ({ ...e, category: c })); setCatOpen(false); }}>
+                    <Text style={{ fontSize: 13, color: ed.category === c ? '#fff' : COLORS.text }}>{c}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              <View style={{ flexDirection: 'row', gap: 6, padding: 8, borderTopWidth: 1, borderTopColor: COLORS.border }}>
+                <TextInput style={[s.inp, { flex: 1, marginBottom: 0 }]} value={newCat} onChangeText={setNewCat} placeholder="Nueva categoría..." placeholderTextColor={COLORS.textMuted} />
+                <TouchableOpacity style={{ backgroundColor: COLORS.primary, paddingHorizontal: 12, borderRadius: 8, justifyContent: 'center' }} onPress={() => {
+                  if (!newCat.trim()) return;
+                  const name = newCat.trim();
+                  if (!CATS.includes(name) && !customCats.includes(name)) setCustomCats(prev => [...prev, name]);
+                  setEd((e: any) => ({ ...e, category: name }));
+                  setNewCat(''); setCatOpen(false);
+                }}>
+                  <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>+ Crear</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
 
           <Text style={s.lb}>Proveedor</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 36 }}>
-            <Chip label="Sin proveedor" active={!ed.default_supplier_id} onPress={() => setEd((e: any) => ({ ...e, default_supplier_id: null }))} />
-            {suppliers.map(sup => <Chip key={sup.id} label={sup.name} active={ed.default_supplier_id === sup.id} onPress={() => setEd((e: any) => ({ ...e, default_supplier_id: sup.id }))} />)}
-          </ScrollView>
+          <TouchableOpacity style={s.dropdown} onPress={() => { setSupOpen(!supOpen); setCatOpen(false); }}>
+            <Text style={{ fontSize: 13, color: ed.default_supplier_id ? COLORS.text : COLORS.textMuted, flex: 1 }}>{ed.default_supplier_id ? supplierName(ed.default_supplier_id) : 'Sin proveedor'}</Text>
+            <Text style={{ color: COLORS.textMuted }}>{supOpen ? '▲' : '▼'}</Text>
+          </TouchableOpacity>
+          {supOpen && (
+            <View style={s.dropList}>
+              <ScrollView style={{ maxHeight: 180 }} nestedScrollEnabled>
+                <TouchableOpacity style={[s.dropItem, !ed.default_supplier_id && s.dropItemActive]} onPress={() => { setEd((e: any) => ({ ...e, default_supplier_id: null })); setSupOpen(false); }}>
+                  <Text style={{ fontSize: 13, color: !ed.default_supplier_id ? '#fff' : COLORS.textMuted, fontStyle: 'italic' }}>Sin proveedor</Text>
+                </TouchableOpacity>
+                {suppliers.map(sup => (
+                  <TouchableOpacity key={sup.id} style={[s.dropItem, ed.default_supplier_id === sup.id && s.dropItemActive]} onPress={() => { setEd((e: any) => ({ ...e, default_supplier_id: sup.id })); setSupOpen(false); }}>
+                    <Text style={{ fontSize: 13, color: ed.default_supplier_id === sup.id ? '#fff' : COLORS.text }}>{sup.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              <View style={{ flexDirection: 'row', gap: 6, padding: 8, borderTopWidth: 1, borderTopColor: COLORS.border }}>
+                <TextInput style={[s.inp, { flex: 1, marginBottom: 0 }]} value={newSup} onChangeText={setNewSup} placeholder="Nuevo proveedor..." placeholderTextColor={COLORS.textMuted} />
+                <TouchableOpacity style={{ backgroundColor: COLORS.primary, paddingHorizontal: 12, borderRadius: 8, justifyContent: 'center' }} onPress={async () => {
+                  if (!newSup.trim()) return;
+                  const { data, error } = await supabase.from('suppliers').insert({ name: newSup.trim() }).select().single();
+                  if (error) { alert('Error', error.message); return; }
+                  setSuppliers(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
+                  setEd((e: any) => ({ ...e, default_supplier_id: data.id }));
+                  setNewSup(''); setSupOpen(false);
+                }}>
+                  <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>+ Crear</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
 
           <Text style={s.lb}>Unidad base</Text>
           <View style={{ flexDirection: 'row', gap: 6 }}>
@@ -572,4 +676,8 @@ const s = StyleSheet.create({
   sideItemT: { fontSize: 13, color: '#CCC' },
   sideItemTA: { color: '#fff', fontWeight: '700' },
   sideCount: { fontSize: 10, color: '#999', backgroundColor: '#4A4A4A', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10, overflow: 'hidden' as any, minWidth: 22, textAlign: 'center' as any },
+  dropdown: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },
+  dropList: { backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, marginTop: 4 },
+  dropItem: { paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  dropItemActive: { backgroundColor: COLORS.primary },
 });

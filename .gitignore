@@ -37,3 +37,4 @@ yarn-error.*
 server.key
 server.cert
 .last_poll_time
+.gstack/
