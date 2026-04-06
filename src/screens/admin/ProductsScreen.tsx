@@ -51,6 +51,7 @@ export default function ProductsScreen() {
   const [productModGroups, setProductModGroups] = useState<any[]>([]);
   const [recipes, setRecipes] = useState<any[]>([]);
   const [recipeItems, setRecipeItems] = useState<any[]>([]);
+  const [renderError, setRenderError] = useState<string|null>(null);
   const [selectedCat, setSelectedCat] = useState<string|null>(null);
   const [selectedProduct, setSelectedProduct] = useState<any|null>(null);
   const [search, setSearch] = useState('');
@@ -146,16 +147,19 @@ export default function ProductsScreen() {
 
   const productRecipe = selectedProduct?.id ? recipes.find(r => r.product_id === selectedProduct.id) : null;
   const productRecipeItems = productRecipe ? recipeItems.filter(ri => ri.recipe_id === productRecipe.id) : [];
-  const recipeCost = productRecipeItems.reduce((s, ri) => {
-    const q = parseFloat(localRecipeQty[ri.id] !== undefined ? localRecipeQty[ri.id] : String(ri.quantity)) || 0;
-    if (ri.sub_product_id) {
-      return s + getSubProductCost(ri.sub_product_id) * q;
-    }
-    const ing = ingredients.find(i => i.id === ri.ingredient_id);
-    if (!ing) return s;
-    const ru = localRecipeUnit[ri.id] || ri.unit || ing.unit || 'g';
-    return s + calcIngCost(ing, q, ru);
-  }, 0);
+  let recipeCost = 0;
+  try {
+    recipeCost = productRecipeItems.reduce((s, ri) => {
+      const q = parseFloat(localRecipeQty[ri.id] !== undefined ? localRecipeQty[ri.id] : String(ri.quantity)) || 0;
+      if (ri.sub_product_id) {
+        return s + getSubProductCost(ri.sub_product_id) * q;
+      }
+      const ing = ingredients.find(i => i.id === ri.ingredient_id);
+      if (!ing) return s;
+      const ru = localRecipeUnit[ri.id] || ri.unit || ing.unit || 'g';
+      return s + calcIngCost(ing, q, ru);
+    }, 0);
+  } catch (e: any) { console.error('recipeCost error:', e); setRenderError?.('recipeCost: ' + e?.message); }
 
   const ensureRecipe = async () => {
     if (productRecipe) return productRecipe;
@@ -179,7 +183,7 @@ export default function ProductsScreen() {
       const { error } = await supabase.from('recipe_items').insert({ recipe_id: recipe.id, sub_product_id: prod.id, quantity: 1, unit: 'unidad' });
       if (error) { console.error('addSubProduct insert error:', error); alert('Error', error.message); return; }
       setShowProdSearch(false); setProdSearch(''); await load();
-    } catch (e: any) { console.error('addSubProduct crash:', e); alert('Error', e.message); }
+    } catch (e: any) { console.error('addSubProduct crash:', e); setRenderError('addSubProduct: ' + e.message); }
   };
 
   const saveRecipeItem2 = async (riId: string, overrideUnit?: string) => {
@@ -243,6 +247,8 @@ export default function ProductsScreen() {
       return s + calcIngCost(ing, ri.quantity || 0, ri.unit);
     }, 0);
   };
+
+  if (renderError) return <View style={{flex:1,padding:20,backgroundColor:'#FEE2E2'}}><Text style={{color:'#DC2626',fontWeight:'700',fontSize:16}}>Error:</Text><Text style={{color:'#DC2626',fontSize:13,marginTop:8}}>{renderError}</Text><TouchableOpacity onPress={()=>setRenderError(null)} style={{marginTop:16,backgroundColor:'#2563EB',padding:12,borderRadius:8,alignItems:'center'}}><Text style={{color:'#fff',fontWeight:'700'}}>Reintentar</Text></TouchableOpacity></View>;
 
   return (
     <View style={s.wrap}>
