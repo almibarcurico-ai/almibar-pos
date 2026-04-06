@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, StyleSheet, Alert } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, StyleSheet, Alert, Dimensions } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { COLORS } from '../../theme';
 
@@ -10,6 +10,9 @@ const fmtN = (n: number) => '$' + Math.round(n).toLocaleString('es-CL');
 const pct = (n: number) => Math.round(n * 100) + '%';
 
 export default function CostScreen() {
+  const [winW, setWinW] = useState(Dimensions.get('window').width);
+  useEffect(() => { const sub = Dimensions.addEventListener('change', ({ window }) => setWinW(window.width)); return () => sub?.remove(); }, []);
+  const isMobile = winW < 700;
   const [products, setProducts] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [ingredients, setIngredients] = useState<any[]>([]);
@@ -116,13 +119,43 @@ export default function CostScreen() {
 
   return (
     <View style={st.wrap}>
-      {/* Sidebar */}
+      {/* Sidebar — móvil: barra compacta */}
+      {isMobile ? (
+        <View style={{ backgroundColor: '#3C3C3C', padding: 10 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+            <Text style={{ fontSize: 14, fontWeight: '800', color: '#fff', flex: 1 }}>Costos</Text>
+            <Text style={{ fontSize: 11, color: fcColor(avgFoodCost), fontWeight: '700' }}>FC: {pct(avgFoodCost)}</Text>
+          </View>
+          <View style={{ flexDirection: 'row', gap: 4, marginBottom: 8 }}>
+            {[0.25, 0.30, 0.35, 0.40].map(t => (
+              <TouchableOpacity key={t} onPress={() => setTargetCost(t)}
+                style={{ flex: 1, paddingVertical: 5, borderRadius: 6, backgroundColor: targetCost === t ? COLORS.primary : '#4A4A4A', alignItems: 'center' }}>
+                <Text style={{ fontSize: 10, fontWeight: '700', color: targetCost === t ? '#000' : '#CCC' }}>{Math.round(t * 100)}%</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <TouchableOpacity style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, backgroundColor: !selectedCat ? COLORS.primary : '#4A4A4A', marginRight: 6 }} onPress={() => setSelectedCat(null)}>
+              <Text style={{ fontSize: 11, fontWeight: '600', color: !selectedCat ? '#000' : '#CCC' }}>Todos ({productData.length})</Text>
+            </TouchableOpacity>
+            {categories.map(c => {
+              const count = productData.filter(p => p.category_id === c.id).length;
+              if (count === 0) return null;
+              const isActive = selectedCat === c.id;
+              return (
+                <TouchableOpacity key={c.id} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, backgroundColor: isActive ? COLORS.primary : '#4A4A4A', marginRight: 6 }} onPress={() => setSelectedCat(c.id)}>
+                  <Text style={{ fontSize: 11, fontWeight: '600', color: isActive ? '#000' : '#CCC' }}>{c.name} ({count})</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+      ) : (
       <View style={st.side}>
         <View style={st.sideHdr}>
           <Text style={st.sideTitle}>Costos</Text>
         </View>
 
-        {/* Target food cost */}
         <View style={{ padding: 10, borderBottomWidth: 1, borderBottomColor: '#4A4A4A' }}>
           <Text style={{ fontSize: 10, color: '#888', marginBottom: 4 }}>FOOD COST OBJETIVO</Text>
           <View style={{ flexDirection: 'row', gap: 4 }}>
@@ -135,7 +168,6 @@ export default function CostScreen() {
           </View>
         </View>
 
-        {/* Stats */}
         <View style={{ padding: 10, borderBottomWidth: 1, borderBottomColor: '#4A4A4A' }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
             <Text style={{ fontSize: 10, color: '#888' }}>Food cost promedio</Text>
@@ -151,7 +183,6 @@ export default function CostScreen() {
           </View>
         </View>
 
-        {/* Categories */}
         <TouchableOpacity style={[st.sideItem, !selectedCat && st.sideItemActive]} onPress={() => setSelectedCat(null)}>
           <Text style={[st.sideItemT, !selectedCat && st.sideItemTA]}>Todos ({productData.length})</Text>
         </TouchableOpacity>
@@ -168,6 +199,7 @@ export default function CostScreen() {
           })}
         </ScrollView>
       </View>
+      )}
 
       {/* Main content */}
       <View style={{ flex: 1 }}>

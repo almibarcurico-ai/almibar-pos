@@ -1,6 +1,6 @@
 // IngredientsScreen — Excel import/export + price history
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Platform, Dimensions } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { COLORS } from '../../theme';
@@ -27,6 +27,10 @@ export default function IngredientsScreen() {
   const [filterCat, setFilterCat] = useState('all');
   const [filterStation, setFilterStation] = useState<'all'|'cocina'|'barra'>('all');
   const [filterSupplier, setFilterSupplier] = useState('all');
+  const [sideOpen, setSideOpen] = useState(false);
+  const [winW, setWinW] = useState(Dimensions.get('window').width);
+  useEffect(() => { const sub = Dimensions.addEventListener('change', ({ window }) => setWinW(window.width)); return () => sub?.remove(); }, []);
+  const isMobile = winW < 700;
   const [modal, setModal] = useState(false);
   const [ed, setEd] = useState<any>({});
   const [isNew, setIsNew] = useState(false);
@@ -278,17 +282,97 @@ export default function IngredientsScreen() {
 
       {/* Search + filter */}
       <View style={s.toolbar}>
-        <View style={s.searchBox}>
-          <Text style={{ color: COLORS.textMuted }}>🔍</Text>
-          <TextInput style={s.searchInp} placeholder="Buscar..." placeholderTextColor={COLORS.textMuted} value={search} onChangeText={setSearch} />
-          {search ? <TouchableOpacity onPress={() => setSearch('')}><Text style={{ color: COLORS.textMuted }}>✕</Text></TouchableOpacity> : null}
+        <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+          <View style={[s.searchBox, { flex: 1 }]}>
+            <Text style={{ color: COLORS.textMuted }}>🔍</Text>
+            <TextInput style={s.searchInp} placeholder="Buscar..." placeholderTextColor={COLORS.textMuted} value={search} onChangeText={setSearch} />
+            {search ? <TouchableOpacity onPress={() => setSearch('')}><Text style={{ color: COLORS.textMuted }}>✕</Text></TouchableOpacity> : null}
+          </View>
+          {isMobile && (
+            <TouchableOpacity style={{ backgroundColor: '#3C3C3C', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 6 }} onPress={() => setSideOpen(!sideOpen)}>
+              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>☰ Filtros</Text>
+            </TouchableOpacity>
+          )}
         </View>
+        {/* Filtros móvil: barra horizontal de estación + categoría activa */}
+        {isMobile && (
+          <View style={{ flexDirection: 'row', gap: 4, marginTop: 8, flexWrap: 'wrap' }}>
+            {([['all', 'Todos'], ['cocina', '🍳'], ['barra', '🍸']] as const).map(([key, label]) => (
+              <TouchableOpacity key={key} onPress={() => setFilterStation(key as any)} style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14, backgroundColor: filterStation === key ? (key === 'cocina' ? '#E65100' : key === 'barra' ? '#1565C0' : COLORS.primary) : COLORS.card, borderWidth: 1, borderColor: COLORS.border }}>
+                <Text style={{ fontSize: 11, fontWeight: '600', color: filterStation === key ? '#fff' : COLORS.textSecondary }}>{label}</Text>
+              </TouchableOpacity>
+            ))}
+            {filterCat !== 'all' && (
+              <TouchableOpacity onPress={() => setFilterCat('all')} style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14, backgroundColor: COLORS.primary }}>
+                <Text style={{ fontSize: 11, fontWeight: '600', color: '#fff' }}>{filterCat} ✕</Text>
+              </TouchableOpacity>
+            )}
+            {filterSupplier !== 'all' && (
+              <TouchableOpacity onPress={() => setFilterSupplier('all')} style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14, backgroundColor: '#42A5F5' }}>
+                <Text style={{ fontSize: 11, fontWeight: '600', color: '#fff' }}>{filterSupplier === 'sin' ? 'Sin prov.' : supplierName(filterSupplier)} ✕</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
       </View>
 
-      <View style={{ flex: 1, flexDirection: 'row' }}>
-        {/* Sidebar categorías */}
+      {/* Panel de filtros móvil desplegable */}
+      {isMobile && sideOpen && (
+        <View style={{ backgroundColor: '#3C3C3C', maxHeight: 300 }}>
+          <ScrollView>
+            <View style={{ paddingHorizontal: 10, paddingTop: 8, paddingBottom: 4 }}>
+              <Text style={{ fontSize: 10, fontWeight: '700', color: '#888', letterSpacing: 1 }}>CATEGORÍAS</Text>
+            </View>
+            <TouchableOpacity style={[s.sideItem, filterCat === 'all' && s.sideItemA]} onPress={() => { setFilterCat('all'); setSideOpen(false); }}>
+              <Text style={[s.sideItemT, filterCat === 'all' && s.sideItemTA]}>Todos</Text>
+              <Text style={s.sideCount}>{items.length}</Text>
+            </TouchableOpacity>
+            {CATS.map(c => {
+              const n = items.filter(i => i.category === c).length;
+              if (n === 0) return null;
+              return (
+                <TouchableOpacity key={c} style={[s.sideItem, filterCat === c && s.sideItemA]} onPress={() => { setFilterCat(filterCat === c ? 'all' : c); setSideOpen(false); }}>
+                  <Text style={[s.sideItemT, filterCat === c && s.sideItemTA]}>{c}</Text>
+                  <Text style={s.sideCount}>{n}</Text>
+                </TouchableOpacity>
+              );
+            })}
+            {items.filter(i => i.is_production).length > 0 && (
+              <TouchableOpacity style={[s.sideItem, filterCat === 'Producción' && s.sideItemA]} onPress={() => { setFilterCat(filterCat === 'Producción' ? 'all' : 'Producción'); setSideOpen(false); }}>
+                <Text style={[s.sideItemT, filterCat === 'Producción' && s.sideItemTA]}>🏭 Producción</Text>
+                <Text style={s.sideCount}>{items.filter(i => i.is_production).length}</Text>
+              </TouchableOpacity>
+            )}
+            <View style={{ paddingHorizontal: 10, paddingTop: 10, paddingBottom: 4 }}>
+              <Text style={{ fontSize: 10, fontWeight: '700', color: '#888', letterSpacing: 1 }}>PROVEEDORES</Text>
+            </View>
+            <TouchableOpacity style={[s.sideItem, filterSupplier === 'all' && s.sideItemA]} onPress={() => { setFilterSupplier('all'); setSideOpen(false); }}>
+              <Text style={[s.sideItemT, filterSupplier === 'all' && s.sideItemTA]}>Todos</Text>
+            </TouchableOpacity>
+            {suppliers.map(sup => {
+              const n = items.filter(i => i.default_supplier_id === sup.id).length;
+              if (n === 0) return null;
+              return (
+                <TouchableOpacity key={sup.id} style={[s.sideItem, filterSupplier === sup.id && s.sideItemA]} onPress={() => { setFilterSupplier(filterSupplier === sup.id ? 'all' : sup.id); setSideOpen(false); }}>
+                  <Text style={[s.sideItemT, filterSupplier === sup.id && s.sideItemTA]}>{sup.name}</Text>
+                  <Text style={s.sideCount}>{n}</Text>
+                </TouchableOpacity>
+              );
+            })}
+            {items.filter(i => !i.default_supplier_id).length > 0 && (
+              <TouchableOpacity style={[s.sideItem, filterSupplier === 'sin' && s.sideItemA]} onPress={() => { setFilterSupplier(filterSupplier === 'sin' ? 'all' : 'sin'); setSideOpen(false); }}>
+                <Text style={[s.sideItemT, filterSupplier === 'sin' && s.sideItemTA]}>Sin proveedor</Text>
+                <Text style={s.sideCount}>{items.filter(i => !i.default_supplier_id).length}</Text>
+              </TouchableOpacity>
+            )}
+          </ScrollView>
+        </View>
+      )}
+
+      <View style={{ flex: 1, flexDirection: isMobile ? 'column' : 'row' }}>
+        {/* Sidebar categorías — solo desktop */}
+        {!isMobile && (
         <View style={{ width: 200, backgroundColor: '#3C3C3C' }}>
-          {/* Filtro estación */}
           <View style={{ flexDirection: 'row', padding: 8, gap: 4 }}>
             {([['all', 'Todos'], ['cocina', '🍳 Cocina'], ['barra', '🍸 Barra']] as const).map(([key, label]) => (
               <TouchableOpacity key={key} onPress={() => setFilterStation(key as any)} style={{ flex: 1, paddingVertical: 6, borderRadius: 6, backgroundColor: filterStation === key ? (key === 'cocina' ? '#E65100' : key === 'barra' ? '#1565C0' : COLORS.primary) : '#4A4A4A', alignItems: 'center' }}>
@@ -312,7 +396,6 @@ export default function IngredientsScreen() {
                 </TouchableOpacity>
               );
             })}
-            {/* Producción */}
             {items.filter(i => i.is_production).length > 0 && (
               <TouchableOpacity style={[s.sideItem, filterCat === 'Producción' && s.sideItemA]} onPress={() => setFilterCat(filterCat === 'Producción' ? 'all' : 'Producción')}>
                 <Text style={[s.sideItemT, filterCat === 'Producción' && s.sideItemTA]}>🏭 Producción</Text>
@@ -320,7 +403,6 @@ export default function IngredientsScreen() {
               </TouchableOpacity>
             )}
 
-            {/* Separador proveedores */}
             <View style={{ paddingHorizontal: 14, paddingTop: 14, paddingBottom: 6 }}>
               <Text style={{ fontSize: 10, fontWeight: '700', color: '#888', letterSpacing: 1 }}>PROVEEDORES</Text>
             </View>
@@ -349,6 +431,7 @@ export default function IngredientsScreen() {
             })()}
           </ScrollView>
         </View>
+        )}
 
         {/* Tabla */}
         <View style={{ flex: 1 }}>
@@ -356,7 +439,7 @@ export default function IngredientsScreen() {
           {selected && (
             <View style={{ backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.border, padding: 12 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <Text style={{ fontSize: 16, fontWeight: '800', color: COLORS.text }}>{selected.name}</Text>
+                <Text style={{ fontSize: isMobile ? 14 : 16, fontWeight: '800', color: COLORS.text, flex: 1 }} numberOfLines={1}>{selected.name}</Text>
                 <View style={{ flexDirection: 'row', gap: 8 }}>
                   <TouchableOpacity style={{ backgroundColor: COLORS.primary, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20 }} onPress={() => openEdit(selected)}>
                     <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>✏️ Editar</Text>
@@ -366,24 +449,24 @@ export default function IngredientsScreen() {
                   </TouchableOpacity>
                 </View>
               </View>
-              <View style={{ flexDirection: 'row', gap: 12, backgroundColor: COLORS.background, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: COLORS.border }}>
+              <View style={{ flexDirection: 'row', gap: isMobile ? 8 : 12, backgroundColor: COLORS.background, borderRadius: 10, padding: isMobile ? 8 : 12, borderWidth: 1, borderColor: COLORS.border }}>
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 10, fontWeight: '700', color: COLORS.textMuted, marginBottom: 4 }}>STOCK ACTUAL</Text>
                   <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
-                    <Text style={{ fontSize: 24, fontWeight: '800', color: selected.stock_min > 0 && (selected.stock_current || 0) <= selected.stock_min ? '#E53935' : COLORS.primary }}>{selected.stock_current || 0}</Text>
-                    <Text style={{ fontSize: 12, color: COLORS.textMuted }}>{selected.unit}</Text>
+                    <Text style={{ fontSize: isMobile ? 18 : 24, fontWeight: '800', color: selected.stock_min > 0 && (selected.stock_current || 0) <= selected.stock_min ? '#E53935' : COLORS.primary }}>{selected.stock_current || 0}</Text>
+                    <Text style={{ fontSize: 11, color: COLORS.textMuted }}>{selected.unit}</Text>
                   </View>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 10, fontWeight: '700', color: COLORS.textMuted, marginBottom: 4 }}>STOCK MÍNIMO</Text>
+                  <Text style={{ fontSize: 10, fontWeight: '700', color: COLORS.textMuted, marginBottom: 4 }}>STOCK MÍN.</Text>
                   <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
-                    <Text style={{ fontSize: 24, fontWeight: '800', color: COLORS.text }}>{selected.stock_min || 0}</Text>
-                    <Text style={{ fontSize: 12, color: COLORS.textMuted }}>{selected.unit}</Text>
+                    <Text style={{ fontSize: isMobile ? 18 : 24, fontWeight: '800', color: COLORS.text }}>{selected.stock_min || 0}</Text>
+                    <Text style={{ fontSize: 11, color: COLORS.textMuted }}>{selected.unit}</Text>
                   </View>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 10, fontWeight: '700', color: COLORS.textMuted, marginBottom: 4 }}>COSTO UNIT.</Text>
-                  <Text style={{ fontSize: 24, fontWeight: '800', color: COLORS.text }}>{fmt(selected.cost_per_unit || 0)}</Text>
+                  <Text style={{ fontSize: 10, fontWeight: '700', color: COLORS.textMuted, marginBottom: 4 }}>COSTO</Text>
+                  <Text style={{ fontSize: isMobile ? 18 : 24, fontWeight: '800', color: COLORS.text }}>{fmt(selected.cost_per_unit || 0)}</Text>
                 </View>
               </View>
               {selected.default_supplier_id && (
@@ -391,14 +474,15 @@ export default function IngredientsScreen() {
               )}
             </View>
           )}
+          {/* Header tabla — móvil simplificada */}
           <View style={s.tHead}>
             <Text style={[s.th, { flex: 1 }]}>Ingrediente</Text>
-            <Text style={[s.th, { width: 90 }]}>Proveedor</Text>
-            <Text style={[s.th, { width: 60, textAlign: 'center' }]}>Unidad</Text>
-            <Text style={[s.th, { width: 80, textAlign: 'right' }]}>Stock</Text>
-            <Text style={[s.th, { width: 60, textAlign: 'right' }]}>Mín.</Text>
-            <Text style={[s.th, { width: 80, textAlign: 'right' }]}>Costo</Text>
-            <Text style={[s.th, { width: 50 }]}></Text>
+            {!isMobile && <Text style={[s.th, { width: 90 }]}>Proveedor</Text>}
+            {!isMobile && <Text style={[s.th, { width: 60, textAlign: 'center' }]}>Unidad</Text>}
+            <Text style={[s.th, { width: isMobile ? 60 : 80, textAlign: 'right' }]}>Stock</Text>
+            {!isMobile && <Text style={[s.th, { width: 60, textAlign: 'right' }]}>Mín.</Text>}
+            <Text style={[s.th, { width: isMobile ? 65 : 80, textAlign: 'right' }]}>Costo</Text>
+            {!isMobile && <Text style={[s.th, { width: 50 }]}></Text>}
           </View>
           <ScrollView>
             {filtered.map((i, idx) => {
@@ -406,22 +490,29 @@ export default function IngredientsScreen() {
               const isSelected = selected?.id === i.id;
               return (
                 <TouchableOpacity key={i.id} style={[s.tRow, idx % 2 === 0 && s.tRowAlt, isSelected && { backgroundColor: '#05966915' }]} onPress={() => setSelected(isSelected ? null : i)}>
-                  <Text style={[s.td, { flex: 1, fontWeight: '600' }]}>{i.name}</Text>
-                  <Text style={[s.td, { width: 90, fontSize: 11, color: i.default_supplier_id ? COLORS.text : COLORS.textMuted }]}>{supplierName(i.default_supplier_id)}</Text>
-                  <Text style={[s.td, { width: 60, textAlign: 'center', fontSize: 11, color: COLORS.textSecondary }]}>{i.unit}</Text>
-                  <Text style={[s.td, { width: 80, textAlign: 'right', fontWeight: '600', color: isLow ? '#E53935' : COLORS.text }]}>
-                    {Math.round(i.stock_current)} {i.unit}
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.td, { fontWeight: '600' }]} numberOfLines={1}>{i.name}</Text>
+                    {isMobile && <Text style={{ fontSize: 10, color: COLORS.textMuted }}>{i.unit} · {supplierName(i.default_supplier_id)}</Text>}
+                  </View>
+                  {!isMobile && <Text style={[s.td, { width: 90, fontSize: 11, color: i.default_supplier_id ? COLORS.text : COLORS.textMuted }]}>{supplierName(i.default_supplier_id)}</Text>}
+                  {!isMobile && <Text style={[s.td, { width: 60, textAlign: 'center', fontSize: 11, color: COLORS.textSecondary }]}>{i.unit}</Text>}
+                  <Text style={[s.td, { width: isMobile ? 60 : 80, textAlign: 'right', fontWeight: '600', color: isLow ? '#E53935' : COLORS.text, fontSize: isMobile ? 12 : 13 }]}>
+                    {Math.round(i.stock_current)}
                   </Text>
-                  <Text style={[s.td, { width: 60, textAlign: 'right', fontSize: 11, color: i.stock_min > 0 ? COLORS.textSecondary : COLORS.textMuted }]}>
-                    {i.stock_min > 0 ? Math.round(i.stock_min) : '-'}
-                  </Text>
-                  <Text style={[s.td, { width: 80, textAlign: 'right', fontWeight: '700', color: COLORS.primary }]}>
+                  {!isMobile && (
+                    <Text style={[s.td, { width: 60, textAlign: 'right', fontSize: 11, color: i.stock_min > 0 ? COLORS.textSecondary : COLORS.textMuted }]}>
+                      {i.stock_min > 0 ? Math.round(i.stock_min) : '-'}
+                    </Text>
+                  )}
+                  <Text style={[s.td, { width: isMobile ? 65 : 80, textAlign: 'right', fontWeight: '700', color: COLORS.primary, fontSize: isMobile ? 12 : 13 }]}>
                     {fmt(i.cost_per_unit)}
                   </Text>
-                  <View style={{ width: 50, flexDirection: 'row', justifyContent: 'flex-end', gap: 6 }}>
-                    <TouchableOpacity onPress={() => showHistory(i)}><Text style={{ fontSize: 12 }}>📊</Text></TouchableOpacity>
-                    <TouchableOpacity onPress={() => del(i)}><Text style={{ fontSize: 12 }}>🗑️</Text></TouchableOpacity>
-                  </View>
+                  {!isMobile && (
+                    <View style={{ width: 50, flexDirection: 'row', justifyContent: 'flex-end', gap: 6 }}>
+                      <TouchableOpacity onPress={() => showHistory(i)}><Text style={{ fontSize: 12 }}>📊</Text></TouchableOpacity>
+                      <TouchableOpacity onPress={() => del(i)}><Text style={{ fontSize: 12 }}>🗑️</Text></TouchableOpacity>
+                    </View>
+                  )}
                 </TouchableOpacity>
               );
             })}

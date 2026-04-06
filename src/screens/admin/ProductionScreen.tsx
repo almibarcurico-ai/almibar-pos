@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Alert, Modal, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Alert, Modal, StyleSheet, Dimensions } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { COLORS } from '../../theme';
@@ -8,6 +8,9 @@ const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-CL');
 
 export default function ProductionScreen() {
   const { user } = useAuth();
+  const [winW, setWinW] = useState(Dimensions.get('window').width);
+  useEffect(() => { const sub = Dimensions.addEventListener('change', ({ window }) => setWinW(window.width)); return () => sub?.remove(); }, []);
+  const isMobile = winW < 700;
   const [productions, setProductions] = useState<any[]>([]);
   const [allIngredients, setAllIngredients] = useState<any[]>([]);
   const [recipes, setRecipes] = useState<any[]>([]);
@@ -148,7 +151,30 @@ export default function ProductionScreen() {
 
   return (
     <View style={st.wrap}>
-      {/* Sidebar */}
+      {/* Sidebar — móvil: selector horizontal arriba */}
+      {isMobile ? (
+        <View style={{ backgroundColor: '#3C3C3C' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', padding: 10, gap: 8 }}>
+            <Text style={{ fontSize: 14, fontWeight: '800', color: '#fff', flex: 1 }}>Producción</Text>
+            <TouchableOpacity style={st.newBtn} onPress={() => setNewModal(true)}>
+              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>+ Nuevo</Text>
+            </TouchableOpacity>
+          </View>
+          <TextInput style={[st.sideSearch, { marginBottom: 6 }]} placeholder="Buscar..." placeholderTextColor="#999" value={search} onChangeText={setSearch} />
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingHorizontal: 8, paddingBottom: 8 }}>
+            {filtered.map(p => {
+              const isActive = selected?.id === p.id;
+              const isLow = p.stock_min > 0 && (p.stock_current || 0) <= p.stock_min;
+              return (
+                <TouchableOpacity key={p.id} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: isActive ? COLORS.primary : '#4A4A4A', marginRight: 6 }} onPress={() => selectProduction(p)}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: isActive ? '#fff' : '#CCC' }} numberOfLines={1}>{p.name}</Text>
+                  <Text style={{ fontSize: 10, color: isActive ? '#ffffffaa' : isLow ? '#E53935' : '#888' }}>{p.stock_current || 0} {p.unit} · {fmt(p.cost_per_unit || 0)}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+      ) : (
       <View style={st.side}>
         <View style={st.sideHdr}>
           <Text style={st.sideTitle}>Producción</Text>
@@ -179,6 +205,7 @@ export default function ProductionScreen() {
           })}
         </ScrollView>
       </View>
+      )}
 
       {/* Detail */}
       <View style={st.detail}>

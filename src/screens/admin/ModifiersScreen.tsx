@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Alert, Switch, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Alert, Switch, StyleSheet, Dimensions } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { COLORS } from '../../theme';
 
@@ -9,6 +9,9 @@ interface Option { id: string; group_id: string; name: string; price_adjust: num
 const fmt = (n: number) => n > 0 ? '+$' + n.toLocaleString('es-CL') : n < 0 ? '-$' + Math.abs(n).toLocaleString('es-CL') : '$0';
 
 export default function ModifiersScreen() {
+  const [winW, setWinW] = useState(Dimensions.get('window').width);
+  useEffect(() => { const sub = Dimensions.addEventListener('change', ({ window }) => setWinW(window.width)); return () => sub?.remove(); }, []);
+  const isMobile = winW < 700;
   const [groups, setGroups] = useState<Group[]>([]);
   const [options, setOptions] = useState<Option[]>([]);
   const [products, setProducts] = useState<any[]>([]);
@@ -134,7 +137,42 @@ export default function ModifiersScreen() {
 
   return (
     <View style={st.wrap}>
-      {/* Sidebar */}
+      {/* Sidebar — móvil: horizontal */}
+      {isMobile ? (
+        <View style={{ backgroundColor: '#3C3C3C' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', padding: 10, gap: 8 }}>
+            <Text style={{ fontSize: 14, fontWeight: '800', color: '#fff', flex: 1 }}>Modificadores</Text>
+            <TouchableOpacity style={st.newBtn} onPress={() => { setAddingGroup(true); setGName(''); setGType('single'); setGRequired(true); setGMax('1'); }}>
+              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>+ Grupo</Text>
+            </TouchableOpacity>
+          </View>
+          {addingGroup && (
+            <View style={{ padding: 10, borderBottomWidth: 1, borderBottomColor: '#4A4A4A' }}>
+              <TextInput style={st.sideInput} placeholder="Nombre del grupo" placeholderTextColor="#888" value={gName} onChangeText={setGName} autoFocus />
+              <View style={{ flexDirection: 'row', gap: 4, marginTop: 6 }}>
+                <TouchableOpacity onPress={() => { setGType('single'); setGMax('1'); }} style={[st.chip, gType === 'single' && st.chipActive]}><Text style={[st.chipT, gType === 'single' && st.chipActiveT]}>Elegir 1</Text></TouchableOpacity>
+                <TouchableOpacity onPress={() => { setGType('multi'); setGMax('3'); }} style={[st.chip, gType === 'multi' && st.chipActive]}><Text style={[st.chipT, gType === 'multi' && st.chipActiveT]}>Varios</Text></TouchableOpacity>
+              </View>
+              <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
+                <TouchableOpacity style={[st.newBtn, { flex: 1 }]} onPress={addGroup}><Text style={{ color: '#fff', fontWeight: '700', fontSize: 11, textAlign: 'center' }}>Crear</Text></TouchableOpacity>
+                <TouchableOpacity style={{ flex: 1, paddingVertical: 6, alignItems: 'center' }} onPress={() => setAddingGroup(false)}><Text style={{ color: '#999', fontSize: 11 }}>Cancelar</Text></TouchableOpacity>
+              </View>
+            </View>
+          )}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingHorizontal: 8, paddingBottom: 8 }}>
+            {filtered.map(g => {
+              const isActive = selected?.id === g.id;
+              const optCount = options.filter(o => o.group_id === g.id).length;
+              return (
+                <TouchableOpacity key={g.id} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: isActive ? COLORS.primary : '#4A4A4A', marginRight: 6 }} onPress={() => setSelected(g)}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: isActive ? '#fff' : '#CCC' }} numberOfLines={1}>{g.name}</Text>
+                  <Text style={{ fontSize: 10, color: isActive ? '#ffffffaa' : '#888' }}>{optCount} opciones</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+      ) : (
       <View style={st.side}>
         <View style={st.sideHdr}>
           <Text style={st.sideTitle}>Modificadores</Text>
@@ -183,6 +221,7 @@ export default function ModifiersScreen() {
           })}
         </ScrollView>
       </View>
+      )}
 
       {/* Detail */}
       <View style={st.detail}>
