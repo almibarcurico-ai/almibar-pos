@@ -161,7 +161,7 @@ export default function PurchasesScreen({ onBack }: { onBack?: () => void }) {
   };
 
   const saveScannedInvoice = async () => {
-    if (!user || !scannedData) return;
+    if (!user || !scannedData || saving) return;
     setSaving(true);
     try {
       // Find or create supplier
@@ -273,6 +273,7 @@ export default function PurchasesScreen({ onBack }: { onBack?: () => void }) {
 
   const saveManualPurchase = async () => {
     if (!user || manualItems.length === 0) { Alert.alert('', 'Agrega al menos un ítem'); return; }
+    if (saving) return;
     setSaving(true);
     try {
       const subtotal = manualItems.reduce((a, i) => a + (parseFloat(i.qty) || 0) * (parseFloat(i.price) || 0), 0);
