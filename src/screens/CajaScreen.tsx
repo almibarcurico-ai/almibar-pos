@@ -2010,8 +2010,15 @@ function CostosTab() {
             const ing = ingredients.find(i => i.id === mo.ingredient_id);
             if (ing) {
               const cpu = ing.cost_per_unit || 0;
-              const qty = mo.quantity || 1;
-              modOptionCosts.set(mo.id, cpu * qty);
+              const qty = parseFloat(mo.quantity) || 1;
+              const iu = (ing.unit || '').toLowerCase();
+              const mu = (mo.unit || iu).toLowerCase();
+              let cost = cpu * qty;
+              if (iu === 'kg' && mu === 'g') cost = cpu * qty / 1000;
+              if (iu === 'lt' && mu === 'ml') cost = cpu * qty / 1000;
+              if (iu === 'g' && mu === 'kg') cost = cpu * qty * 1000;
+              if (iu === 'ml' && mu === 'lt') cost = cpu * qty * 1000;
+              modOptionCosts.set(mo.id, cost);
             }
           }
         }
