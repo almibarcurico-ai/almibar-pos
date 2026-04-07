@@ -1,0 +1,1292 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Almíbar — Fichas Técnicas</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+  :root {
+    --emerald: #059669;
+    --emerald-dark: #047857;
+    --emerald-light: #d1fae5;
+    --gray-50: #f9fafb;
+    --gray-100: #f3f4f6;
+    --gray-200: #e5e7eb;
+    --gray-300: #d1d5db;
+    --gray-500: #6b7280;
+    --gray-700: #374151;
+    --gray-900: #111827;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--gray-100);
+    color: var(--gray-900);
+    line-height: 1.5;
+  }
+
+  .header {
+    background: var(--emerald);
+    color: white;
+    padding: 32px 40px;
+    text-align: center;
+  }
+  .header h1 {
+    font-size: 32px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+  .header .date {
+    font-size: 14px;
+    opacity: 0.85;
+    margin-top: 6px;
+  }
+
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 24px 20px 60px;
+  }
+
+  .section-title {
+    background: var(--emerald);
+    color: white;
+    font-size: 22px;
+    font-weight: 700;
+    padding: 14px 24px;
+    border-radius: 8px;
+    margin: 36px 0 20px;
+    page-break-before: always;
+  }
+  .section-title:first-of-type {
+    page-break-before: avoid;
+  }
+
+  .category-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--emerald-dark);
+    border-bottom: 2px solid var(--emerald);
+    padding-bottom: 6px;
+    margin: 28px 0 16px;
+  }
+
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(480px, 1fr));
+    gap: 18px;
+  }
+
+  .card {
+    background: white;
+    border: 1px solid var(--gray-200);
+    border-radius: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+    overflow: hidden;
+    page-break-inside: avoid;
+  }
+  .card-header {
+    background: var(--emerald-light);
+    padding: 14px 18px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--gray-200);
+  }
+  .card-header h3 {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--gray-900);
+  }
+  .card-header .price {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--emerald);
+    white-space: nowrap;
+  }
+  .card-category {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--emerald-dark);
+    background: var(--emerald-light);
+    border: 1px solid #a7f3d0;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin: 12px 18px 0;
+  }
+  .card-body {
+    padding: 10px 18px 16px;
+  }
+  .card-body table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin-top: 8px;
+  }
+  .card-body thead th {
+    text-align: left;
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--gray-500);
+    padding: 6px 8px;
+    border-bottom: 2px solid var(--gray-200);
+  }
+  .card-body tbody td {
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--gray-100);
+    color: var(--gray-700);
+  }
+  .card-body tbody tr:last-child td {
+    border-bottom: none;
+  }
+  .card-body tbody tr:hover {
+    background: var(--gray-50);
+  }
+
+  @media print {
+    body { background: white; }
+    .header {
+      padding: 20px;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .container { padding: 10px; }
+    .section-title {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .cards {
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .card {
+      box-shadow: none;
+      border: 1px solid #ccc;
+      page-break-inside: avoid;
+    }
+    .card-header {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .card-category {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+  }
+
+  @media (max-width: 560px) {
+    .cards { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Alm&iacute;bar &mdash; Fichas T&eacute;cnicas</h1>
+  <div class="date">Generado el 6 de abril de 2026</div>
+</div>
+
+<div class="container">
+
+<!-- ==================== COCINA ==================== -->
+<div class="section-title">COCINA</div>
+
+<!-- Burgers -->
+<div class="category-title">Burgers</div>
+<div class="cards">
+
+<div class="card">
+  <div class="card-header"><h3>Cheese Burger</h3><span class="price">$8.700</span></div>
+  <span class="card-category">Burgers</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Aderezo Cheddar</td><td>50</td><td>ml</td></tr>
+    <tr><td>Hamburguesa</td><td>1</td><td>u</td></tr>
+    <tr><td>Pan Hamburguesa</td><td>1</td><td>u</td></tr>
+    <tr><td>Papas Fritas</td><td>0,3</td><td>kg</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Hamburguesa Cl&aacute;sica</h3><span class="price">$11.900</span></div>
+  <span class="card-category">Burgers</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Aderezo Cheddar</td><td>0,05</td><td>lt</td></tr>
+    <tr><td>Hamburguesa</td><td>1</td><td>u</td></tr>
+    <tr><td>Pan Hamburguesa</td><td>1</td><td>u</td></tr>
+    <tr><td>Papas Fritas</td><td>0,2</td><td>kg</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Hamburguesa Gringa</h3><span class="price">$11.900</span></div>
+  <span class="card-category">Burgers</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Hamburguesa</td><td>1</td><td>u</td></tr>
+    <tr><td>Pan Hamburguesa</td><td>1</td><td>u</td></tr>
+    <tr><td>Papas Fritas</td><td>0,2</td><td>kg</td></tr>
+    <tr><td>Queso Cheddar Laminado</td><td>0,03</td><td>kg</td></tr>
+    <tr><td>Tocino</td><td>0,08</td><td>kg</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Hamburguesa Italiana</h3><span class="price">$12.900</span></div>
+  <span class="card-category">Burgers</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Hamburguesa</td><td>1</td><td>u</td></tr>
+    <tr><td>Pan Hamburguesa</td><td>1</td><td>u</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>S&aacute;ndwich Alm&iacute;bar</h3><span class="price">$12.900</span></div>
+  <span class="card-category">Burgers</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Mechada</td><td>1</td><td>u</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>S&aacute;ndwich Pollo Crispy</h3><span class="price">$11.600</span></div>
+  <span class="card-category">Burgers</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Champi&ntilde;&oacute;n</td><td>50</td><td>g</td></tr>
+    <tr><td>Pollo Apanado</td><td>1</td><td>u</td></tr>
+    <tr><td>Queso Laminado</td><td>30</td><td>g</td></tr>
+  </tbody></table></div>
+</div>
+
+</div><!-- /cards Burgers -->
+
+<!-- Papas -->
+<div class="category-title">Papas</div>
+<div class="cards">
+
+<div class="card">
+  <div class="card-header"><h3>La Chilena</h3><span class="price">$18.900</span></div>
+  <span class="card-category">Papas</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Longaniza artesanal</td><td>1</td><td>u</td></tr>
+    <tr><td>Papas Fritas</td><td>600</td><td>g</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>La Crocante</h3><span class="price">$15.900</span></div>
+  <span class="card-category">Papas</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Papas Fritas</td><td>1,2</td><td>kg</td></tr>
+    <tr><td>Pollo Apanado</td><td>1</td><td>u</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>La Peruana</h3><span class="price">$19.800</span></div>
+  <span class="card-category">Papas</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Filete porcionado</td><td>1</td><td>u</td></tr>
+    <tr><td>Papas Fritas</td><td>600</td><td>g</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>La Suprema</h3><span class="price">$15.900</span></div>
+  <span class="card-category">Papas</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Champi&ntilde;&oacute;n</td><td>100</td><td>g</td></tr>
+    <tr><td>Crema de leche</td><td>100</td><td>ml</td></tr>
+    <tr><td>Papas Fritas</td><td>600</td><td>g</td></tr>
+    <tr><td>Pollo Papas</td><td>1</td><td>u</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Papas Fritas</h3><span class="price">$7.000</span></div>
+  <span class="card-category">Papas</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Papas Fritas</td><td>0,6</td><td>kg</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Papas La Mortal</h3><span class="price">$17.900</span></div>
+  <span class="card-category">Papas</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Aderezo Cheddar</td><td>0,1</td><td>lt</td></tr>
+    <tr><td>Mechada</td><td>1</td><td>u</td></tr>
+    <tr><td>Papas Fritas</td><td>0,6</td><td>kg</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Papas La Vegetal</h3><span class="price">$14.900</span></div>
+  <span class="card-category">Papas</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Champi&ntilde;&oacute;n</td><td>100</td><td>g</td></tr>
+    <tr><td>Papas Fritas</td><td>0,6</td><td>kg</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Papas Pil Pil</h3><span class="price">$16.900</span></div>
+  <span class="card-category">Papas</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Camar&oacute;n 36/40</td><td>12</td><td>u</td></tr>
+    <tr><td>Papas Fritas</td><td>600</td><td>g</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Queso Derretido extra</h3><span class="price">$3.800</span></div>
+  <span class="card-category">Papas</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Mozzarella Porcionado</td><td>1</td><td>u</td></tr>
+  </tbody></table></div>
+</div>
+
+</div><!-- /cards Papas -->
+
+<!-- Picoteos -->
+<div class="category-title">Picoteos</div>
+<div class="cards">
+
+<div class="card">
+  <div class="card-header"><h3>Camarones al Pil Pil</h3><span class="price">$8.900</span></div>
+  <span class="card-category">Picoteos</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Camar&oacute;n 36/40</td><td>12</td><td>u</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Mix Fritos</h3><span class="price">$18.600</span></div>
+  <span class="card-category">Picoteos</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Bolitas queso</td><td>4</td><td>u</td></tr>
+    <tr><td>Empanada camar&oacute;n</td><td>4</td><td>u</td></tr>
+    <tr><td>Papas Fritas</td><td>0,3</td><td>kg</td></tr>
+    <tr><td>Pollo Apanado</td><td>1</td><td>u</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Pil Pil</h3><span class="price">$9.900</span></div>
+  <span class="card-category">Picoteos</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Camar&oacute;n 36/40</td><td>6</td><td>u</td></tr>
+    <tr><td>Champi&ntilde;&oacute;n</td><td>100</td><td>g</td></tr>
+    <tr><td>Pollo Papas</td><td>1</td><td>u</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Tabla Alm&iacute;bar</h3><span class="price">$24.800</span></div>
+  <span class="card-category">Picoteos</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>At&uacute;n steak</td><td>1</td><td>kg</td></tr>
+    <tr><td>Empanada camar&oacute;n</td><td>1</td><td>u</td></tr>
+    <tr><td>Pollo brocheta</td><td>1</td><td>u</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Tabla Carnes</h3><span class="price">$28.800</span></div>
+  <span class="card-category">Picoteos</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Cerdo en tiras</td><td>1</td><td>u</td></tr>
+    <tr><td>Filete porcionado</td><td>1</td><td>u</td></tr>
+    <tr><td>Pamplona Pollo tocino</td><td>1</td><td>u</td></tr>
+    <tr><td>Papas Fritas</td><td>0,6</td><td>kg</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Tabla Pac&iacute;fico</h3><span class="price">$19.100</span></div>
+  <span class="card-category">Picoteos</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Camar&oacute;n 36/40</td><td>6</td><td>u</td></tr>
+    <tr><td>Empanada camar&oacute;n</td><td>2</td><td>u</td></tr>
+    <tr><td>Salm&oacute;n picado</td><td>0,5</td><td>u</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Trilog&iacute;a Empanadas</h3><span class="price">$9.900</span></div>
+  <span class="card-category">Picoteos</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Empanada camar&oacute;n</td><td>2</td><td>u</td></tr>
+    <tr><td>Empanada champi&ntilde;&oacute;n</td><td>2</td><td>u</td></tr>
+    <tr><td>Empanada mechada</td><td>2</td><td>u</td></tr>
+  </tbody></table></div>
+</div>
+
+</div><!-- /cards Picoteos -->
+
+<!-- Pizzas -->
+<div class="category-title">Pizzas</div>
+<div class="cards">
+
+<div class="card">
+  <div class="card-header"><h3>Pizza Al Ajillo</h3><span class="price">$15.800</span></div>
+  <span class="card-category">Pizzas</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Camar&oacute;n 36/40</td><td>8</td><td>u</td></tr>
+    <tr><td>Mozzarella</td><td>1</td><td>u</td></tr>
+    <tr><td>Pollo Pizza</td><td>1</td><td>u</td></tr>
+    <tr><td>Salsa Pizza</td><td>0,13</td><td>kg</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Pizza Desmechada</h3><span class="price">$14.800</span></div>
+  <span class="card-category">Pizzas</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Mechada</td><td>0,5</td><td>u</td></tr>
+    <tr><td>Mozzarella</td><td>1</td><td>u</td></tr>
+    <tr><td>Queso Azul</td><td>0,02</td><td>kg</td></tr>
+    <tr><td>Salsa Pizza</td><td>0,13</td><td>kg</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Pizza Doble Pepperoni</h3><span class="price">$13.400</span></div>
+  <span class="card-category">Pizzas</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Mozzarella</td><td>1</td><td>u</td></tr>
+    <tr><td>Pepperoni</td><td>0,1</td><td>kg</td></tr>
+    <tr><td>Salsa Pizza</td><td>0,12</td><td>kg</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Pizza Lomo Saltado</h3><span class="price">$18.900</span></div>
+  <span class="card-category">Pizzas</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Filete porcionado</td><td>1</td><td>u</td></tr>
+    <tr><td>Mozzarella</td><td>1</td><td>u</td></tr>
+    <tr><td>Salsa Pizza</td><td>0,13</td><td>kg</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Pizza Mechona</h3><span class="price">$15.800</span></div>
+  <span class="card-category">Pizzas</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Mechada</td><td>0,5</td><td>u</td></tr>
+    <tr><td>Mozzarella</td><td>1</td><td>u</td></tr>
+    <tr><td>Salsa Pizza</td><td>0,13</td><td>kg</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Pizza Napolitana</h3><span class="price">$11.800</span></div>
+  <span class="card-category">Pizzas</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Jam&oacute;n Pierna</td><td>0,07</td><td>kg</td></tr>
+    <tr><td>Mozzarella</td><td>1</td><td>u</td></tr>
+    <tr><td>Salsa Pizza</td><td>0,13</td><td>kg</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Pizza Pollo BBQ</h3><span class="price">$12.800</span></div>
+  <span class="card-category">Pizzas</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Jam&oacute;n Pierna</td><td>0,07</td><td>kg</td></tr>
+    <tr><td>Mozzarella</td><td>1</td><td>u</td></tr>
+    <tr><td>Pollo Pizza</td><td>1</td><td>u</td></tr>
+    <tr><td>Salsa Pizza</td><td>0,13</td><td>kg</td></tr>
+    <tr><td>Tocino</td><td>0,06</td><td>kg</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Pizza Ranchera</h3><span class="price">$15.600</span></div>
+  <span class="card-category">Pizzas</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Mozzarella</td><td>1</td><td>u</td></tr>
+    <tr><td>Pollo Papas</td><td>1</td><td>u</td></tr>
+    <tr><td>Salsa Pizza</td><td>0,12</td><td>kg</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Pizza Ricotta</h3><span class="price">$14.200</span></div>
+  <span class="card-category">Pizzas</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Masa Pizza</td><td>1</td><td>u</td></tr>
+    <tr><td>Mozzarella</td><td>1</td><td>u</td></tr>
+    <tr><td>Queso ricotta</td><td>0,1</td><td>kg</td></tr>
+    <tr><td>Salsa Pizza</td><td>0,12</td><td>kg</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Pizza Vegetariana</h3><span class="price">$14.200</span></div>
+  <span class="card-category">Pizzas</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Mozzarella</td><td>1</td><td>u</td></tr>
+    <tr><td>Salsa Pizza</td><td>0,13</td><td>kg</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Doble Queso extra</h3><span class="price">$3.800</span></div>
+  <span class="card-category">Pizzas</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Mozzarella</td><td>1</td><td>u</td></tr>
+  </tbody></table></div>
+</div>
+
+</div><!-- /cards Pizzas -->
+
+<!-- Platos Fríos -->
+<div class="category-title">Platos Fr&iacute;os</div>
+<div class="cards">
+
+<div class="card">
+  <div class="card-header"><h3>Ceviche Salm&oacute;n</h3><span class="price">$14.200</span></div>
+  <span class="card-category">Platos Fr&iacute;os</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Salm&oacute;n picado</td><td>1</td><td>u</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Ceviche Salm&oacute;n-Camar&oacute;n</h3><span class="price">$17.400</span></div>
+  <span class="card-category">Platos Fr&iacute;os</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Camar&oacute;n 36/40</td><td>6</td><td>u</td></tr>
+    <tr><td>Salm&oacute;n picado</td><td>1</td><td>u</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Tiradito Salm&oacute;n</h3><span class="price">$16.600</span></div>
+  <span class="card-category">Platos Fr&iacute;os</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Salm&oacute;n tiradito</td><td>1</td><td>u</td></tr>
+  </tbody></table></div>
+</div>
+
+</div><!-- /cards Platos Fríos -->
+
+<!-- Salchipapas XL -->
+<div class="category-title">Salchipapas XL</div>
+<div class="cards">
+
+<div class="card">
+  <div class="card-header"><h3>La Colosal XL</h3><span class="price">$22.900</span></div>
+  <span class="card-category">Salchipapas XL</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Aderezo Cheddar</td><td>0,05</td><td>lt</td></tr>
+    <tr><td>Mechada</td><td>1</td><td>u</td></tr>
+    <tr><td>Papas Fritas</td><td>1,2</td><td>kg</td></tr>
+    <tr><td>Salchicha sure&ntilde;a</td><td>0,2</td><td>kg</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>La Superior XL</h3><span class="price">$23.900</span></div>
+  <span class="card-category">Salchipapas XL</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Papas Fritas</td><td>1,2</td><td>kg</td></tr>
+    <tr><td>Pollo Papas</td><td>1</td><td>u</td></tr>
+    <tr><td>Salchicha sure&ntilde;a</td><td>0,2</td><td>kg</td></tr>
+    <tr><td>Tocino</td><td>0,08</td><td>kg</td></tr>
+  </tbody></table></div>
+</div>
+
+</div><!-- /cards Salchipapas XL -->
+
+
+<!-- ==================== BARRA ==================== -->
+<div class="section-title">BARRA</div>
+
+<!-- Cócteles Clásicos -->
+<div class="category-title">C&oacute;cteles Cl&aacute;sicos</div>
+<div class="cards">
+
+<div class="card">
+  <div class="card-header"><h3>Caipirinha</h3><span class="price">$6.200</span></div>
+  <span class="card-category">C&oacute;cteles Cl&aacute;sicos</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Cachaza</td><td>90</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Cerveza Margarita</h3><span class="price">$6.900</span></div>
+  <span class="card-category">C&oacute;cteles Cl&aacute;sicos</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Sol</td><td>1</td><td>u</td></tr>
+    <tr><td>Tequila</td><td>90</td><td>ml</td></tr>
+    <tr><td>Triple Sec</td><td>30</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Copa Sangr&iacute;a</h3><span class="price">$6.400</span></div>
+  <span class="card-category">C&oacute;cteles Cl&aacute;sicos</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Licor de Cassis</td><td>30</td><td>ml</td></tr>
+    <tr><td>Vino Tinto</td><td>300</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Electric</h3><span class="price">$6.800</span></div>
+  <span class="card-category">C&oacute;cteles Cl&aacute;sicos</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Curazao</td><td>30</td><td>ml</td></tr>
+    <tr><td>Ginger Ale</td><td>90</td><td>ml</td></tr>
+    <tr><td>Jugo Naranja</td><td>30</td><td>ml</td></tr>
+    <tr><td>Vodka</td><td>90</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>John Collins</h3><span class="price">$6.400</span></div>
+  <span class="card-category">C&oacute;cteles Cl&aacute;sicos</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Agua con Gas</td><td>160</td><td>ml</td></tr>
+    <tr><td>Whiskey</td><td>90</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>London Mule</h3><span class="price">$6.900</span></div>
+  <span class="card-category">C&oacute;cteles Cl&aacute;sicos</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Fentiman Ginger Beer</td><td>1</td><td>u</td></tr>
+    <tr><td>Gin</td><td>60</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Margarita</h3><span class="price">$6.200</span></div>
+  <span class="card-category">C&oacute;cteles Cl&aacute;sicos</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Tequila</td><td>90</td><td>ml</td></tr>
+    <tr><td>Triple Sec</td><td>30</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Martini Dry</h3><span class="price">$6.800</span></div>
+  <span class="card-category">C&oacute;cteles Cl&aacute;sicos</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Gin</td><td>60</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Mojito Cubano</h3><span class="price">$6.000</span></div>
+  <span class="card-category">C&oacute;cteles Cl&aacute;sicos</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Base mojito</td><td>180</td><td>ml</td></tr>
+    <tr><td>Agua con Gas</td><td>90</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Mojito Diablo</h3><span class="price">$6.800</span></div>
+  <span class="card-category">C&oacute;cteles Cl&aacute;sicos</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Agua con Gas</td><td>60</td><td>ml</td></tr>
+    <tr><td>Licor de Cassis</td><td>60</td><td>ml</td></tr>
+    <tr><td>Pulpa Frutilla</td><td>60</td><td>g</td></tr>
+    <tr><td>Tequila</td><td>90</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Mojito Sand&iacute;a</h3><span class="price">$6.800</span></div>
+  <span class="card-category">C&oacute;cteles Cl&aacute;sicos</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Base mojito</td><td>180</td><td>ml</td></tr>
+    <tr><td>Licor sand&iacute;a</td><td>30</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Mojito Sol</h3><span class="price">$7.900</span></div>
+  <span class="card-category">C&oacute;cteles Cl&aacute;sicos</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Ron Blanco</td><td>100</td><td>ml</td></tr>
+    <tr><td>Sol</td><td>1</td><td>u</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Moscow Mule</h3><span class="price">$6.900</span></div>
+  <span class="card-category">C&oacute;cteles Cl&aacute;sicos</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Fentiman Ginger Beer</td><td>1</td><td>u</td></tr>
+    <tr><td>Vodka</td><td>90</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Peruano Sour</h3><span class="price">$6.400</span></div>
+  <span class="card-category">C&oacute;cteles Cl&aacute;sicos</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Barsol</td><td>90</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Tequila Sunrise</h3><span class="price">$6.400</span></div>
+  <span class="card-category">C&oacute;cteles Cl&aacute;sicos</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Granadina</td><td>30</td><td>ml</td></tr>
+    <tr><td>Jugo Naranja</td><td>90</td><td>ml</td></tr>
+    <tr><td>Tequila</td><td>90</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Tom Collins</h3><span class="price">$6.200</span></div>
+  <span class="card-category">C&oacute;cteles Cl&aacute;sicos</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Agua con Gas</td><td>180</td><td>ml</td></tr>
+    <tr><td>Gin</td><td>90</td><td>ml</td></tr>
+    <tr><td>Marrasquino</td><td>10</td><td>g</td></tr>
+  </tbody></table></div>
+</div>
+
+</div><!-- /cards Cócteles Clásicos -->
+
+<!-- Coctelería de Autor -->
+<div class="category-title">Coctelería de Autor</div>
+<div class="cards">
+
+<div class="card">
+  <div class="card-header"><h3>Black Margarita</h3><span class="price">$6.200</span></div>
+  <span class="card-category">Coctelería de Autor</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Tequila</td><td>90</td><td>ml</td></tr>
+    <tr><td>Triple Sec</td><td>60</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Blue Moon</h3><span class="price">$6.900</span></div>
+  <span class="card-category">Coctelería de Autor</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Beefeater</td><td>60</td><td>ml</td></tr>
+    <tr><td>Curazao</td><td>30</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Dark Magic</h3><span class="price">$5.900</span></div>
+  <span class="card-category">Coctelería de Autor</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Gin</td><td>60</td><td>ml</td></tr>
+    <tr><td>Licor Cassis</td><td>30</td><td>ml</td></tr>
+    <tr><td>Triple Sec</td><td>30</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Ginerol Naranja</h3><span class="price">$6.900</span></div>
+  <span class="card-category">Coctelería de Autor</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Aperol</td><td>30</td><td>ml</td></tr>
+    <tr><td>Gin</td><td>60</td><td>ml</td></tr>
+    <tr><td>Jugo Naranja</td><td>60</td><td>ml</td></tr>
+    <tr><td>T&oacute;nica</td><td>120</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Manzana Canela</h3><span class="price">$7.200</span></div>
+  <span class="card-category">Coctelería de Autor</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Ginger Ale</td><td>120</td><td>ml</td></tr>
+    <tr><td>Mistral Apple</td><td>90</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Margarita Diablo</h3><span class="price">$6.400</span></div>
+  <span class="card-category">Coctelería de Autor</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Licor Cassis</td><td>30</td><td>ml</td></tr>
+    <tr><td>Tequila</td><td>60</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Martini Nutella</h3><span class="price">$6.900</span></div>
+  <span class="card-category">Coctelería de Autor</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>C&aacute;psula caf&eacute;</td><td>1</td><td>u</td></tr>
+    <tr><td>Vodka</td><td>60</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Mexicano a Medias</h3><span class="price">$6.600</span></div>
+  <span class="card-category">Coctelería de Autor</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Bols Elderflower</td><td>30</td><td>ml</td></tr>
+    <tr><td>Jugo Naranja</td><td>60</td><td>ml</td></tr>
+    <tr><td>Tequila</td><td>60</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Mojito Asteca</h3><span class="price">$6.800</span></div>
+  <span class="card-category">Coctelería de Autor</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Agua con Gas</td><td>160</td><td>ml</td></tr>
+    <tr><td>Pulpa Frutilla</td><td>120</td><td>g</td></tr>
+    <tr><td>Tequila</td><td>90</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Poison Apple</h3><span class="price">$6.400</span></div>
+  <span class="card-category">Coctelería de Autor</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Vodka</td><td>60</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Ramazzotti Pink</h3><span class="price">$8.900</span></div>
+  <span class="card-category">Coctelería de Autor</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Beefeater Pink</td><td>60</td><td>ml</td></tr>
+    <tr><td>Marrasquino</td><td>20</td><td>g</td></tr>
+    <tr><td>Ramazotti</td><td>60</td><td>ml</td></tr>
+    <tr><td>T&oacute;nica</td><td>120</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Summer Naranja</h3><span class="price">$7.200</span></div>
+  <span class="card-category">Coctelería de Autor</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Granadina</td><td>30</td><td>ml</td></tr>
+    <tr><td>Jugo Naranja</td><td>120</td><td>ml</td></tr>
+    <tr><td>Mistral Honey</td><td>60</td><td>ml</td></tr>
+    <tr><td>Triple Sec</td><td>30</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+</div><!-- /cards Coctelería de Autor -->
+
+<!-- Cremosos -->
+<div class="category-title">Cremosos</div>
+<div class="cards">
+
+<div class="card">
+  <div class="card-header"><h3>Amaretto Colado</h3><span class="price">$6.900</span></div>
+  <span class="card-category">Cremosos</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Amaretto</td><td>90</td><td>ml</td></tr>
+    <tr><td>Crema Coco</td><td>60</td><td>ml</td></tr>
+    <tr><td>Leche Condensada</td><td>60</td><td>ml</td></tr>
+    <tr><td>Pulpa Pi&ntilde;a</td><td>60</td><td>g</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Baileys</h3><span class="price">$6.900</span></div>
+  <span class="card-category">Cremosos</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Crema de Leche</td><td>60</td><td>ml</td></tr>
+    <tr><td>Leche Condensada</td><td>60</td><td>ml</td></tr>
+    <tr><td>Licor Caf&eacute;</td><td>60</td><td>ml</td></tr>
+    <tr><td>Whiskey</td><td>90</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Pi&ntilde;a Colada</h3><span class="price">$6.900</span></div>
+  <span class="card-category">Cremosos</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Crema Coco</td><td>60</td><td>ml</td></tr>
+    <tr><td>Crema de Leche</td><td>60</td><td>ml</td></tr>
+    <tr><td>Leche Condensada</td><td>60</td><td>ml</td></tr>
+    <tr><td>Pulpa Pi&ntilde;a</td><td>150</td><td>g</td></tr>
+    <tr><td>Ron Blanco</td><td>90</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Ruso Blanco</h3><span class="price">$6.400</span></div>
+  <span class="card-category">Cremosos</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Crema de Leche</td><td>60</td><td>ml</td></tr>
+    <tr><td>Licor Caf&eacute;</td><td>60</td><td>ml</td></tr>
+    <tr><td>Vodka</td><td>90</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+</div><!-- /cards Cremosos -->
+
+<!-- Sours -->
+<div class="category-title">Sours</div>
+<div class="cards">
+
+<div class="card">
+  <div class="card-header"><h3>Sour Amaretto</h3><span class="price">$5.400</span></div>
+  <span class="card-category">Sours</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Amaretto</td><td>90</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Sour Maracuy&aacute;</h3><span class="price">$5.400</span></div>
+  <span class="card-category">Sours</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Pulpa Maracuy&aacute;</td><td>60</td><td>g</td></tr>
+    <tr><td>Pisco</td><td>90</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Sour Peruano</h3><span class="price">$6.400</span></div>
+  <span class="card-category">Sours</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Alb&uacute;mina</td><td>1</td><td>u</td></tr>
+    <tr><td>Barsol</td><td>90</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Sour Tradicional</h3><span class="price">$5.400</span></div>
+  <span class="card-category">Sours</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Pisco</td><td>90</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Whisky Sour</h3><span class="price">$6.400</span></div>
+  <span class="card-category">Sours</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Whiskey</td><td>90</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+</div><!-- /cards Sours -->
+
+<!-- Spritz -->
+<div class="category-title">Spritz</div>
+<div class="cards">
+
+<div class="card">
+  <div class="card-header"><h3>Aperol Spritz</h3><span class="price">$8.400</span></div>
+  <span class="card-category">Spritz</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Aperol</td><td>60</td><td>ml</td></tr>
+    <tr><td>Agua con Gas</td><td>180</td><td>ml</td></tr>
+    <tr><td>Espumante</td><td>120</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Campari Spritz</h3><span class="price">$4.900</span></div>
+  <span class="card-category">Spritz</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Agua con Gas</td><td>90</td><td>ml</td></tr>
+    <tr><td>Campari</td><td>60</td><td>ml</td></tr>
+    <tr><td>Espumante</td><td>120</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Ramazzotti Spritz</h3><span class="price">$6.200</span></div>
+  <span class="card-category">Spritz</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Agua con Gas</td><td>120</td><td>ml</td></tr>
+    <tr><td>Espumante</td><td>150</td><td>ml</td></tr>
+    <tr><td>Ramazotti</td><td>60</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Ramazzotti Violetto Spritz</h3><span class="price">$5.900</span></div>
+  <span class="card-category">Spritz</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Agua con Gas</td><td>90</td><td>ml</td></tr>
+    <tr><td>Espumante</td><td>120</td><td>ml</td></tr>
+    <tr><td>Ramazzotti Violetto</td><td>60</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Sand&iacute;a Spritz</h3><span class="price">$5.900</span></div>
+  <span class="card-category">Spritz</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Agua con Gas</td><td>90</td><td>ml</td></tr>
+    <tr><td>Espumante</td><td>120</td><td>ml</td></tr>
+    <tr><td>Licor sand&iacute;a</td><td>60</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+</div><!-- /cards Spritz -->
+
+<!-- Old Schools -->
+<div class="category-title">Old Schools</div>
+<div class="cards">
+
+<div class="card">
+  <div class="card-header"><h3>Clavo Oxidado</h3><span class="price">$6.900</span></div>
+  <span class="card-category">Old Schools</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Drambui</td><td>30</td><td>ml</td></tr>
+    <tr><td>Whiskey</td><td>90</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>God Father</h3><span class="price">$6.400</span></div>
+  <span class="card-category">Old Schools</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Amaretto</td><td>60</td><td>ml</td></tr>
+    <tr><td>Whiskey</td><td>90</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Negroni</h3><span class="price">$6.400</span></div>
+  <span class="card-category">Old Schools</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Beefeater</td><td>30</td><td>ml</td></tr>
+    <tr><td>Campari</td><td>30</td><td>ml</td></tr>
+    <tr><td>Vermut Rosso</td><td>30</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+</div><!-- /cards Old Schools -->
+
+<!-- Bottle Drinks -->
+<div class="category-title">Bottle Drinks</div>
+<div class="cards">
+
+<div class="card">
+  <div class="card-header"><h3>Apple Pie</h3><span class="price">$9.900</span></div>
+  <span class="card-category">Bottle Drinks</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Jack Daniels Apple</td><td>30ml + 50cc</td><td>bottle</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Cosmo Fire</h3><span class="price">$9.900</span></div>
+  <span class="card-category">Bottle Drinks</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Jack Fire</td><td>50</td><td>cc</td></tr>
+    <tr><td>Jugo Ar&aacute;ndano</td><td>90</td><td>ml</td></tr>
+    <tr><td>Triple Sec</td><td>30</td><td>ml</td></tr>
+    <tr><td>Vodka</td><td>90</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Honey Limonada</h3><span class="price">$9.900</span></div>
+  <span class="card-category">Bottle Drinks</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Jack Honey</td><td>30ml + 50cc</td><td>bottle</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>MaracuJack</h3><span class="price">$9.900</span></div>
+  <span class="card-category">Bottle Drinks</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Jack N7</td><td>30ml + 50cc</td><td>bottle</td></tr>
+    <tr><td>Pulpa Maracuy&aacute;</td><td>60</td><td>g</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Raspberry Mule</h3><span class="price">$9.900</span></div>
+  <span class="card-category">Bottle Drinks</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Absolut Raspberri</td><td>60</td><td>ml</td></tr>
+    <tr><td>Fentiman Ginger Beer</td><td>1</td><td>u</td></tr>
+    <tr><td>Licor Cassis</td><td>30</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Surfer J&auml;ger</h3><span class="price">$9.900</span></div>
+  <span class="card-category">Bottle Drinks</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Curazao</td><td>30</td><td>ml</td></tr>
+    <tr><td>J&auml;germeister</td><td>20</td><td>cc</td></tr>
+    <tr><td>Malibu</td><td>90</td><td>ml</td></tr>
+    <tr><td>Pulpa Pi&ntilde;a</td><td>60</td><td>g</td></tr>
+  </tbody></table></div>
+</div>
+
+</div><!-- /cards Bottle Drinks -->
+
+<!-- Red Bull Drinks -->
+<div class="category-title">Red Bull Drinks</div>
+<div class="cards">
+
+<div class="card">
+  <div class="card-header"><h3>Dragon Wild</h3><span class="price">$7.900</span></div>
+  <span class="card-category">Red Bull Drinks</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Ballantines Wild</td><td>90</td><td>ml</td></tr>
+    <tr><td>Red Bull Dragon</td><td>1</td><td>u</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Paloma</h3><span class="price">$7.900</span></div>
+  <span class="card-category">Red Bull Drinks</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Red Bull Pomelo</td><td>1</td><td>u</td></tr>
+    <tr><td>Tequila</td><td>90</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Red Bull Bomb</h3><span class="price">$7.900</span></div>
+  <span class="card-category">Red Bull Drinks</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>J&auml;germeister</td><td>30ml + 20cc</td><td></td></tr>
+    <tr><td>Red Bull</td><td>1</td><td>u</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Tropical Gin</h3><span class="price">$7.800</span></div>
+  <span class="card-category">Red Bull Drinks</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Gin</td><td>90</td><td>ml</td></tr>
+    <tr><td>Red Bull (modificador)</td><td>1</td><td>u</td></tr>
+  </tbody></table></div>
+</div>
+
+</div><!-- /cards Red Bull Drinks -->
+
+<!-- Mojitos 1L -->
+<div class="category-title">Mojitos 1L</div>
+<div class="cards">
+
+<div class="card">
+  <div class="card-header"><h3>Mojito Cubano 1L</h3><span class="price">$9.500</span></div>
+  <span class="card-category">Mojitos 1L</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Base mojito</td><td>360</td><td>ml</td></tr>
+    <tr><td>Agua con Gas</td><td>200</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Mojito Frambuesa 1L</h3><span class="price">$9.900</span></div>
+  <span class="card-category">Mojitos 1L</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Base mojito</td><td>360</td><td>ml</td></tr>
+    <tr><td>Agua con Gas</td><td>120</td><td>ml</td></tr>
+    <tr><td>Pulpa Frambuesa</td><td>240</td><td>g</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Mojito Frutilla 1L</h3><span class="price">$9.900</span></div>
+  <span class="card-category">Mojitos 1L</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Base mojito</td><td>360</td><td>ml</td></tr>
+    <tr><td>Agua con Gas</td><td>120</td><td>ml</td></tr>
+    <tr><td>Pulpa Frutilla</td><td>240</td><td>g</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Mojito Mango 1L</h3><span class="price">$9.900</span></div>
+  <span class="card-category">Mojitos 1L</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Base mojito</td><td>360</td><td>ml</td></tr>
+    <tr><td>Pulpa Mango</td><td>180</td><td>g</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Mojito Maracuy&aacute; 1L</h3><span class="price">$9.900</span></div>
+  <span class="card-category">Mojitos 1L</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Base mojito</td><td>360</td><td>ml</td></tr>
+    <tr><td>Pulpa Maracuy&aacute;</td><td>200</td><td>g</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Mojito Pi&ntilde;a 1L</h3><span class="price">$9.900</span></div>
+  <span class="card-category">Mojitos 1L</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Base mojito</td><td>360</td><td>ml</td></tr>
+    <tr><td>Agua con Gas</td><td>120</td><td>ml</td></tr>
+    <tr><td>Pulpa Pi&ntilde;a</td><td>240</td><td>g</td></tr>
+  </tbody></table></div>
+</div>
+
+</div><!-- /cards Mojitos 1L -->
+
+<!-- Mocktails -->
+<div class="category-title">Mocktails</div>
+<div class="cards">
+
+<div class="card">
+  <div class="card-header"><h3>Beso Boreal</h3><span class="price">$4.400</span></div>
+  <span class="card-category">Mocktails</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Agua con Gas</td><td>150</td><td>ml</td></tr>
+    <tr><td>Jugo Ar&aacute;ndano</td><td>90</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Brisa Verde</h3><span class="price">$4.400</span></div>
+  <span class="card-category">Mocktails</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Agua con Gas</td><td>150</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Espresso Naranja</h3><span class="price">$4.400</span></div>
+  <span class="card-category">Mocktails</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>C&aacute;psula caf&eacute;</td><td>1</td><td>u</td></tr>
+    <tr><td>Jugo Naranja</td><td>90</td><td>ml</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Tropical Sunset</h3><span class="price">$4.400</span></div>
+  <span class="card-category">Mocktails</span>
+  <div class="card-body"><table><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+    <tr><td>Granadina</td><td>30</td><td>ml</td></tr>
+    <tr><td>Jugo Naranja</td><td>60</td><td>ml</td></tr>
+    <tr><td>Pulpa Pi&ntilde;a</td><td>60</td><td>g</td></tr>
+  </tbody></table></div>
+</div>
+
+</div><!-- /cards Mocktails -->
+
+</div><!-- /container -->
+
+</body>
+</html>
