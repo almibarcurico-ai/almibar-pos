@@ -29,7 +29,7 @@ export default function PurchasesScreen({ onBack }: { onBack?: () => void }) {
   const [scannedItems, setScannedItems] = useState<ScannedItem[]>([]);
   const [saving, setSaving] = useState(false);
   const [payMethod, setPayMethod] = useState<'efectivo' | 'transferencia' | 'credito_proveedor' | 'debito'>('efectivo');
-  const [linkArqueo, setLinkArqueo] = useState(true);
+  const [linkArqueo, setLinkArqueo] = useState(false);
   const [currentArqueo, setCurrentArqueo] = useState<any>(null);
 
   // Edit invoice
