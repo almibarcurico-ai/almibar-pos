@@ -219,11 +219,11 @@ export default function CostScreen() {
         {/* Table header */}
         <View style={{ flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 8, backgroundColor: '#FAFAFA', borderBottomWidth: 2, borderBottomColor: COLORS.border }}>
           <Text style={[st.th, { flex: 1 }]}>Producto</Text>
-          <Text style={[st.th, { width: 70, textAlign: 'right' }]}>Costo</Text>
+          <Text style={[st.th, { width: 75, textAlign: 'right' }]}>Precio</Text>
+          <Text style={[st.th, { width: 75, textAlign: 'right' }]}>Costo</Text>
           <Text style={[st.th, { width: 80, textAlign: 'right' }]}>Sugerido</Text>
-          <Text style={[st.th, { width: 90, textAlign: 'right' }]}>P. Carta</Text>
           <Text style={[st.th, { width: 55, textAlign: 'center' }]}>FC%</Text>
-          <Text style={[st.th, { width: 70, textAlign: 'right' }]}>Margen</Text>
+          <Text style={[st.th, { width: 75, textAlign: 'right' }]}>Margen</Text>
         </View>
 
         {/* Products */}
@@ -232,24 +232,14 @@ export default function CostScreen() {
             <View key={p.id} style={{ flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border, backgroundColor: i % 2 === 0 ? COLORS.card : COLORS.background, alignItems: 'center' }}>
               {/* Name + category */}
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.text }} numberOfLines={1}>{p.name}</Text>
-                <Text style={{ fontSize: 9, color: COLORS.textMuted }}>{p.catName} · {p.recipeCount > 0 ? `${p.recipeCount} ing.` : 'Sin receta'}</Text>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.text }} numberOfLines={1}>{p.name}</Text>
+                <Text style={{ fontSize: 10, color: COLORS.textMuted }}>{p.catName} · {p.recipeCount > 0 ? `${p.recipeCount} ing.` : 'Sin receta'}</Text>
               </View>
 
-              {/* Costo receta (neto) */}
-              <Text style={{ width: 70, fontSize: 12, color: p.cost > 0 ? COLORS.text : COLORS.textMuted, textAlign: 'right' }}>
-                {p.cost > 0 ? fmtN(p.cost) : '-'}
-              </Text>
-
-              {/* Precio sugerido (bruto con IVA) */}
-              <Text style={{ width: 80, fontSize: 12, color: p.precioSugeridoBruto > 0 ? COLORS.textSecondary : COLORS.textMuted, textAlign: 'right' }}>
-                {p.precioSugeridoBruto > 0 ? fmtN(p.precioSugeridoBruto) : '-'}
-              </Text>
-
               {/* Precio carta (editable) */}
-              <View style={{ width: 90, alignItems: 'flex-end' }}>
+              <View style={{ width: 75, alignItems: 'flex-end' }}>
                 <TextInput
-                  style={{ fontSize: 13, fontWeight: '700', color: COLORS.primary, textAlign: 'right', backgroundColor: editingPrice[p.id] !== undefined ? COLORS.background : 'transparent', borderRadius: 4, borderWidth: editingPrice[p.id] !== undefined ? 1 : 0, borderColor: COLORS.primary, paddingHorizontal: 6, paddingVertical: 2, width: 80 }}
+                  style={{ fontSize: 15, fontWeight: '800', color: COLORS.primary, textAlign: 'right', backgroundColor: editingPrice[p.id] !== undefined ? COLORS.background : 'transparent', borderRadius: 4, borderWidth: editingPrice[p.id] !== undefined ? 1 : 0, borderColor: COLORS.primary, paddingHorizontal: 6, paddingVertical: 2, width: 72 }}
                   value={editingPrice[p.id] !== undefined ? editingPrice[p.id] : fmtN(p.price).replace('$', '')}
                   onFocus={() => setEditingPrice(prev => ({ ...prev, [p.id]: String(p.price) }))}
                   onChangeText={v => setEditingPrice(prev => ({ ...prev, [p.id]: v.replace(/\D/g, '') }))}
@@ -258,17 +248,27 @@ export default function CostScreen() {
                 />
               </View>
 
+              {/* Costo receta (neto) */}
+              <Text style={{ width: 75, fontSize: 15, fontWeight: '800', color: p.cost > 0 ? COLORS.error : COLORS.textMuted, textAlign: 'right' }}>
+                {p.cost > 0 ? fmtN(p.cost) : '-'}
+              </Text>
+
+              {/* Precio sugerido (bruto con IVA) */}
+              <Text style={{ width: 80, fontSize: 14, fontWeight: '700', color: p.precioSugeridoBruto > 0 ? COLORS.textSecondary : COLORS.textMuted, textAlign: 'right' }}>
+                {p.precioSugeridoBruto > 0 ? fmtN(p.precioSugeridoBruto) : '-'}
+              </Text>
+
               {/* Food cost % */}
               <View style={{ width: 55, alignItems: 'center' }}>
                 {p.cost > 0 ? (
-                  <View style={{ backgroundColor: fcColor(p.foodCostReal) + '20', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, borderWidth: 1, borderColor: fcColor(p.foodCostReal) + '40' }}>
-                    <Text style={{ fontSize: 11, fontWeight: '700', color: fcColor(p.foodCostReal) }}>{pct(p.foodCostReal)}</Text>
+                  <View style={{ backgroundColor: fcColor(p.foodCostReal) + '20', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: fcColor(p.foodCostReal) + '40' }}>
+                    <Text style={{ fontSize: 14, fontWeight: '800', color: fcColor(p.foodCostReal) }}>{pct(p.foodCostReal)}</Text>
                   </View>
-                ) : <Text style={{ color: COLORS.textMuted, fontSize: 10 }}>-</Text>}
+                ) : <Text style={{ color: COLORS.textMuted, fontSize: 11 }}>-</Text>}
               </View>
 
               {/* Margen */}
-              <Text style={{ width: 70, fontSize: 12, fontWeight: '600', color: p.margenNeto > 0 ? COLORS.success : p.cost > 0 ? COLORS.error : COLORS.textMuted, textAlign: 'right' }}>
+              <Text style={{ width: 75, fontSize: 15, fontWeight: '800', color: p.margenNeto > 0 ? COLORS.success : p.cost > 0 ? COLORS.error : COLORS.textMuted, textAlign: 'right' }}>
                 {p.cost > 0 ? fmtN(p.margenNeto) : '-'}
               </Text>
             </View>
