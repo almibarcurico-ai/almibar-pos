@@ -15,6 +15,42 @@ const playNotif = () => {
   }
 };
 
+function getBeneficio(personas: number, motivo: string, fecha: string): string {
+  const n = parseInt(String(personas)) || 0;
+  const isMiercoles = fecha ? new Date(fecha + 'T12:00:00').getDay() === 3 : false;
+  const isCumple = (motivo || '').toLowerCase().includes('cumple');
+  if (isMiercoles) return '💰 40% descuento (miércoles)';
+  if (n >= 16) return '💰 40% descuento (16+ personas)';
+  if (isCumple && n >= 11) return '🍹🍹 2 cócteles + 🥃 Ronda tequila';
+  if (isCumple && n >= 6) return '🍹🍹 2 cócteles gratis';
+  if (isCumple && n >= 2) return '🍹 1 cóctel gratis';
+  if (n >= 10) return '🥃 Ronda de tequila gratis';
+  return '';
+}
+
+function buildWhatsAppMsg(r: any): string {
+  const beneficio = getBeneficio(r.personas, r.motivo, r.fecha);
+  const fechaFmt = new Date(r.fecha + 'T12:00:00').toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' });
+  let msg = `Hola ${r.nombre.split(' ')[0]}! 👋\n\n`;
+  msg += `Tu reserva en *Almíbar* está *confirmada* ✅\n\n`;
+  msg += `📅 *${fechaFmt}*\n`;
+  msg += `🕖 *${r.hora} hrs*\n`;
+  msg += `👥 *${r.personas} personas*\n`;
+  if (r.motivo) msg += `🎯 ${r.motivo}\n`;
+  if (r.mesa_asignada) msg += `🪑 Mesa ${r.mesa_asignada}\n`;
+  if (beneficio) msg += `\n🎁 *Beneficio:* ${beneficio}\n`;
+  msg += `\n📍 Francisco Moreno 418, Curicó\nLos esperamos! 🍸`;
+  return msg;
+}
+
+function openWhatsApp(celular: string, msg: string) {
+  if (Platform.OS !== 'web') return;
+  let phone = (celular || '').replace(/\D/g, '');
+  if (phone.startsWith('9') && phone.length === 9) phone = '56' + phone;
+  if (!phone.startsWith('56')) phone = '56' + phone;
+  window.open('https://wa.me/' + phone + '?text=' + encodeURIComponent(msg), '_blank');
+}
+
 const SC: Record<string, { label: string; color: string; bg: string; icon: string }> = {
   pendiente: { label: 'Pendiente', color: '#F59E0B', bg: '#FEF3C7', icon: '⏳' },
   confirmada: { label: 'Confirmada', color: '#059669', bg: '#D1FAE5', icon: '✅' },
@@ -163,11 +199,31 @@ export default function ReservationsScreen() {
 
               {selected.motivo && <Text style={{ fontSize: 14, color: COLORS.textSecondary, marginBottom: 4 }}>🎯 {selected.motivo}</Text>}
               {selected.notas && <Text style={{ fontSize: 14, color: COLORS.textSecondary, marginBottom: 4 }}>📝 {selected.notas}</Text>}
-              <Text style={{ fontSize: 12, color: COLORS.textMuted, marginBottom: 16 }}>📅 {fmt(selected.fecha)}</Text>
+              <Text style={{ fontSize: 12, color: COLORS.textMuted, marginBottom: 8 }}>📅 {fmt(selected.fecha)}</Text>
+
+              {/* Beneficio */}
+              {getBeneficio(selected.personas, selected.motivo, selected.fecha) ? (
+                <View style={{ backgroundColor: '#059669' + '15', borderRadius: 10, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: '#059669' + '30' }}>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: '#059669', letterSpacing: 0.5, marginBottom: 2 }}>BENEFICIO ASIGNADO</Text>
+                  <Text style={{ fontSize: 15, fontWeight: '800', color: '#059669' }}>{getBeneficio(selected.personas, selected.motivo, selected.fecha)}</Text>
+                </View>
+              ) : (
+                <View style={{ backgroundColor: COLORS.background, borderRadius: 10, padding: 12, marginBottom: 16 }}>
+                  <Text style={{ fontSize: 12, color: COLORS.textMuted }}>Sin beneficio (mínimo 2 personas cumpleaños o 10+ personas)</Text>
+                </View>
+              )}
 
               <View style={{ gap: 8 }}>
+                {/* WhatsApp */}
+                {selected.celular && (
+                  <TouchableOpacity style={{ backgroundColor: '#25D366', borderRadius: 12, paddingVertical: 14, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }} onPress={() => openWhatsApp(selected.celular, buildWhatsAppMsg(selected))}>
+                    <Text style={{ fontSize: 18 }}>💬</Text>
+                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>Enviar WhatsApp</Text>
+                  </TouchableOpacity>
+                )}
+
                 {selected.status === 'pendiente' && (
-                  <TouchableOpacity style={{ backgroundColor: COLORS.primary, borderRadius: 12, paddingVertical: 14, alignItems: 'center' }} onPress={() => { updateStatus(selected.id, 'confirmada'); setSelected(null); }}>
+                  <TouchableOpacity style={{ backgroundColor: COLORS.primary, borderRadius: 12, paddingVertical: 14, alignItems: 'center' }} onPress={() => { updateStatus(selected.id, 'confirmada'); }}>
                     <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>✅ Confirmar reserva</Text>
                   </TouchableOpacity>
                 )}
