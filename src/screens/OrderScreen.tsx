@@ -126,7 +126,11 @@ export default function OrderScreen({ table, onBack }: Props) {
       setOrder(o);
       setGuestNames(o.guest_names || []);
       // Restore discount from saved order (discount_value stores % or fixed amount)
-      if (o.discount_type && o.discount_type !== 'none' && o.discount_value > 0) {
+      // Miércoles: forzar 40% siempre
+      if (esMiercoles) {
+        setDiscountType('percent');
+        setDiscountValue('40');
+      } else if (o.discount_type && o.discount_type !== 'none' && o.discount_value > 0) {
         setDiscountType(o.discount_type);
         setDiscountValue(String(o.discount_value));
       }
