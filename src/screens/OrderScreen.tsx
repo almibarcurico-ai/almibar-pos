@@ -192,13 +192,22 @@ export default function OrderScreen({ table, onBack }: Props) {
     const now = new Date();
     const h = now.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Santiago' });
     const dow = now.getDay();
+    // Bloquear HH los miércoles (día de 40% descuento)
+    if (dow === 3) return false;
     return dow >= 1 && dow <= 6 && h >= '17:00' && h < '21:00';
   };
 
   const addToCart = (product: Product) => {
     // Bloquear productos HH fuera de horario
     if (product.category_id === HH_CAT_ID && !isHHAllowed()) {
-      Alert.alert('⏰ Fuera de horario', 'Happy Hour disponible de Lunes a Sábado entre 17:00 y 21:00');
+      const dow = new Date().getDay();
+      Alert.alert('⏰ No disponible', dow === 3 ? 'Happy Hour no disponible los miércoles (día de 40% dcto)' : 'Happy Hour disponible de Lunes a Sábado entre 17:00 y 21:00 (excepto miércoles)');
+      return;
+    }
+    // Bloquear combos los miércoles
+    const COMBO_CAT_ID = 'd0000000-0000-0000-0000-000000000040';
+    if (product.category_id === COMBO_CAT_ID && new Date().getDay() === 3) {
+      Alert.alert('⏰ No disponible', 'Combos no disponibles los miércoles (día de 40% dcto)');
       return;
     }
     playClickPOS();
