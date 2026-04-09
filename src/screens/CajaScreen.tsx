@@ -745,6 +745,7 @@ function ArqueosTab() {
   const [movModal, setMovModal] = useState(false);
   const [editModal, setEditModal] = useState(false);
   const [editArqueo, setEditArqueo] = useState<any>(null);
+  const [editMovimientos, setEditMovimientos] = useState<any[]>([]);
   const [editFecha, setEditFecha] = useState('');
   const [editHora, setEditHora] = useState('');
   const [editMonto, setEditMonto] = useState('');
@@ -978,8 +979,10 @@ function ArqueosTab() {
 
   const delMov = (id: string) => Alert.alert('Eliminar', '¿Seguro?', [{ text: 'No' }, { text: 'Sí', style: 'destructive', onPress: async () => { await supabase.from('cash_movements').delete().eq('id', id); await loadData(); } }]);
 
-  const openEditArqueo = (arqueo: any) => {
+  const openEditArqueo = async (arqueo: any) => {
     setEditArqueo(arqueo);
+    const { data: movs } = await supabase.from('cash_movements').select('*').eq('cash_register_id', arqueo.id).order('created_at');
+    setEditMovimientos(movs || []);
     const oa = new Date(arqueo.opened_at);
     setEditFecha(oa.toLocaleDateString('en-CA'));
     setEditHora(oa.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false }));
@@ -1366,6 +1369,32 @@ function ArqueosTab() {
                   {(editArqueo?.total_cash_in || 0) > 0 && <ARQ label="Ingresos" val={'+' + fmt(editArqueo.total_cash_in)} />}
                 </View>
               </View>
+
+              {/* MOVIMIENTOS */}
+              {editMovimientos.length > 0 && (
+              <View style={{ backgroundColor: COLORS.cardHover, borderRadius: 10, padding: 14, marginBottom: 14 }}>
+                <Text style={{ fontSize: 12, fontWeight: '800', color: '#fff', marginBottom: 10, backgroundColor: COLORS.textMuted, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 4, overflow: 'hidden' }}>MOVIMIENTOS ({editMovimientos.length})</Text>
+                {editMovimientos.map((m: any) => (
+                  <View key={m.id} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: COLORS.border }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: m.type === 'gasto' ? COLORS.error : COLORS.success }}>{m.type === 'gasto' ? '📤' : '📥'} {m.description || m.type}</Text>
+                      <Text style={{ fontSize: 10, color: COLORS.textMuted }}>{new Date(m.created_at).toLocaleString('es-CL', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}</Text>
+                    </View>
+                    <Text style={{ fontSize: 14, fontWeight: '800', color: m.type === 'gasto' ? COLORS.error : COLORS.success }}>{m.type === 'gasto' ? '-' : '+'}${Math.round(m.amount).toLocaleString('es-CL')}</Text>
+                  </View>
+                ))}
+                <View style={{ borderTopWidth: 2, borderTopColor: COLORS.border, marginTop: 6, paddingTop: 6, flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.textSecondary }}>Total egresos</Text>
+                  <Text style={{ fontSize: 14, fontWeight: '800', color: COLORS.error }}>-${Math.round(editMovimientos.filter((m: any) => m.type === 'gasto').reduce((a: number, m: any) => a + m.amount, 0)).toLocaleString('es-CL')}</Text>
+                </View>
+                {editMovimientos.filter((m: any) => m.type === 'ingreso').length > 0 && (
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.textSecondary }}>Total ingresos</Text>
+                    <Text style={{ fontSize: 14, fontWeight: '800', color: COLORS.success }}>+${Math.round(editMovimientos.filter((m: any) => m.type === 'ingreso').reduce((a: number, m: any) => a + m.amount, 0)).toLocaleString('es-CL')}</Text>
+                  </View>
+                )}
+              </View>
+              )}
 
               {/* SEGÚN USUARIO */}
               <View style={{ backgroundColor: COLORS.cardHover, borderRadius: 10, padding: 14, marginBottom: 14 }}>
