@@ -1297,8 +1297,8 @@ function ArqueosTab() {
 
             {/* DIFERENCIA */}
             {(() => {
-              const totalGeneral = (cashRegister?.opening_amount || 0) + totals.ventasNetas + totals.propinas + totals.ingresos - totals.gastos;
-              const userTotal = (parseInt(cEfectivo)||0) + (parseInt(cDebito)||0) + (parseInt(cTransferencia)||0) + (parseInt(cCredito)||0) + (parseInt(cConsumo)||0);
+              const totalGeneral = (cashRegister?.opening_amount || 0) + totals.ventasNetasSinConsumo + totals.propinasSinConsumo + totals.ingresos - totals.gastos;
+              const userTotal = (parseInt(cEfectivo)||0) + (parseInt(cDebito)||0) + (parseInt(cTransferencia)||0) + (parseInt(cCredito)||0);
               const diff = userTotal - totalGeneral;
               const hasInput = cEfectivo || cDebito || cTransferencia || cCredito || cConsumo;
               if (!hasInput) return null;

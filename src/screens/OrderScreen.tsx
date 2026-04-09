@@ -584,7 +584,7 @@ export default function OrderScreen({ table, onBack }: Props) {
 
   const paySelected = async () => {
     if (!order || !user || selectedItems.length === 0) return;
-    await supabase.from('payments').insert({ order_id: order.id, method: paymentMethod, amount: selectedTotal, tip_amount: tipAmount, created_by: user.id });
+    await supabase.from('payments').insert({ order_id: order.id, method: paymentMethod, amount: selectedTotal + tipAmount, tip_amount: tipAmount, created_by: user.id });
     await supabase.from('order_items').update({ paid: true }).in('id', selectedItems.map(i => i.id));
     if (unpaidItems.length === selectedItems.length) {
       await supabase.from('orders').update({ status: 'cerrada', closed_at: new Date().toISOString(), payment_method: paymentMethod, tip_amount: tipAmount }).eq('id', order.id);
