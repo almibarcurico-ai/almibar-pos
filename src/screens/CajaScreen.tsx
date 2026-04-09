@@ -1365,8 +1365,8 @@ function ArqueosTab() {
                 <View style={{ borderTopWidth: 1, borderTopColor: COLORS.border, marginTop: 6, paddingTop: 6 }}>
                   <ARQ label="Total ventas" val={fmt(editArqueo?.total_sales || 0)} />
                   <ARQ label="Total propinas" val={fmt(editArqueo?.total_tips || 0)} />
-                  {(editArqueo?.total_expenses || 0) > 0 && <ARQ label="Egresos" val={'-' + fmt(editArqueo.total_expenses)} />}
-                  {(editArqueo?.total_cash_in || 0) > 0 && <ARQ label="Ingresos" val={'+' + fmt(editArqueo.total_cash_in)} />}
+                  {editMovimientos.filter((m: any) => m.type === 'gasto').reduce((a: number, m: any) => a + m.amount, 0) > 0 && <ARQ label="Egresos" val={'-' + fmt(editMovimientos.filter((m: any) => m.type === 'gasto').reduce((a: number, m: any) => a + m.amount, 0))} />}
+                  {editMovimientos.filter((m: any) => m.type === 'ingreso').reduce((a: number, m: any) => a + m.amount, 0) > 0 && <ARQ label="Ingresos" val={'+' + fmt(editMovimientos.filter((m: any) => m.type === 'ingreso').reduce((a: number, m: any) => a + m.amount, 0))} />}
                 </View>
               </View>
 
@@ -1414,7 +1414,9 @@ function ArqueosTab() {
 
               {/* DIFERENCIA */}
               {(() => {
-                const sysT = (editArqueo?.opening_amount||0) + (editArqueo?.total_cash||0) + (editArqueo?.total_debit||0) + (editArqueo?.total_credit||0) + (editArqueo?.total_transfer||0) + (editArqueo?.total_cash_in||0) - (editArqueo?.total_expenses||0);
+                const realEgresos = editMovimientos.filter((m: any) => m.type === 'gasto').reduce((a: number, m: any) => a + m.amount, 0);
+                const realIngresos = editMovimientos.filter((m: any) => m.type === 'ingreso').reduce((a: number, m: any) => a + m.amount, 0);
+                const sysT = (editArqueo?.opening_amount||0) + (editArqueo?.total_cash||0) + (editArqueo?.total_debit||0) + (editArqueo?.total_credit||0) + (editArqueo?.total_transfer||0) + realIngresos - realEgresos;
                 const userT = (parseInt(editUserEfectivo)||0) + (parseInt(editUserDebito)||0) + (parseInt(editUserCredito)||0) + (parseInt(editUserTransfer)||0);
                 const diff = userT - sysT;
                 if (!editUserEfectivo && !editUserDebito && !editUserCredito && !editUserTransfer) return null;
