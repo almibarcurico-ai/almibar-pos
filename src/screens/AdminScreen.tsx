@@ -271,7 +271,7 @@ function ClientesEnLocal() {
     const tel = c.phone.replace(/[^0-9]/g, '');
     const telWA = tel.startsWith('56') ? tel : '56' + tel;
     const nombre = c.nombre.split(' ')[0];
-    const msg = `¡Hola ${nombre}! 🔥\n\n*PROMO FLASH solo para ti en Almíbar* ⚡\n\n🥃 Shot de Tequila *$1.000*\n🍺 Schop Patagonia *$2.500*\n🥂 Pisco Mistral *$2.500*\n\nVálido por 7 minutos. Pide desde la app o muestra este mensaje a tu garzón.\n\n👉 https://almibarcurico-ai.github.io/\n\n¡Salud! 🥂`;
+    const msg = `¡Hola ${nombre}! 🔥\n\n*PROMO FLASH solo para ti en Almíbar* ⚡\n\n🥃 Shot de Tequila *$1.000*\n🍺 Schop Patagonia *$2.500*\n🍹 Mojito Cubano *$2.500*\n🥂 Pisco Mistral *$2.500*\n\nVálido por 7 minutos. Pide desde la app o muestra este mensaje a tu garzón.\n\n👉 https://almibarcurico-ai.github.io/\n\n¡Salud! 🥂`;
     return `https://wa.me/${telWA}?text=${encodeURIComponent(msg)}`;
   };
 
@@ -347,7 +347,7 @@ function ClientesEnLocal() {
         setQrModal(true);
         Alert.alert('⚡ Promo Flash activada', `3 productos en promo por 7 minutos.\n\n📱 Escanea los QR para enviar WhatsApp a ${conTel.length} socio${conTel.length > 1 ? 's' : ''}`);
       } else {
-        Alert.alert('⚡ Promo Flash activada', '3 productos en promo por 7 minutos.\nShot Tequila $1.000\nSchop Patagonia $2.500\nPisco Mistral $2.500\n\nNo hay socios con teléfono en mesas activas.');
+        Alert.alert('⚡ Promo Flash activada', '4 productos en promo por 7 minutos.\nShot Tequila $1.000\nSchop Patagonia $2.500\nMojito Cubano $2.500\nPisco Mistral $2.500\n\nNo hay socios con teléfono en mesas activas.');
       }
     } else {
       // Desactivar: ocultar banner
