@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><meta name="theme-color" content="#F1F5F9"/><title>Almíbar POS</title><style>html,body{height:100%;margin:0;padding:0;background-color:#F5F5F5;overflow:hidden}#root{display:flex;height:100%;flex:1}</style></head><body><div id="root"></div><script src="/_expo/static/js/web/index-8d9b517e5160eded33b4836614dc98ca.js" defer></script>
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><meta name="theme-color" content="#F1F5F9"/><title>Almíbar POS</title><style>html,body{height:100%;margin:0;padding:0;background-color:#F5F5F5;overflow:hidden}#root{display:flex;height:100%;flex:1}</style></head><body><div id="root"></div><script src="/_expo/static/js/web/index-8903bb1ddd53fe861580cefba675f7ff.js" defer></script>
 <script>
 (function(){
   var currentHash='';
@@ -8,8 +8,8 @@
       if(!currentHash){currentHash=h;return}
       if(h&&h!==currentHash){
         var d=document.createElement('div');
-        d.style.cssText='position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#059669;color:#fff;padding:12px 24px;border-radius:12px;font-family:system-ui;font-size:14px;font-weight:700;z-index:99999;box-shadow:0 4px 20px rgba(0,0,0,.3);cursor:pointer;display:flex;align-items:center;gap:8px';
-        d.innerHTML='🔄 Nueva versión disponible — Toca para actualizar';
+        d.style.cssText='position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#059669;color:#fff;padding:12px 24px;border-radius:12px;font-family:system-ui;font-size:14px;font-weight:700;z-index:99999;box-shadow:0 4px 20px rgba(0,0,0,.3);cursor:pointer';
+        d.innerHTML='🔄 Nueva versión — Toca para actualizar';
         d.onclick=function(){location.reload(true)};
         document.body.appendChild(d);
         setTimeout(function(){location.reload(true)},15000);

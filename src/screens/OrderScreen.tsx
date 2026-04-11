@@ -92,7 +92,7 @@ export default function OrderScreen({ table, onBack }: Props) {
 
   const PROMO_FLASH_PRODUCTS: Record<string, number> = {
     'db577525-cdd9-438d-a394-0e1ce02bb3f7': 1000,  // Shot Tequila → $1.000
-    'f3315d09-716d-48a4-a3f5-e6a5a0b3fc7b': 2500,  // Mojito Cubano → $2.500
+    '5035d89e-6ea9-45b6-8d63-fd293a6acf3b': 2500,  // Mistral 35 → $2.500
     '8279c385-2158-4895-a4bf-ab607602c835': 2500,  // Schop Patagonia → $2.500
   };
 
