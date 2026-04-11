@@ -158,7 +158,12 @@ export default function OrderScreen({ table, onBack }: Props) {
       const esMiercoles = dow === 3;
       // HH siempre visible, nunca bloquear categoría
       const bloqueadas: string[] = [];
-      setProducts(p.filter((pr: any) => !bloqueadas.includes(pr.category_id)));
+      const esLunes = dow === 1;
+      setProducts(p.filter((pr: any) => !bloqueadas.includes(pr.category_id)).filter((pr: any) => {
+        // Mojito Cubano Lunes solo visible los lunes
+        if (pr.name === 'Mojito Cubano Lunes' && !esLunes) return false;
+        return true;
+      }));
     }
     if (pmg && mg && mo) {
       const map: Record<string, ModGroup[]> = {};
@@ -326,8 +331,12 @@ export default function OrderScreen({ table, onBack }: Props) {
       // Juntar: todas las mesas libres y ocupadas (para juntar con ocupadas)
       const { data } = await supabase.from('tables').select('*, order:current_order_id(id, total, order_number)').eq('active', true).in('status', ['libre', 'ocupada', 'cuenta']);
       setAvailableTables(data || []);
+    } else if (mode === 'split') {
+      // Separar: mesas libres Y ocupadas (para mover items entre mesas)
+      const { data } = await supabase.from('tables').select('*, order:current_order_id(id, total, order_number)').eq('active', true).in('status', ['libre', 'ocupada', 'cuenta']);
+      setAvailableTables((data || []).filter((t: any) => t.id !== table.id));
     } else {
-      // Cambiar y separar: solo mesas libres
+      // Cambiar: solo mesas libres
       const { data } = await supabase.from('tables').select('*').eq('active', true).eq('status', 'libre');
       setAvailableTables(data || []);
     }
@@ -355,10 +364,18 @@ export default function OrderScreen({ table, onBack }: Props) {
 
   const splitToTable = async (target: any) => {
     if (!order || splitItems.size === 0) return;
-    const { data: newOrder } = await supabase.from('orders').insert({ table_id: target.id, type: 'mesa', status: 'abierta', waiter_id: user!.id, notes: 'Separada de mesa ' + table.number, personas: 1, tipo_venta: 'mesa' }).select().single();
-    if (!newOrder) return;
-    await supabase.from('order_items').update({ order_id: newOrder.id }).in('id', Array.from(splitItems));
-    await supabase.from('tables').update({ status: 'ocupada', current_order_id: newOrder.id }).eq('id', target.id);
+    let targetOrderId: string;
+    if (target.current_order_id && target.order?.id) {
+      // Mesa destino ya tiene orden abierta: mover items ahí
+      targetOrderId = target.order.id;
+    } else {
+      // Mesa libre: crear orden nueva
+      const { data: newOrder } = await supabase.from('orders').insert({ table_id: target.id, type: 'mesa', status: 'abierta', waiter_id: user!.id, notes: 'Separada de mesa ' + table.number, personas: 1, tipo_venta: 'mesa' }).select().single();
+      if (!newOrder) return;
+      targetOrderId = newOrder.id;
+      await supabase.from('tables').update({ status: 'ocupada', current_order_id: newOrder.id }).eq('id', target.id);
+    }
+    await supabase.from('order_items').update({ order_id: targetOrderId }).in('id', Array.from(splitItems));
     setTableActionModal(''); setSplitItems(new Set());
     await loadOrder();
     if (typeof window !== 'undefined') window.alert('Items movidos a mesa ' + target.number);
@@ -428,6 +445,11 @@ export default function OrderScreen({ table, onBack }: Props) {
 
   const sendCartToKitchen = async () => {
     if (!order || !user || cart.length === 0) return;
+    // Bloquear agregar items a ordenes cerradas
+    if (order.status === 'cerrada' || order.status === 'anulada') {
+      Alert.alert('Error', 'No se pueden agregar productos a una orden cerrada');
+      return;
+    }
     try {
       const items = cart.map(c => {
         const modAdjust = c.modifiers.reduce((s, m) => s + m.price_adjust, 0);
@@ -576,7 +598,9 @@ export default function OrderScreen({ table, onBack }: Props) {
   const selectedItems = unpaidItems.filter(i => selectedItemIds.has(i.id));
   const selectedTotal = selectedItems.reduce((a, i) => a + i.total_price, 0);
   const payableTotal = payMode === 'partial' && selectedItems.length > 0 ? selectedTotal : unpaidTotal;
-  const tipAmount = tipCustom ? parseInt(tipCustom) || 0 : Math.round(payableTotal * tipPercent / 100);
+  // Propina siempre sobre subtotal SIN descuento (regla negocio)
+  const tipBase = payMode === 'partial' && selectedItems.length > 0 ? selectedTotal : unpaidSubtotal;
+  const tipAmount = tipCustom ? parseInt(tipCustom) || 0 : Math.round(tipBase * tipPercent / 100);
   const toggleItem = (id: string) => setSelectedItemIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const selectAll = () => setSelectedItemIds(new Set(unpaidItems.map(i => i.id)));
   const deselectAll = () => setSelectedItemIds(new Set());
@@ -1275,13 +1299,13 @@ export default function OrderScreen({ table, onBack }: Props) {
           )}
 
           <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 8 }}>
-            {tableActionModal === 'move' ? 'Mesas libres:' : tableActionModal === 'merge' ? 'Mesas:' : 'Mesa destino (libre):'}
+            {tableActionModal === 'move' ? 'Mesas libres:' : tableActionModal === 'merge' ? 'Mesas:' : 'Mesa destino:'}
           </Text>
           <ScrollView style={{ maxHeight: 200 }}>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
               {availableTables.filter(t => t.id !== table.id).filter(t => {
                 if (tableActionModal === 'move') return t.status === 'libre';
-                if (tableActionModal === 'split') return t.status === 'libre';
+                if (tableActionModal === 'split') return true; // libre y ocupada
                 return true; // merge: show all
               }).map(t => (
                 <TouchableOpacity key={t.id} onPress={() => {

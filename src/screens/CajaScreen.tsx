@@ -823,13 +823,15 @@ function ArqueosTab() {
 
   const fmt = (p: number) => '$' + Math.round(p).toLocaleString('es-CL');
 
-  // === FUENTE ÚNICA: payments ===
+  // === FUENTE ÚNICA: payments (mesa + delivery) ===
   // payments.amount = consumo + propina (el total que pagó el cliente)
   // payments.tip_amount = cuánto de ese amount fue propina
   // Map old methods to new: debito/credito → tarjeta
   const methodAlias = (m: string) => (m === 'debito' || m === 'credito') ? 'tarjeta' : m;
-  const sumByMethod = (method: string) => shiftPayments.filter((p: any) => methodAlias(p.method) === method).reduce((a: number, p: any) => a + (p.amount || 0), 0);
-  const sumTipByMethod = (method: string) => shiftPayments.filter((p: any) => methodAlias(p.method) === method).reduce((a: number, p: any) => a + (p.tip_amount || 0), 0);
+  // Unificar pagos mesa + delivery para el arqueo
+  const allShiftPayments = [...shiftPayments, ...shiftDelivPayments.map((dp: any) => ({ ...dp, method: dp.method || 'efectivo', tip_amount: dp.tip_amount || 0 }))];
+  const sumByMethod = (method: string) => allShiftPayments.filter((p: any) => methodAlias(p.method) === method).reduce((a: number, p: any) => a + (p.amount || 0), 0);
+  const sumTipByMethod = (method: string) => allShiftPayments.filter((p: any) => methodAlias(p.method) === method).reduce((a: number, p: any) => a + (p.tip_amount || 0), 0);
   const totalByMethod = {
     efectivo: sumByMethod('efectivo'),
     tarjeta: sumByMethod('tarjeta'),
@@ -844,7 +846,7 @@ function ArqueosTab() {
     pedidosya: sumTipByMethod('pedidosya'),
     consumo: sumTipByMethod('consumo'),
   };
-  const totalPropinas = shiftPayments.reduce((a: number, p: any) => a + (p.tip_amount || 0), 0);
+  const totalPropinas = allShiftPayments.reduce((a: number, p: any) => a + (p.tip_amount || 0), 0);
   const ventaNetaByMethod = {
     efectivo: totalByMethod.efectivo - tipByMethod.efectivo,
     tarjeta: totalByMethod.tarjeta - tipByMethod.tarjeta,

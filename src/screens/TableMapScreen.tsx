@@ -210,7 +210,7 @@ export default function TableMapScreen({ onOpenOrder, onOpenEditor }: Props) {
   };
 
   const handleTableLongPress = (table: TableWithOrder) => {
-    if (table.status !== 'libre') {
+    if (table.status !== 'libre' && (user?.role === 'admin' || user?.role === 'cajero')) {
       handleFreeTable(table);
     }
   };
