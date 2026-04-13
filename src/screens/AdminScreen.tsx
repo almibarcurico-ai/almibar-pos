@@ -239,6 +239,7 @@ const sc = StyleSheet.create({
 });
 
 function ClientesEnLocal() {
+  const { user } = useAuth();
   const [clientes, setClientes] = useState<any[]>([]);
   const [promoActiva, setPromoActiva] = useState(false);
   const [enviados, setEnviados] = useState<Set<string>>(new Set());
@@ -246,7 +247,14 @@ function ClientesEnLocal() {
   const [qrQueue, setQrQueue] = useState<any[]>([]);
   const [qrIndex, setQrIndex] = useState(0);
 
-  useEffect(() => { load(); const i = setInterval(load, 15000); return () => clearInterval(i); }, []);
+  useEffect(() => {
+    load();
+    supabase.from('promo_banners').select('active').eq('title', 'PROMO FLASH').limit(1).then(({ data }) => {
+      if (data?.[0]) setPromoActiva(data[0].active);
+    });
+    const i = setInterval(load, 15000);
+    return () => clearInterval(i);
+  }, []);
 
   const load = async () => {
     const { data } = await supabase
@@ -323,6 +331,15 @@ function ClientesEnLocal() {
   const togglePromo = async () => {
     const nueva = !promoActiva;
     setPromoActiva(nueva);
+
+    // Log quién activa/desactiva
+    await supabase.from('monitoring_alerts').insert({
+      type: 'promo_flash_toggle',
+      severity: 'info',
+      title: (nueva ? 'Promo Flash ACTIVADA' : 'Promo Flash DESACTIVADA') + ' por ' + (user?.name || 'desconocido'),
+      description: 'Desde ' + (navigator.userAgent.includes('Mobile') ? 'celular' : 'PC') + ' a las ' + new Date().toLocaleTimeString('es-CL'),
+      metadata: { user_id: user?.id, user_name: user?.name, action: nueva ? 'activate' : 'deactivate' },
+    });
 
     if (nueva) {
       // Activar: insertar o actualizar banner promo flash

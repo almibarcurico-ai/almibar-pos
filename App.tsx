@@ -38,17 +38,22 @@ type DetailScreen =
 
 type ProdSub = 'menu' | 'productos' | 'produccion' | 'ingredientes' | 'modificadores' | 'inventario' | 'pedidos' | 'fichas';
 
-function ProductosHub() {
-  const [sub, setSub] = useState<ProdSub>('menu');
-  const tabs: { key: ProdSub; label: string; icon: string }[] = [
-    { key: 'productos', label: 'Productos', icon: '🍕' },
-    { key: 'produccion', label: 'Producción', icon: '🏭' },
-    { key: 'ingredientes', label: 'Ingredientes', icon: '🥩' },
-    { key: 'modificadores', label: 'Modificadores', icon: '🎛️' },
-    { key: 'inventario', label: 'Inventario', icon: '📦' },
-    { key: 'pedidos', label: 'Pedidos', icon: '🛒' },
-    { key: 'fichas', label: 'Fichas', icon: '📋' },
-  ];
+function ProductosHub({ deliveryOnly }: { deliveryOnly?: boolean } = {}) {
+  const [sub, setSub] = useState<ProdSub>(deliveryOnly ? 'productos' : 'menu');
+  const tabs: { key: ProdSub; label: string; icon: string }[] = deliveryOnly
+    ? [
+        { key: 'productos', label: 'Productos Delivery', icon: '🏪' },
+        { key: 'fichas', label: 'Fichas', icon: '📋' },
+      ]
+    : [
+        { key: 'productos', label: 'Productos', icon: '🍕' },
+        { key: 'produccion', label: 'Producción', icon: '🏭' },
+        { key: 'ingredientes', label: 'Ingredientes', icon: '🥩' },
+        { key: 'modificadores', label: 'Modificadores', icon: '🎛️' },
+        { key: 'inventario', label: 'Inventario', icon: '📦' },
+        { key: 'pedidos', label: 'Pedidos', icon: '🛒' },
+        { key: 'fichas', label: 'Fichas', icon: '📋' },
+      ];
 
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.background }}>
@@ -61,7 +66,7 @@ function ProductosHub() {
           </TouchableOpacity>
         ))}
       </View>
-      {sub === 'productos' && <ProductsScreen />}
+      {sub === 'productos' && <ProductsScreen deliveryOnly={deliveryOnly} />}
       {sub === 'produccion' && <ProductionScreen />}
       {sub === 'ingredientes' && <IngredientsScreen />}
       {sub === 'modificadores' && <ModifiersScreen />}
@@ -221,6 +226,7 @@ function AppContent() {
         {activeTab === 'delivery' && <DeliveryScreen user={user} />}
         {activeTab === 'kds' && <KDSScreen user={user} />}
         {activeTab === 'productos' && <ProductosHub />}
+        {activeTab === 'prod_delivery' && <ProductosHub deliveryOnly />}
         {activeTab === 'reportes' && <ReportsScreen />}
         {activeTab === 'admin' && <AdminScreen onOpenEditor={navigateToEditor} onOpenInventory={navigateToInventory} />}
         </>)}

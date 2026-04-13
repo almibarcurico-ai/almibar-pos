@@ -42,7 +42,7 @@ class RecipeErrorBoundary extends Component<{children: any}, {error: string|null
   }
 }
 
-export default function ProductsScreen() {
+export default function ProductsScreen({ deliveryOnly }: { deliveryOnly?: boolean } = {}) {
   const [products, setProducts] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [ingredients, setIngredients] = useState<any[]>([]);
@@ -81,7 +81,7 @@ export default function ProductsScreen() {
       supabase.from('recipe_items').select('*'),
     ]);
     if (pR.data) setProducts(pR.data);
-    if (cR.data) setCategories(cR.data);
+    if (cR.data) setCategories(deliveryOnly ? cR.data.filter((c: any) => c.is_delivery) : cR.data.filter((c: any) => !c.is_delivery));
     if (iR.data) setIngredients(iR.data);
     if (mgR.data) setModGroups(mgR.data);
     if (moR.data) setModOptions(moR.data);

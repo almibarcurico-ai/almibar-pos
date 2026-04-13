@@ -18,6 +18,7 @@ const ALL_TABS: Tab[] = [
   { key: 'delivery', label: 'Delivery', icon: '🛵', roles: ['cajero', 'admin'] },
   { key: 'kds', label: 'Cocina', icon: '🔥', roles: ['cocina', 'barra', 'admin'] },
   { key: 'productos', label: 'Productos', icon: '🍕', roles: ['admin'] },
+  { key: 'prod_delivery', label: 'Delivery Menu', icon: '🏪', roles: ['admin'] },
   { key: 'reportes', label: 'Reportes', icon: '📊', roles: ['admin'] },
   { key: 'admin', label: 'Admin', icon: '⚙️', roles: ['admin'] },
 ];
