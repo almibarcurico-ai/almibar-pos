@@ -72,7 +72,7 @@ export default function ProductsScreen({ deliveryOnly }: { deliveryOnly?: boolea
   const load = useCallback(async () => {
     const [pR, cR, iR, mgR, moR, pmR, rR, riR] = await Promise.all([
       supabase.from('products').select('*').eq('active', true).order('sort_order'),
-      supabase.from('categories').select('*').eq('active', true).order('sort_order'),
+      supabase.from('categories').select('*, is_delivery').order('sort_order'),
       supabase.from('ingredients').select('*').eq('active', true).order('name'),
       supabase.from('modifier_groups').select('*').eq('active', true).order('sort_order'),
       supabase.from('modifier_options').select('*').eq('active', true).order('sort_order'),
@@ -80,15 +80,19 @@ export default function ProductsScreen({ deliveryOnly }: { deliveryOnly?: boolea
       supabase.from('recipes').select('*'),
       supabase.from('recipe_items').select('*'),
     ]);
-    if (pR.data) setProducts(pR.data);
-    if (cR.data) setCategories(deliveryOnly ? cR.data.filter((c: any) => c.is_delivery) : cR.data.filter((c: any) => !c.is_delivery));
+    if (cR.data) {
+      const filteredCats = deliveryOnly ? cR.data.filter((c: any) => c.is_delivery) : cR.data.filter((c: any) => !c.is_delivery);
+      setCategories(filteredCats);
+      const catIds = new Set(filteredCats.map((c: any) => c.id));
+      if (pR.data) setProducts(pR.data.filter((p: any) => catIds.has(p.category_id)));
+    } else if (pR.data) setProducts(pR.data);
     if (iR.data) setIngredients(iR.data);
     if (mgR.data) setModGroups(mgR.data);
     if (moR.data) setModOptions(moR.data);
     if (pmR.data) setProductModGroups(pmR.data);
     if (rR.data) setRecipes(rR.data);
     if (riR.data) setRecipeItems(riR.data);
-  }, []);
+  }, [deliveryOnly]);
 
   useEffect(() => { load(); }, [load]);
 
