@@ -629,12 +629,19 @@ export default function OrderScreen({ table, onBack }: Props) {
       ? finalPayEntries.reduce((a, b) => (parseInt(a.amount) || 0) >= (parseInt(b.amount) || 0) ? a : b).method
       : 'efectivo';
 
-    // Tips from tip entries + excess from overpayment
+    // Tips from tip entries only (NO sumar excedente como propina en efectivo)
     const tipTotalFromEntries = tipEntries.reduce((a, e) => a + (parseInt(e.amount) || 0), 0);
-    const excess = pTotal > unpaidTotal + tipTotalFromEntries ? pTotal - unpaidTotal - tipTotalFromEntries : 0;
-    const tipTotalFinal = tipTotalFromEntries + excess;
+    const tipTotalFinal = tipTotalFromEntries;
+    // Calcular vuelto en efectivo
+    const expectedTotal = unpaidTotal + tipTotalFinal;
+    const vuelto = pTotal > expectedTotal ? pTotal - expectedTotal : 0;
 
     if (pTotal < unpaidTotal) { Alert.alert('Error', `El pago (${fmt(pTotal)}) no cubre el consumo (${fmt(unpaidTotal)})`); return; }
+    if (vuelto > 0 && mainMethod === 'efectivo') {
+      // Ajustar el monto del pago principal al valor real (sin vuelto)
+      const biggestIdx = finalPayEntries.reduce((bi, e, i, arr) => (parseInt(e.amount) || 0) >= (parseInt(arr[bi].amount) || 0) ? i : bi, 0);
+      finalPayEntries = finalPayEntries.map((e, i) => i === biggestIdx ? { ...e, amount: String(parseInt(e.amount) - vuelto) } : e);
+    }
 
     // Insertar UN solo registro de pago por método con amount = parte del bill + tip incluida
     // amount = lo que realmente entra (bill portion + tip si aplica)
@@ -671,7 +678,7 @@ export default function OrderScreen({ table, onBack }: Props) {
     await supabase.from('tables').update({ status: 'libre', current_order_id: null }).eq('id', table.id);
     setCloseModal(false); resetPayState();
     if (order?.client_id) await supabase.rpc('update_client_stats', { p_client_id: order.client_id });
-    Alert.alert('Mesa cerrada', `Consumo: ${fmt(unpaidTotal)}${tipTotalFinal > 0 ? `\nPropina: ${fmt(tipTotalFinal)}` : ''}`);
+    Alert.alert('Mesa cerrada', `Consumo: ${fmt(unpaidTotal)}${tipTotalFinal > 0 ? `\nPropina: ${fmt(tipTotalFinal)}` : ''}${vuelto > 0 ? `\n💵 Vuelto: ${fmt(vuelto)}` : ''}`);
     onBack();
   };
 
