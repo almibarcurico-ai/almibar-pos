@@ -1362,7 +1362,7 @@ export default function DeliveryScreen({ user }: { user: User }) {
       </div>
 
       {/* ─── MODALS ─── */}
-      {showNewOrder && <NewOrderModal />}
+      {showNewOrder && NewOrderModal()}
       {showRejectModal && <RejectModal />}
       {showCloseModal && CloseModal()}
       {showDelivered && <DeliveredModal />}
