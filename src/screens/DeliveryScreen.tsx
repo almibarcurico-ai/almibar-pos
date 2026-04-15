@@ -233,8 +233,8 @@ export default function DeliveryScreen({ user }: { user: User }) {
       )
       .subscribe();
 
-    // Also poll every 15s as backup
-    const interval = setInterval(loadOrders, 15000);
+    // Also poll every 15s as backup (skip if new order modal is open)
+    const interval = setInterval(() => { if (!showNewOrder) loadOrders(); }, 15000);
 
     return () => {
       supabase.removeChannel(channel);
