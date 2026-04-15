@@ -229,7 +229,7 @@ export default function DeliveryScreen({ user }: { user: User }) {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'delivery_orders' },
-        () => loadOrders()
+        () => { if (!showNewOrder) loadOrders(); }
       )
       .subscribe();
 
@@ -1362,7 +1362,7 @@ export default function DeliveryScreen({ user }: { user: User }) {
       </div>
 
       {/* ─── MODALS ─── */}
-      {showNewOrder && NewOrderModal()}
+      {showNewOrder && <NewOrderModal key="new-order-modal" />}
       {showRejectModal && <RejectModal />}
       {showCloseModal && CloseModal()}
       {showDelivered && <DeliveredModal />}
