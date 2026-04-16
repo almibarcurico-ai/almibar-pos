@@ -211,7 +211,7 @@ function VentasTab() {
     // Incluir órdenes abiertas en modo diario
     let openOrders: any[] = [];
     if (period === 'diario') {
-      const { data: openData } = await supabase.from('orders').select('*, order_items(total_price)').eq('status', 'abierta').gte('opened_at', since!).order('opened_at', { ascending: false });
+      const { data: openData } = await supabase.from('orders').select('*, order_items(total_price)').eq('status', 'abierta').gte('opened_at', since!).lt('opened_at', until!).order('opened_at', { ascending: false });
       // Obtener números de mesa para órdenes abiertas
       const openTableIds = (openData || []).map((o: any) => o.table_id).filter(Boolean);
       let tableMap: Record<string, number> = {};
