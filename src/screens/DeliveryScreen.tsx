@@ -175,6 +175,7 @@ export default function DeliveryScreen({ user }: { user: User }) {
   const [noDelivFee, setNoDelivFee] = useState(0);
   const [noCart, setNoCart] = useState<{ product: Product; qty: number; notes: string }[]>([]);
   const [noSearch, setNoSearch] = useState('');
+  const noSearchRef = useRef<HTMLInputElement>(null);
 
   // Audio ref for tracking known order IDs
   const knownIds = useRef<Set<string>>(new Set());
@@ -442,7 +443,7 @@ export default function DeliveryScreen({ user }: { user: User }) {
   // ═════════════════════════════════════════════════════════════
   // NEW ORDER MODAL (MOSTRADOR / MANUAL)
   // ═════════════════════════════════════════════════════════════
-  const NewOrderModal = () => {
+  const renderNewOrderModal = () => {
     const source = noSource, setSource = setNoSource;
     const name = noName, setName = setNoName;
     const phone = noPhone, setPhone = setNoPhone;
@@ -451,7 +452,7 @@ export default function DeliveryScreen({ user }: { user: User }) {
     const delivFee = noDelivFee, setDelivFee = setNoDelivFee;
     const cart = noCart, setCart = setNoCart;
     const search = noSearch, setSearch = setNoSearch;
-    const searchRef = useRef<HTMLInputElement>(null);
+    const searchRef = noSearchRef;
 
     const filtered = products.filter(
       (p) => p.name.toLowerCase().includes(search.toLowerCase())
@@ -1371,7 +1372,7 @@ export default function DeliveryScreen({ user }: { user: User }) {
       </div>
 
       {/* ─── MODALS ─── */}
-      {showNewOrder && <NewOrderModal key="new-order-modal" />}
+      {showNewOrder && renderNewOrderModal()}
       {showRejectModal && <RejectModal />}
       {showCloseModal && CloseModal()}
       {showDelivered && <DeliveredModal />}
