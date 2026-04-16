@@ -166,6 +166,15 @@ export default function DeliveryScreen({ user }: { user: User }) {
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [showDelivered, setShowDelivered] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
+  // New order modal state (in parent to survive re-renders)
+  const [noSource, setNoSource] = useState<Source>('mostrador');
+  const [noName, setNoName] = useState('');
+  const [noPhone, setNoPhone] = useState('');
+  const [noAddress, setNoAddress] = useState('');
+  const [noNotes, setNoNotes] = useState('');
+  const [noDelivFee, setNoDelivFee] = useState(0);
+  const [noCart, setNoCart] = useState<{ product: Product; qty: number; notes: string }[]>([]);
+  const [noSearch, setNoSearch] = useState('');
 
   // Audio ref for tracking known order IDs
   const knownIds = useRef<Set<string>>(new Set());
@@ -434,14 +443,14 @@ export default function DeliveryScreen({ user }: { user: User }) {
   // NEW ORDER MODAL (MOSTRADOR / MANUAL)
   // ═════════════════════════════════════════════════════════════
   const NewOrderModal = () => {
-    const [source, setSource] = useState<Source>('mostrador');
-    const [name, setName] = useState('');
-    const [phone, setPhone] = useState('');
-    const [address, setAddress] = useState('');
-    const [notes, setNotes] = useState('');
-    const [delivFee, setDelivFee] = useState(0);
-    const [cart, setCart] = useState<{ product: Product; qty: number; notes: string }[]>([]);
-    const [search, setSearch] = useState('');
+    const source = noSource, setSource = setNoSource;
+    const name = noName, setName = setNoName;
+    const phone = noPhone, setPhone = setNoPhone;
+    const address = noAddress, setAddress = setNoAddress;
+    const notes = noNotes, setNotes = setNoNotes;
+    const delivFee = noDelivFee, setDelivFee = setNoDelivFee;
+    const cart = noCart, setCart = setNoCart;
+    const search = noSearch, setSearch = setNoSearch;
     const searchRef = useRef<HTMLInputElement>(null);
 
     const filtered = products.filter(
@@ -1153,7 +1162,7 @@ export default function DeliveryScreen({ user }: { user: User }) {
           )}
         </div>
         <div style={S.topBtns}>
-          <button style={S.btn('#3b82f6')} onClick={() => setShowNewOrder(true)}>
+          <button style={S.btn('#3b82f6')} onClick={() => { setNoSource('mostrador'); setNoName(''); setNoPhone(''); setNoAddress(''); setNoNotes(''); setNoDelivFee(0); setNoCart([]); setNoSearch(''); setShowNewOrder(true); }}>
             ➕ Nuevo Pedido
           </button>
           <button style={S.btn(COLORS.cardHover)} onClick={() => setShowDelivered(true)}>
