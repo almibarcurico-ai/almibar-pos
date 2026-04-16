@@ -469,7 +469,7 @@ export default function DeliveryScreen({ user }: { user: User }) {
         return [...prev, { product: p, qty: 1, notes: '' }];
       });
       setSearch('');
-      searchRef.current?.focus();
+      if (searchRef.current) { searchRef.current.value = ''; searchRef.current.focus(); }
     };
 
     const updateQty = (idx: number, delta: number) => {
@@ -563,21 +563,21 @@ export default function DeliveryScreen({ user }: { user: User }) {
                 <div style={S.row}>
                   <div style={S.flex1}>
                     <label style={S.label}>Cliente</label>
-                    <input style={S.input} value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre" />
+                    <input style={S.input} defaultValue={name} onChange={(e) => setNoName(e.target.value)} placeholder="Nombre" />
                   </div>
                   <div style={S.flex1}>
                     <label style={S.label}>Teléfono</label>
-                    <input style={S.input} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+56 9 ..." />
+                    <input style={S.input} defaultValue={phone} onChange={(e) => setNoPhone(e.target.value)} placeholder="+56 9 ..." />
                   </div>
                 </div>
                 <div style={{ marginBottom: 10 }}>
                   <label style={S.label}>Dirección</label>
-                  <input style={S.input} value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Calle, número, depto..." />
+                  <input style={S.input} defaultValue={address} onChange={(e) => setNoAddress(e.target.value)} placeholder="Calle, número, depto..." />
                 </div>
                 <div style={S.row}>
                   <div style={S.flex1}>
                     <label style={S.label}>Notas</label>
-                    <input style={S.input} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Sin cebolla, etc." />
+                    <input style={S.input} defaultValue={notes} onChange={(e) => setNoNotes(e.target.value)} placeholder="Sin cebolla, etc." />
                   </div>
                   <div style={{ width: 120 }}>
                     <label style={S.label}>Despacho $</label>
@@ -599,8 +599,8 @@ export default function DeliveryScreen({ user }: { user: User }) {
               <input
                 ref={searchRef}
                 style={S.input}
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                defaultValue={search}
+                onChange={(e) => setNoSearch(e.target.value)}
                 placeholder="🔍 Buscar producto..."
               />
               {search && filtered.length > 0 && (
