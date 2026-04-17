@@ -1477,6 +1477,52 @@ function ArqueosTab() {
               </View>
             </View>
 
+            {/* Desglose por método de pago */}
+            <View style={{ backgroundColor: COLORS.background, borderRadius: 8, padding: 12, marginBottom: 12 }}>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: COLORS.text, marginBottom: 8 }}>Desglose por Método</Text>
+              {[
+                { label: '💵 Efectivo', value: detailArqueo.total_cash || 0 },
+                { label: '💳 Tarj. Débito', value: detailArqueo.total_debit || 0 },
+                { label: '💳 Tarj. Crédito', value: detailArqueo.total_credit || 0 },
+                { label: '📲 Transferencia', value: detailArqueo.total_transfer || 0 },
+              ].map((m, i) => (
+                <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4, borderBottomWidth: i < 3 ? 1 : 0, borderBottomColor: COLORS.border }}>
+                  <Text style={{ fontSize: 12, color: COLORS.textSecondary }}>{m.label}</Text>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: m.value > 0 ? COLORS.text : COLORS.textMuted }}>{fmt(m.value)}</Text>
+                </View>
+              ))}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingTop: 6, marginTop: 4, borderTopWidth: 1.5, borderTopColor: COLORS.primary }}>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.text }}>Total recaudado</Text>
+                <Text style={{ fontSize: 13, fontWeight: '800', color: COLORS.primary }}>{fmt((detailArqueo.total_cash || 0) + (detailArqueo.total_debit || 0) + (detailArqueo.total_credit || 0) + (detailArqueo.total_transfer || 0))}</Text>
+              </View>
+              {(detailArqueo.total_cash_in > 0 || detailArqueo.total_expenses > 0) && (
+                <View style={{ marginTop: 6, paddingTop: 6, borderTopWidth: 1, borderTopColor: COLORS.border }}>
+                  {detailArqueo.total_cash_in > 0 && <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}><Text style={{ fontSize: 11, color: COLORS.success }}>+ Ingresos caja</Text><Text style={{ fontSize: 11, fontWeight: '600', color: COLORS.success }}>{fmt(detailArqueo.total_cash_in)}</Text></View>}
+                  {detailArqueo.total_expenses > 0 && <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}><Text style={{ fontSize: 11, color: COLORS.error }}>− Egresos</Text><Text style={{ fontSize: 11, fontWeight: '600', color: COLORS.error }}>{fmt(detailArqueo.total_expenses)}</Text></View>}
+                </View>
+              )}
+              {(() => {
+                const sysTotal = (detailArqueo.opening_amount || 0) + (detailArqueo.total_cash || 0) + (detailArqueo.total_debit || 0) + (detailArqueo.total_credit || 0) + (detailArqueo.total_transfer || 0) + (detailArqueo.total_cash_in || 0) - (detailArqueo.total_expenses || 0);
+                const diff = (detailArqueo.closing_amount || 0) - sysTotal;
+                return (
+                  <View style={{ marginTop: 6, paddingTop: 6, borderTopWidth: 1, borderTopColor: COLORS.border }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
+                      <Text style={{ fontSize: 11, color: COLORS.textSecondary }}>Sistema espera</Text>
+                      <Text style={{ fontSize: 11, fontWeight: '600', color: COLORS.text }}>{fmt(sysTotal)}</Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
+                      <Text style={{ fontSize: 11, color: COLORS.textSecondary }}>Conteo cajero</Text>
+                      <Text style={{ fontSize: 11, fontWeight: '600', color: COLORS.text }}>{fmt(detailArqueo.closing_amount || 0)}</Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: diff === 0 ? COLORS.success : COLORS.error }}>Diferencia</Text>
+                      <Text style={{ fontSize: 12, fontWeight: '800', color: diff === 0 ? COLORS.success : COLORS.error }}>{diff >= 0 ? '+' : ''}{fmt(diff)}</Text>
+                    </View>
+                  </View>
+                );
+              })()}
+            </View>
+
             <Text style={{ fontSize: 13, fontWeight: '700', color: COLORS.text, marginBottom: 6 }}>Ventas por Mesa ({detailOrders.length})</Text>
             <View style={{ backgroundColor: COLORS.background, borderRadius: 8, maxHeight: 300 }}>
               <ScrollView>
