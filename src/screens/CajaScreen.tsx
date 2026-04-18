@@ -920,12 +920,16 @@ function ArqueosTab() {
   const openArqueoDetail = async (arqueo: any) => {
     setDetailArqueo(arqueo);
     // Buscar órdenes cerradas en el rango del arqueo
-    const { data: ords } = await supabase.from('orders')
-      .select('*, table:table_id(number), waiter:created_by(name), order_items(*, product:products(name))')
+    let query = supabase.from('orders')
+      .select('*, table:table_id(number), waiter:waiter_id(name), order_items(*, product:products(name))')
       .eq('status', 'cerrada')
       .gte('closed_at', arqueo.opened_at)
-      .lte('closed_at', arqueo.closed_at)
       .order('closed_at', { ascending: true });
+    // Si el arqueo está cerrado, limitar al cierre. Si no, traer todas desde apertura.
+    if (arqueo.closed_at) {
+      query = query.lte('closed_at', arqueo.closed_at);
+    }
+    const { data: ords } = await query;
     setDetailOrders(ords || []);
     // Pagos de esas órdenes
     const orderIds = (ords || []).map((o: any) => o.id);
