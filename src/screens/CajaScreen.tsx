@@ -444,7 +444,7 @@ function VentasTab() {
             <Text style={{ fontSize: 11, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 6 }}>POR MEDIO DE PAGO</Text>
             {Object.entries(byMethod).map(([method, amount]) => (
               <View key={method} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4, borderBottomWidth: 1, borderBottomColor: COLORS.border }}>
-                <Text style={{ fontSize: 13, color: COLORS.text }}>{method === 'efectivo' ? '💵 Efectivo' : method === 'tarjeta' ? '💳 Tarjeta' : method === 'transferencia' ? '📱 Transferencia' : method === 'pedidosya' ? '🛵 PedidosYa' : method === 'consumo' ? '🍽️ Consumo' : '💳 ' + method}</Text>
+                <Text style={{ fontSize: 13, color: COLORS.text }}>{method === 'efectivo' ? '💵 Efectivo' : method === 'tarjeta' ? '💳 Tarjeta' : method === 'transferencia' ? '📱 Transferencia' : method === 'pedidosya' ? '🛵 PedidosYa' : method === 'consumo' ? '🍽️ Consumo' : method === 'cortesia_cumple' ? '🎂 Cortesía Cumple' : method === 'cortesia_dj' ? '🎵 Cortesía DJ' : '💳 ' + method}</Text>
                 <Text style={{ fontSize: 13, fontWeight: '700', color: COLORS.warning }}>{fmt(amount as number)}</Text>
               </View>
             ))}
@@ -1484,13 +1484,23 @@ function ArqueosTab() {
             {/* Desglose por método de pago */}
             <View style={{ backgroundColor: COLORS.background, borderRadius: 8, padding: 12, marginBottom: 12 }}>
               <Text style={{ fontSize: 13, fontWeight: '700', color: COLORS.text, marginBottom: 8 }}>Desglose por Método</Text>
-              {[
-                { label: '💵 Efectivo', value: detailArqueo.total_cash || 0 },
-                { label: '💳 Tarj. Débito', value: detailArqueo.total_debit || 0 },
-                { label: '💳 Tarj. Crédito', value: detailArqueo.total_credit || 0 },
-                { label: '📲 Transferencia', value: detailArqueo.total_transfer || 0 },
-              ].map((m, i) => (
-                <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4, borderBottomWidth: i < 3 ? 1 : 0, borderBottomColor: COLORS.border }}>
+              {(() => {
+                const cortesiaCumple = detailPayments.filter((p: any) => p.method === 'cortesia_cumple').reduce((s: number, p: any) => s + (p.amount || 0), 0);
+                const cortesiaDj = detailPayments.filter((p: any) => p.method === 'cortesia_dj').reduce((s: number, p: any) => s + (p.amount || 0), 0);
+                const consumo = detailPayments.filter((p: any) => p.method === 'consumo').reduce((s: number, p: any) => s + (p.amount || 0), 0);
+                const pedidosya = detailPayments.filter((p: any) => p.method === 'pedidosya').reduce((s: number, p: any) => s + (p.amount || 0), 0);
+                return [
+                  { label: '💵 Efectivo', value: detailArqueo.total_cash || 0 },
+                  { label: '💳 Tarj. Débito', value: detailArqueo.total_debit || 0 },
+                  { label: '💳 Tarj. Crédito', value: detailArqueo.total_credit || 0 },
+                  { label: '📲 Transferencia', value: detailArqueo.total_transfer || 0 },
+                  ...(pedidosya > 0 ? [{ label: '🛵 PedidosYa', value: pedidosya }] : []),
+                  ...(consumo > 0 ? [{ label: '🍽️ Consumo', value: consumo }] : []),
+                  ...(cortesiaCumple > 0 ? [{ label: '🎂 Cortesía Cumpleaños', value: cortesiaCumple }] : []),
+                  ...(cortesiaDj > 0 ? [{ label: '🎵 Cortesía DJ', value: cortesiaDj }] : []),
+                ];
+              })().map((m, i, arr) => (
+                <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4, borderBottomWidth: i < arr.length - 1 ? 1 : 0, borderBottomColor: COLORS.border }}>
                   <Text style={{ fontSize: 12, color: COLORS.textSecondary }}>{m.label}</Text>
                   <Text style={{ fontSize: 12, fontWeight: '700', color: m.value > 0 ? COLORS.text : COLORS.textMuted }}>{fmt(m.value)}</Text>
                 </View>
@@ -1881,7 +1891,7 @@ function PropinasTab() {
           <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 8 }}>POR MEDIO DE PAGO</Text>
           {Object.entries(byMethod).map(([method, amount]) => (
             <View key={method} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: COLORS.border }}>
-              <Text style={{ fontSize: 13, color: COLORS.text }}>{method === 'efectivo' ? '💵 Efectivo' : method === 'tarjeta' ? '💳 Tarjeta' : method === 'transferencia' ? '📱 Transferencia' : method === 'pedidosya' ? '🛵 PedidosYa' : method === 'consumo' ? '🍽️ Consumo' : '💳 ' + method}</Text>
+              <Text style={{ fontSize: 13, color: COLORS.text }}>{method === 'efectivo' ? '💵 Efectivo' : method === 'tarjeta' ? '💳 Tarjeta' : method === 'transferencia' ? '📱 Transferencia' : method === 'pedidosya' ? '🛵 PedidosYa' : method === 'consumo' ? '🍽️ Consumo' : method === 'cortesia_cumple' ? '🎂 Cortesía Cumple' : method === 'cortesia_dj' ? '🎵 Cortesía DJ' : '💳 ' + method}</Text>
               <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.warning }}>{fmt(amount)}</Text>
             </View>
           ))}
