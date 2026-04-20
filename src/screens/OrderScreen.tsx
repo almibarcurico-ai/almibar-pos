@@ -476,6 +476,13 @@ export default function OrderScreen({ table, onBack }: Props) {
           printers, categoryPrinters,
         });
       } catch (e) { console.log('Print error:', e); }
+      // Acceso VIP inmediato: si se comandó "Acceso VIP Club Almíbar", activar VIP al instante
+      const VIP_PRODUCT_ID = '31e36c4e-b48b-4da8-9fe8-10acfc8444d8';
+      const hasVipAccess = cart.some(c => c.product.id === VIP_PRODUCT_ID);
+      if (hasVipAccess && order.client_id) {
+        await supabase.from('clients').update({ tier: 'vip', vip_expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() }).eq('id', order.client_id);
+        Alert.alert('⭐ VIP Activado', 'El cliente ahora es Socio VIP. Los descuentos aplican desde este momento.');
+      }
       setCart([]); playClickPOS(); await loadOrder();
     } catch (e: any) { Alert.alert('Error', e.message); }
   };
