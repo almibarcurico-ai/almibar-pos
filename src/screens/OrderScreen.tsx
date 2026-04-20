@@ -46,6 +46,7 @@ export default function OrderScreen({ table, onBack }: Props) {
   const [order, setOrder] = useState<Order | null>(null);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [waiterName, setWaiterName] = useState('');
+  const [clientTier, setClientTier] = useState<string | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -126,17 +127,24 @@ export default function OrderScreen({ table, onBack }: Props) {
     if (o) {
       setOrder(o);
       setGuestNames(o.guest_names || []);
-      // Restore discount from saved order (discount_value stores % or fixed amount)
-      // Miércoles: forzar 40% siempre
-      if (esMiercoles) {
+      const { data: w } = await supabase.from('users').select('name').eq('id', o.waiter_id).single();
+      if (w) setWaiterName(w.name);
+      // Cargar tier del cliente para descuentos automáticos
+      let tier: string | null = null;
+      if (o.client_id) {
+        const { data: cl } = await supabase.from('clients').select('tier').eq('id', o.client_id).single();
+        tier = cl?.tier || null;
+        setClientTier(tier);
+      } else setClientTier(null);
+      // Restore discount from saved order
+      // Miércoles VIP: forzar 40% en toda la cuenta
+      if (esMiercoles && tier === 'vip') {
         setDiscountType('percent');
         setDiscountValue('40');
       } else if (o.discount_type && o.discount_type !== 'none' && o.discount_value > 0) {
         setDiscountType(o.discount_type);
         setDiscountValue(String(o.discount_value));
       }
-      const { data: w } = await supabase.from('users').select('name').eq('id', o.waiter_id).single();
-      if (w) setWaiterName(w.name);
     }
     if (items) setOrderItems(items);
   };
@@ -207,17 +215,83 @@ export default function OrderScreen({ table, onBack }: Props) {
     return dow >= 1 && dow <= 6 && h >= '17:00' && h < '21:00';
   };
 
-  const addToCart = (product: Product) => {
-    // Bloquear productos HH fuera de horario
-    if (product.category_id === HH_CAT_ID && !isHHAllowed()) {
-      const dow = new Date().getDay();
-      Alert.alert('⏰ No disponible', dow === 3 ? 'Happy Hour no disponible los miércoles (día de 40% dcto)' : 'Happy Hour disponible de Lunes a Sábado entre 17:00 y 21:00 (excepto miércoles)');
-      return;
+  // ═══ SISTEMA DE DESCUENTOS AUTOMÁTICOS ═══
+  const HH_CATS = new Set([
+    'd0000000-0000-0000-0000-000000000014', // Cócteles Clásicos
+    'd0000000-0000-0000-0000-000000000017', // Spritz
+    'd0000000-0000-0000-0000-000000000018', // Sours
+  ]);
+
+  // Producto VIP 40% por día de semana (toda la noche)
+  const VIP_DAILY: Record<number, { cats?: Set<string>; names?: Set<string>; label: string }> = {
+    1: { names: new Set(['Mojito Cubano','Mojito Sabores','Mojito Diablo','Mojito Sandia','Mojito Sol','Mojito Asteca','Mojito Cubano 1L','Mojito Frambuesa 1L','Mojito Frutilla 1L','Mojito Mango 1L','Mojito Maracuyá 1L','Mojito Piña 1L']), label: 'Lunes VIP: Mojitos -40%' },
+    2: { cats: new Set(['d0000000-0000-0000-0000-000000000027']), label: 'Martes VIP: Whisky -40%' }, // Whisky
+    // Miércoles = 40% cuenta completa (se maneja en descuento de orden, no por producto)
+    4: { cats: new Set(['d0000000-0000-0000-0000-000000000025']), label: 'Jueves VIP: Piscos -40%' }, // Pisco
+    5: { names: new Set(['Tropical Gin']), label: 'Viernes VIP: Tropical Gin -40%' },
+    6: { names: new Set(['Schop Patagonia Hoppy']), label: 'Sábado VIP: Schop Hoppy -40%' },
+  };
+
+  const getAutoDiscount = (product: Product): { price: number; note: string } | null => {
+    const now = new Date();
+    const hora = now.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Santiago' });
+    const dow = now.getDay();
+    const isVip = clientTier === 'vip';
+    const isHH = dow >= 1 && dow <= 6 && dow !== 3 && hora >= '17:00' && hora < '21:00';
+
+    // HH: 17-21 (Lun-Sáb, excl Mié) en Cócteles Clásicos, Spritz, Sours
+    if (isHH && HH_CATS.has(product.category_id)) {
+      const pct = isVip ? 0.50 : 0.35;
+      const newPrice = Math.round(product.price * (1 - pct));
+      return { price: newPrice, note: isVip ? '[HH VIP -50%]' : '[HH -35%]' };
     }
+
+    // Miércoles: 40% barra para no-VIP (VIP se maneja en descuento de orden)
+    // Las categorías de barra para miércoles no-VIP
+    if (dow === 3 && !isVip) {
+      const BARRA_CATS_MIE = new Set([
+        'd0000000-0000-0000-0000-000000000014', // Cócteles Clásicos
+        'd0000000-0000-0000-0000-000000000017', // Spritz
+        'd0000000-0000-0000-0000-000000000018', // Sours
+        'd0000000-0000-0000-0000-000000000019', // Cremosos
+        'd0000000-0000-0000-0000-000000000011', // Cervezas Schop
+        'd0000000-0000-0000-0000-000000000012', // Botellines
+        'd0000000-0000-0000-0000-000000000015', // Red Bull Drinks
+        'd0000000-0000-0000-0000-000000000016', // Coctelería de Autor
+        'd0000000-0000-0000-0000-000000000020', // Bottle Drinks
+        'd0000000-0000-0000-0000-000000000021', // Old Schools
+        'd0000000-0000-0000-0000-000000000022', // Mocktails
+        'd0000000-0000-0000-0000-000000000023', // Gin
+        'd0000000-0000-0000-0000-000000000024', // Vodka
+        'd0000000-0000-0000-0000-000000000025', // Pisco
+        'd0000000-0000-0000-0000-000000000026', // Ron
+        'd0000000-0000-0000-0000-000000000027', // Whisky
+        'd0000000-0000-0000-0000-000000000028', // Shots
+        'd0000000-0000-0000-0000-000000000029', // Licores
+      ]);
+      if (BARRA_CATS_MIE.has(product.category_id)) {
+        return { price: Math.round(product.price * 0.60), note: '[Mié -40% barra]' };
+      }
+    }
+
+    // Producto VIP del día (toda la noche, no solo HH)
+    if (isVip && VIP_DAILY[dow]) {
+      const daily = VIP_DAILY[dow];
+      const matchCat = daily.cats && daily.cats.has(product.category_id);
+      const matchName = daily.names && daily.names.has(product.name);
+      if (matchCat || matchName) {
+        return { price: Math.round(product.price * 0.60), note: `[${daily.label}]` };
+      }
+    }
+
+    return null;
+  };
+
+  const addToCart = (product: Product) => {
     // Bloquear combos los miércoles
     const COMBO_CAT_ID = 'd0000000-0000-0000-0000-000000000040';
     if (product.category_id === COMBO_CAT_ID && new Date().getDay() === 3) {
-      Alert.alert('⏰ No disponible', 'Combos no disponibles los miércoles (día de 40% dcto)');
+      Alert.alert('⏰ No disponible', 'Combos no disponibles los miércoles');
       return;
     }
     playClickPOS();
@@ -228,14 +302,25 @@ export default function OrderScreen({ table, onBack }: Props) {
       setSearchQuery(''); setShowDropdown(false);
       return;
     }
-    // Aplicar precio promo si existe
+    // Descuento automático (HH / VIP / Miércoles)
+    const autoDisc = getAutoDiscount(product);
+    // Promo flash
     const promoPrice = promoProducts[product.id];
-    const effectiveProduct = promoPrice != null ? { ...product, price: promoPrice } : product;
-    const isPromo = promoPrice != null;
-    const promoNote = isPromo ? '[PROMO]' : '';
-    const existing = cart.find(c => c.product.id === product.id && c.notes === promoNote && c.modifiers.length === 0 && (!guestNames.length || c.client_slot === activeClientSlot));
+
+    let effectiveProduct = product;
+    let itemNote = '';
+
+    if (promoPrice != null) {
+      effectiveProduct = { ...product, price: promoPrice };
+      itemNote = '[PROMO]';
+    } else if (autoDisc) {
+      effectiveProduct = { ...product, price: autoDisc.price };
+      itemNote = autoDisc.note;
+    }
+
+    const existing = cart.find(c => c.product.id === product.id && c.notes === itemNote && c.modifiers.length === 0 && (!guestNames.length || c.client_slot === activeClientSlot));
     if (existing) setCart(prev => prev.map(c => c.id === existing.id ? { ...c, quantity: c.quantity + 1 } : c));
-    else setCart(prev => [...prev, { id: `c-${Date.now()}-${Math.random()}`, product: effectiveProduct, quantity: 1, notes: promoNote, modifiers: [], client_slot: activeClientSlot }]);
+    else setCart(prev => [...prev, { id: `c-${Date.now()}-${Math.random()}`, product: effectiveProduct, quantity: 1, notes: itemNote, modifiers: [], client_slot: activeClientSlot }]);
     setSearchQuery(''); setShowDropdown(false);
   };
 
