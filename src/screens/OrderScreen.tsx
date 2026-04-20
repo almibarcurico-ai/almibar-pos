@@ -216,10 +216,26 @@ export default function OrderScreen({ table, onBack }: Props) {
   };
 
   // ═══ SISTEMA DE DESCUENTOS AUTOMÁTICOS ═══
+  // HH aplica a toda la carta de barra
   const HH_CATS = new Set([
     'd0000000-0000-0000-0000-000000000014', // Cócteles Clásicos
+    'd0000000-0000-0000-0000-000000000016', // Coctelería de Autor
     'd0000000-0000-0000-0000-000000000017', // Spritz
     'd0000000-0000-0000-0000-000000000018', // Sours
+    'd0000000-0000-0000-0000-000000000019', // Cremosos
+    'd0000000-0000-0000-0000-000000000021', // Old Schools
+    'd0000000-0000-0000-0000-000000000015', // Red Bull Drinks
+    'd0000000-0000-0000-0000-000000000052', // Mojitos 1L
+    'd0000000-0000-0000-0000-000000000011', // Cervezas Schop
+    'd0000000-0000-0000-0000-000000000012', // Botellines
+    'd0000000-0000-0000-0000-000000000023', // Gin
+    'd0000000-0000-0000-0000-000000000024', // Vodka
+    'd0000000-0000-0000-0000-000000000025', // Pisco
+    'd0000000-0000-0000-0000-000000000027', // Whisky
+    'd0000000-0000-0000-0000-000000000028', // Shots
+    'd0000000-0000-0000-0000-000000000029', // Licores
+    'd0000000-0000-0000-0000-000000000030', // Vinos y Espumantes
+    'd0000000-0000-0000-0000-000000000022', // Mocktails / Sin Alcohol
   ]);
 
   // Producto VIP 40% por día de semana (toda la noche)

@@ -353,6 +353,11 @@ export default function TableMapScreen({ onOpenOrder, onOpenEditor }: Props) {
                     <TouchableOpacity onPress={() => { setSelectedClient(null); setCustomerName(''); setGuestNames(prev => { const copy = [...prev]; copy[0] = ''; return copy; }); }}><Text style={{ color: COLORS.error, fontSize: 12 }}>✕</Text></TouchableOpacity>
                   </View>
                 )}
+                {/* ── Botón "Invitado" ── */}
+                <TouchableOpacity style={{ borderWidth: 1, borderColor: COLORS.info, borderRadius: 8, padding: 10, marginBottom: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: COLORS.info + '10' }} onPress={() => { setCustomerName('Invitado'); setSelectedClient(null); }}>
+                  <Text style={{ fontSize: 14 }}>🙂</Text>
+                  <Text style={{ color: COLORS.info, fontSize: 13, fontWeight: '700' }}>Invitado — Sin datos (accede a HH 35%)</Text>
+                </TouchableOpacity>
                 {/* ── Botón "No está inscrito" ── */}
                 <TouchableOpacity style={{ borderWidth: 1, borderColor: COLORS.warning, borderRadius: 8, padding: 10, marginBottom: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: COLORS.warning + '10' }} onPress={openRegisterForm}>
                   <Text style={{ fontSize: 14 }}>👤</Text>
