@@ -216,7 +216,7 @@ export default function OrderScreen({ table, onBack }: Props) {
   };
 
   // ═══ SISTEMA DE DESCUENTOS AUTOMÁTICOS ═══
-  // HH aplica a toda la carta de barra
+  // HH aplica a TODA la carta de barra
   const HH_CATS = new Set([
     'd0000000-0000-0000-0000-000000000014', // Cócteles Clásicos
     'd0000000-0000-0000-0000-000000000016', // Coctelería de Autor
@@ -231,10 +231,12 @@ export default function OrderScreen({ table, onBack }: Props) {
     'd0000000-0000-0000-0000-000000000023', // Gin
     'd0000000-0000-0000-0000-000000000024', // Vodka
     'd0000000-0000-0000-0000-000000000025', // Pisco
+    'd0000000-0000-0000-0000-000000000026', // Ron
     'd0000000-0000-0000-0000-000000000027', // Whisky
     'd0000000-0000-0000-0000-000000000028', // Shots
     'd0000000-0000-0000-0000-000000000029', // Licores
     'd0000000-0000-0000-0000-000000000030', // Vinos y Espumantes
+    'd0000000-0000-0000-0000-000000000020', // Bottle Drinks
     'd0000000-0000-0000-0000-000000000022', // Mocktails / Sin Alcohol
   ]);
 
@@ -352,15 +354,27 @@ export default function OrderScreen({ table, onBack }: Props) {
       }
     }
     const allMods = Object.values(modPickerSelections).flat();
+    // Descuento automático (HH / VIP / Miércoles) para productos con modificadores
+    const autoDisc = getAutoDiscount(modPickerProduct);
+    const promoPrice = promoProducts[modPickerProduct.id];
+    let effectiveProduct = modPickerProduct;
+    let itemNote = '';
+    if (promoPrice != null) {
+      effectiveProduct = { ...modPickerProduct, price: promoPrice };
+      itemNote = '[PROMO]';
+    } else if (autoDisc) {
+      effectiveProduct = { ...modPickerProduct, price: autoDisc.price };
+      itemNote = autoDisc.note;
+    }
     // Productos con grupo multi (ej: 3x2 Schop) siempre como items separados
     const hasMultiGroup = groups.some(g => g.type === 'multi' && g.max_select > 1);
     if (hasMultiGroup) {
-      setCart(prev => [...prev, { id: `c-${Date.now()}-${Math.random()}`, product: modPickerProduct, quantity: 1, notes: '', modifiers: allMods, client_slot: activeClientSlot }]);
+      setCart(prev => [...prev, { id: `c-${Date.now()}-${Math.random()}`, product: effectiveProduct, quantity: 1, notes: itemNote, modifiers: allMods, client_slot: activeClientSlot }]);
     } else {
       const modKey = allMods.map(m => m.id).sort().join(',');
-      const existing = cart.find(c => c.product.id === modPickerProduct.id && c.modifiers.map(m => m.id).sort().join(',') === modKey);
+      const existing = cart.find(c => c.product.id === effectiveProduct.id && c.modifiers.map(m => m.id).sort().join(',') === modKey && c.notes === itemNote);
       if (existing) setCart(prev => prev.map(c => c.id === existing.id ? { ...c, quantity: c.quantity + 1 } : c));
-      else setCart(prev => [...prev, { id: `c-${Date.now()}-${Math.random()}`, product: modPickerProduct, quantity: 1, notes: '', modifiers: allMods, client_slot: activeClientSlot }]);
+      else setCart(prev => [...prev, { id: `c-${Date.now()}-${Math.random()}`, product: effectiveProduct, quantity: 1, notes: itemNote, modifiers: allMods, client_slot: activeClientSlot }]);
     }
     setModPickerProduct(null);
   };
