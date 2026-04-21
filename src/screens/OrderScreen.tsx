@@ -1,5 +1,5 @@
 // src/screens/OrderScreen.tsx
-// v9 - Fudo-style: inline ADICIONAR panel with search dropdown
+// v10 - HH fix for modifiers + auto-reload
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Dimensions } from 'react-native';
@@ -1629,3 +1629,4 @@ const s = StyleSheet.create({
   modeBtnT: { fontSize: 13, fontWeight: '700', color: COLORS.textSecondary },
   modeBtnTA: { color: COLORS.primary },
 });
+

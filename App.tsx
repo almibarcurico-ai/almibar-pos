@@ -1,5 +1,22 @@
 // App.tsx — Role-based tab navigation
 
+const APP_VERSION = '10';
+// Auto-reload: check version every 5 min, reload if server has newer version
+if (typeof window !== 'undefined') {
+  setInterval(async () => {
+    try {
+      const res = await fetch('/version.txt?t=' + Date.now());
+      if (res.ok) {
+        const serverVer = (await res.text()).trim();
+        if (serverVer && serverVer !== APP_VERSION) {
+          console.log('[AutoReload] New version detected:', serverVer, '(current:', APP_VERSION + ')');
+          window.location.reload();
+        }
+      }
+    } catch (e) {}
+  }, 5 * 60 * 1000);
+}
+
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Dimensions, TouchableOpacity } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
