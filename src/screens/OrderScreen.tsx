@@ -264,9 +264,8 @@ export default function OrderScreen({ table, onBack }: Props) {
       return { price: newPrice, note: isVip ? '[HH VIP -50%]' : '[HH -35%]' };
     }
 
-    // Miércoles: 40% barra para no-VIP (VIP se maneja en descuento de orden)
-    // Las categorías de barra para miércoles no-VIP
-    if (dow === 3 && !isVip) {
+    // Miércoles: 40% barra para no-VIP, 40% toda la cuenta para VIP
+    if (dow === 3) {
       const BARRA_CATS_MIE = new Set([
         'd0000000-0000-0000-0000-000000000014', // Cócteles Clásicos
         'd0000000-0000-0000-0000-000000000017', // Spritz
@@ -286,9 +285,16 @@ export default function OrderScreen({ table, onBack }: Props) {
         'd0000000-0000-0000-0000-000000000027', // Whisky
         'd0000000-0000-0000-0000-000000000028', // Shots
         'd0000000-0000-0000-0000-000000000029', // Licores
+        'd0000000-0000-0000-0000-000000000030', // Vinos y Espumantes
+        'd0000000-0000-0000-0000-000000000052', // Mojitos 1L
       ]);
-      if (BARRA_CATS_MIE.has(product.category_id)) {
+      // No-VIP: 40% solo barra
+      if (!isVip && BARRA_CATS_MIE.has(product.category_id)) {
         return { price: Math.round(product.price * 0.60), note: '[Mié -40% barra]' };
+      }
+      // VIP: 40% toda la cuenta (barra + cocina)
+      if (isVip) {
+        return { price: Math.round(product.price * 0.60), note: '[Mié VIP -40% todo]' };
       }
     }
 
