@@ -271,6 +271,7 @@ export default function OrderScreen({ table, onBack }: Props) {
         'd0000000-0000-0000-0000-000000000019', // Cremosos
         'd0000000-0000-0000-0000-000000000011', // Cervezas Schop
         'd0000000-0000-0000-0000-000000000012', // Botellines
+        'd0000000-0000-0000-0000-000000000013', // Micheladas
         'd0000000-0000-0000-0000-000000000015', // Red Bull Drinks
         'd0000000-0000-0000-0000-000000000016', // Coctelería de Autor
         'd0000000-0000-0000-0000-000000000020', // Bottle Drinks
