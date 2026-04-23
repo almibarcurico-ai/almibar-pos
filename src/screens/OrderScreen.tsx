@@ -138,8 +138,11 @@ export default function OrderScreen({ table, onBack }: Props) {
         setClientTier(tier);
       } else setClientTier(null);
       // Restore discount from saved order
-      // Miércoles VIP: descuento ya se aplica por producto en getAutoDiscount, no duplicar a nivel de orden
-      if (o.discount_type && o.discount_type !== 'none' && o.discount_value > 0) {
+      // Miércoles: descuento se aplica por producto, ignorar descuento de orden guardado
+      if (esMiercoles && o.discount_type === 'percent' && o.discount_value === 40) {
+        // Limpiar descuento viejo de la orden
+        await supabase.from('orders').update({ discount_type: 'none', discount_value: 0 }).eq('id', o.id);
+      } else if (o.discount_type && o.discount_type !== 'none' && o.discount_value > 0) {
         setDiscountType(o.discount_type);
         setDiscountValue(String(o.discount_value));
       }
@@ -1228,8 +1231,9 @@ export default function OrderScreen({ table, onBack }: Props) {
           {paidItems.length > 0 && (<><Text style={{ fontSize: 11, fontWeight: '700', color: COLORS.success, marginBottom: 6 }}>✅ PAGADOS</Text>{paidItems.map(i => <View key={i.id} style={{ flexDirection: 'row', paddingVertical: 3, opacity: 0.5 }}><Text style={{ width: 30, fontSize: 13, fontWeight: '700', color: COLORS.textMuted }}>{i.quantity}x</Text><Text style={{ flex: 1, fontSize: 13, color: COLORS.textMuted, textDecorationLine: 'line-through' }}>{i.product?.name}</Text><Text style={{ fontSize: 13, color: COLORS.textMuted }}>{fmt(i.total_price)}</Text></View>)}<View style={[s.div, { marginVertical: 8 }]} /></>)}
           {unpaidItems.map(i => <TouchableOpacity key={i.id} onPress={() => payMode === 'partial' ? toggleItem(i.id) : null} style={{ flexDirection: 'row', paddingVertical: 6, paddingHorizontal: 4, borderRadius: 6, backgroundColor: selectedItemIds.has(i.id) ? COLORS.primary + '15' : 'transparent' }}>{payMode === 'partial' && <View style={{ width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: selectedItemIds.has(i.id) ? COLORS.primary : COLORS.border, backgroundColor: selectedItemIds.has(i.id) ? COLORS.primary : 'transparent', alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>{selectedItemIds.has(i.id) && <Text style={{ color: '#fff', fontSize: 14, fontWeight: '800' }}>✓</Text>}</View>}<Text style={{ width: 28, fontSize: 13, fontWeight: '700', color: COLORS.textSecondary }}>{i.quantity}x</Text><Text style={{ flex: 1, fontSize: 13, color: COLORS.text }}>{i.product?.name}</Text><Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.text }}>{fmt(i.total_price)}</Text></TouchableOpacity>)}
           <View style={s.div} />
-          {/* Descuento */}
-          <View style={{ marginBottom: 8 }}>
+          {/* Descuento - ocultar miércoles porque ya se aplica por producto */}
+          {esMiercoles && unpaidProductDiscount > 0 && <View style={{ backgroundColor: '#f0fdf4', borderRadius: 8, padding: 10, marginBottom: 8 }}><Text style={{ fontSize: 12, color: COLORS.success, fontWeight: '700', textAlign: 'center' }}>Descuento miércoles aplicado automáticamente por producto</Text></View>}
+          {!esMiercoles && <View style={{ marginBottom: 8 }}>
             <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 6 }}>DESCUENTO</Text>
             <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
               {[0, 10, 15, 20, 30, 40].map(p => (
@@ -1244,7 +1248,7 @@ export default function OrderScreen({ table, onBack }: Props) {
                 onChangeText={v => { setDiscountType('fixed'); setDiscountValue(v); }}
                 onFocus={() => setDiscountType('fixed')} />
             </View>
-          </View>
+          </View>}
           {unpaidProductDiscount > 0 && <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 }}><Text style={{ fontSize: 14, color: COLORS.textSecondary }}>Total sin descuento</Text><Text style={{ fontSize: 14, color: COLORS.textSecondary, textDecorationLine: 'line-through' }}>{fmt(unpaidOriginalSubtotal)}</Text></View>}
           {unpaidProductDiscount > 0 && <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4, backgroundColor: '#f0fdf4', borderRadius: 6, paddingHorizontal: 8, marginVertical: 4 }}><Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.success }}>Descuento aplicado</Text><Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.success }}>-{fmt(unpaidProductDiscount)}</Text></View>}
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 }}><Text style={{ fontSize: 14, color: COLORS.textSecondary }}>Subtotal</Text><Text style={{ fontSize: 14, color: COLORS.textSecondary }}>{fmt(unpaidSubtotal)}</Text></View>
