@@ -69,8 +69,9 @@ export default function OrderScreen({ table, onBack }: Props) {
   const [paySelectedModal, setPaySelectedModal] = useState(false);
   // Discount
   const esMiercoles = new Date().getDay() === 3;
-  const [discountType, setDiscountType] = useState<'none'|'percent'|'fixed'>(esMiercoles ? 'percent' : 'none');
-  const [discountValue, setDiscountValue] = useState(esMiercoles ? '40' : '');
+  // Miércoles: descuento se aplica por producto en getAutoDiscount, no a nivel de orden
+  const [discountType, setDiscountType] = useState<'none'|'percent'|'fixed'>('none');
+  const [discountValue, setDiscountValue] = useState('');
   // Multi-method payment - Fudo style
   const [tipEntries, setTipEntries] = useState<{method:string;amount:string}[]>([]);
   const [payEntries, setPayEntries] = useState<{method:string;amount:string}[]>([]);
@@ -137,11 +138,8 @@ export default function OrderScreen({ table, onBack }: Props) {
         setClientTier(tier);
       } else setClientTier(null);
       // Restore discount from saved order
-      // Miércoles VIP: forzar 40% en toda la cuenta
-      if (esMiercoles && tier === 'vip') {
-        setDiscountType('percent');
-        setDiscountValue('40');
-      } else if (o.discount_type && o.discount_type !== 'none' && o.discount_value > 0) {
+      // Miércoles VIP: descuento ya se aplica por producto en getAutoDiscount, no duplicar a nivel de orden
+      if (o.discount_type && o.discount_type !== 'none' && o.discount_value > 0) {
         setDiscountType(o.discount_type);
         setDiscountValue(String(o.discount_value));
       }
@@ -292,8 +290,13 @@ export default function OrderScreen({ table, onBack }: Props) {
       if (!isVip && BARRA_CATS_MIE.has(product.category_id)) {
         return { price: Math.round(product.price * 0.60), note: '[Mié -40% barra]' };
       }
-      // VIP: 40% toda la cuenta (barra + cocina)
-      if (isVip) {
+      // VIP: 40% toda la cuenta (barra + cocina), excepto Acceso VIP y Combos
+      const EXCLUIR_DESCUENTO = new Set([
+        'c3d28fae-7796-4e53-9c5c-105ee9addb49', // Socios
+        '66a19e3e-837c-4b53-b5a1-486e05283cbd', // Insumos Modificadores
+        'd0000000-0000-0000-0000-000000000040', // Combos
+      ]);
+      if (isVip && !EXCLUIR_DESCUENTO.has(product.category_id)) {
         return { price: Math.round(product.price * 0.60), note: '[Mié VIP -40% todo]' };
       }
     }
