@@ -1780,7 +1780,8 @@ function PropinasTab() {
       const last = shifts[0];
       return { since: first.opened_at, until: last.closed_at || new Date(Date.now() + 86400000).toISOString() };
     }
-    return { since: rangeStart, until: rangeEnd };
+    // Sin arqueo = sin turno = 0 propinas (igual que ventas)
+    return null;
   };
 
   const load = async () => {
@@ -1790,15 +1791,18 @@ function PropinasTab() {
       since = toChileISO(rangoDesde); until = toChileISO(addDays(rangoHasta, 1));
     } else if (period === 'diario') {
       const shift = findShiftRange(toChileISO(date), toChileISO(addDays(date, 1)));
-      since = shift.since; until = shift.until;
+      if (shift) { since = shift.since; until = shift.until; }
+      else { since = toChileISO(date); until = toChileISO(date); } // rango vacío
     } else if (period === 'semanal') {
       const st = new Date(d); st.setDate(st.getDate() - ((st.getDay() + 6) % 7)); const ss = st.toLocaleDateString('en-CA');
       const shift = findShiftRange(toChileISO(ss), toChileISO(addDays(ss, 7)));
-      since = shift.since; until = shift.until;
+      if (shift) { since = shift.since; until = shift.until; }
+      else { since = toChileISO(ss); until = toChileISO(ss); }
     } else {
       const ss = date.substring(0,7) + '-01'; const en = new Date(d.getFullYear(), d.getMonth() + 1, 1);
       const shift = findShiftRange(toChileISO(ss), toChileISO(en.toLocaleDateString('en-CA')));
-      since = shift.since; until = shift.until;
+      if (shift) { since = shift.since; until = shift.until; }
+      else { since = toChileISO(ss); until = toChileISO(ss); }
     }
 
     const { data: mesaData } = await supabase.from('orders').select('id,table_id,waiter_id,tip_amount,closed_at,table:table_id(number)').eq('status', 'cerrada').gte('closed_at', since).lt('closed_at', until).gt('tip_amount', 0).order('closed_at', { ascending: false });
