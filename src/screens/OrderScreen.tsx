@@ -242,6 +242,7 @@ export default function OrderScreen({ table, onBack }: Props) {
     'd0000000-0000-0000-0000-000000000030', // Vinos y Espumantes
     'd0000000-0000-0000-0000-000000000020', // Bottle Drinks
     'd0000000-0000-0000-0000-000000000022', // Mocktails / Sin Alcohol
+    'd0000000-0000-0000-0000-000000000099', // Descontinuados (solo POS)
   ]);
 
   // Producto VIP 40% por día de semana (toda la noche)
@@ -260,6 +261,13 @@ export default function OrderScreen({ table, onBack }: Props) {
     const dow = now.getDay();
     const isVip = clientTier === 'vip';
     const isHH = dow >= 1 && dow <= 6 && dow !== 3 && hora >= '17:00' && hora < '21:00';
+
+    // ═══ PROMO HOY 24/04/2026: 50% barra solo VIP ═══
+    const fechaHoy = now.toLocaleDateString('en-CA', { timeZone: 'America/Santiago' });
+    if (fechaHoy === '2026-04-24' && isVip && HH_CATS.has(product.category_id)) {
+      return { price: Math.round(product.price * 0.50), note: '[Promo VIP Hoy -50% barra]' };
+    }
+    // ═══ FIN PROMO HOY ═══
 
     // HH: 17-21 (Lun-Sáb, excl Mié) en Cócteles Clásicos, Spritz, Sours
     if (isHH && HH_CATS.has(product.category_id)) {
@@ -292,6 +300,7 @@ export default function OrderScreen({ table, onBack }: Props) {
         'd0000000-0000-0000-0000-000000000029', // Licores
         'd0000000-0000-0000-0000-000000000030', // Vinos y Espumantes
         'd0000000-0000-0000-0000-000000000052', // Mojitos 1L
+        'd0000000-0000-0000-0000-000000000099', // Descontinuados (solo POS)
       ]);
       // No-VIP: 40% solo barra
       if (!isVip && BARRA_CATS_MIE.has(product.category_id)) {
