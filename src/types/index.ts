@@ -76,6 +76,7 @@ export interface Order {
   notes: string | null;
   client_id: string | null;
   guest_names: string[];
+  personas: number;
 }
 
 export interface OrderItem {

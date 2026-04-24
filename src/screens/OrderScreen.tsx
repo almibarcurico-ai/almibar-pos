@@ -57,6 +57,9 @@ export default function OrderScreen({ table, onBack }: Props) {
   const [editNotes, setEditNotes] = useState('');
   const [editQty, setEditQty] = useState(1);
   const [preCuentaModal, setPreCuentaModal] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
+  const [editPersonasModal, setEditPersonasModal] = useState(false);
+  const [editPersonasCount, setEditPersonasCount] = useState('2');
   const [closeModal, setCloseModal] = useState(false);
   const [printers, setPrinters] = useState<any[]>([]);
   const [categoryPrinters, setCategoryPrinters] = useState<any[]>([]);
@@ -526,7 +529,8 @@ export default function OrderScreen({ table, onBack }: Props) {
   };
 
   const printByClient = async () => {
-    if (!order) return;
+    if (!order || isPrinting) return;
+    setIsPrinting(true);
     const cajaIp = PRINTER_CONFIG.caja?.ip || PRINTER_CONFIG.barra?.ip;
     const cajaPort = PRINTER_CONFIG.caja?.port || PRINTER_CONFIG.barra?.port || 9100;
     if (!cajaIp) return;
@@ -561,6 +565,7 @@ export default function OrderScreen({ table, onBack }: Props) {
     if (order) await supabase.from('orders').update({ discount_type: discountType, discount_value: parseInt(discountValue) || 0, subtotal: unpaidSubtotal, total: unpaidTotal }).eq('id', order.id);
     await supabase.from('tables').update({ status: 'cuenta' }).eq('id', table.id);
     playClickPOS();
+    setIsPrinting(false);
     setPreCuentaModal(false);
     onBack();
   };
@@ -858,6 +863,9 @@ export default function OrderScreen({ table, onBack }: Props) {
           <Text style={{ fontSize: 12, color: COLORS.textSecondary }}>👤 {waiterName || user?.name} • {order?.opened_at ? new Date(order.opened_at).toLocaleString('es-CL') : ''}</Text>
           <TouchableOpacity onPress={editarCliente} style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: COLORS.primary + '15', borderWidth: 1, borderColor: COLORS.primary + '30' }}>
             <Text style={{ fontSize: 11, fontWeight: '600', color: COLORS.primary }}>{order?.notes?.match(/Cliente:\s*([^|]+)/)?.[1]?.trim() || 'Asignar cliente'} ✏️</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => { setEditPersonasCount(String(order?.personas || 2)); setEditPersonasModal(true); }} style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: COLORS.info + '15', borderWidth: 1, borderColor: COLORS.info + '30' }}>
+            <Text style={{ fontSize: 11, fontWeight: '600', color: COLORS.info }}>👥 {order?.personas || 1} pers.</Text>
           </TouchableOpacity>
         </View>
         <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
@@ -1257,8 +1265,8 @@ export default function OrderScreen({ table, onBack }: Props) {
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 }}><Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.text }}>TOTAL</Text><Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.primary }}>{fmt(unpaidTotal + Math.round(unpaidOriginalSubtotal * 0.1))}</Text></View>
           <View style={{ flexDirection: 'row', gap: 8, marginTop: 20, flexWrap: 'wrap' }}>
             <TouchableOpacity style={s.bC} onPress={() => { setPreCuentaModal(false); resetPayState(); }}><Text style={s.bCT}>✕ Cerrar</Text></TouchableOpacity>
-            <TouchableOpacity style={[s.bOk, { backgroundColor: COLORS.warning }]} onPress={async () => { try { if (order) await supabase.from('orders').update({ discount_type: discountType, discount_value: parseInt(discountValue) || 0, subtotal: unpaidSubtotal, total: unpaidTotal }).eq('id', order.id); await supabase.from('tables').update({ status: 'cuenta' }).eq('id', table.id); const cajaIp = PRINTER_CONFIG.caja?.ip || PRINTER_CONFIG.barra?.ip; const cajaPort = PRINTER_CONFIG.caja?.port || PRINTER_CONFIG.barra?.port || 9100; if (cajaIp) { const printItems = payMode === 'partial' && selectedItems.length > 0 ? selectedItems : unpaidItems; const printSubtotal = printItems.reduce((a: number, i: any) => a + i.total_price, 0); const printOriginalSubtotal = printItems.reduce((a: number, i: any) => { const op = i.product?.price || i.unit_price; const ma = (i.item_modifiers || []).reduce((s: number, m: any) => s + (m.price_adjust || 0), 0); return a + (op + ma) * i.quantity; }, 0); const printDiscount = discountType === 'percent' ? Math.round(printItems.filter((i: any) => !(i.notes || '').includes('[PROMO]')).reduce((a: number, i: any) => a + i.total_price, 0) * (parseInt(discountValue) || 0) / 100) : discountType === 'fixed' ? (parseInt(discountValue) || 0) : 0; const printTotal = Math.max(0, printSubtotal - printDiscount); const ticket = generateBoleta({ table: table.number, waiter: waiterName || '', items: groupItemsForPrint(printItems), subtotal: printSubtotal, originalSubtotal: printOriginalSubtotal, discount: printDiscount, discountLabel: discountType === 'percent' ? `Dcto (${discountValue}%)` : undefined, tip: Math.round(printOriginalSubtotal * 0.1), total: printTotal, payments: [], orderNumber: order?.order_number }); await sendToPrinter(cajaIp, cajaPort, ticket, 'caja'); } playClickPOS(); setPreCuentaModal(false); onBack(); } catch (e: any) { if (typeof window !== 'undefined') window.alert('Error: ' + e.message); } }}><Text style={s.bOkT}>🖨 {payMode === 'partial' && selectedItems.length > 0 ? `Imprimir (${selectedItems.length})` : 'Imprimir'}</Text></TouchableOpacity>
-            {guestNames.length > 1 && <TouchableOpacity style={[s.bOk, { backgroundColor: COLORS.info }]} onPress={printByClient}><Text style={s.bOkT}>🖨 Por socio</Text></TouchableOpacity>}
+            <TouchableOpacity disabled={isPrinting} style={[s.bOk, { backgroundColor: COLORS.warning, opacity: isPrinting ? 0.5 : 1 }]} onPress={async () => { if (isPrinting) return; setIsPrinting(true); try { if (order) await supabase.from('orders').update({ discount_type: discountType, discount_value: parseInt(discountValue) || 0, subtotal: unpaidSubtotal, total: unpaidTotal }).eq('id', order.id); await supabase.from('tables').update({ status: 'cuenta' }).eq('id', table.id); const cajaIp = PRINTER_CONFIG.caja?.ip || PRINTER_CONFIG.barra?.ip; const cajaPort = PRINTER_CONFIG.caja?.port || PRINTER_CONFIG.barra?.port || 9100; if (cajaIp) { const printItems = payMode === 'partial' && selectedItems.length > 0 ? selectedItems : unpaidItems; const printSubtotal = printItems.reduce((a: number, i: any) => a + i.total_price, 0); const printOriginalSubtotal = printItems.reduce((a: number, i: any) => { const op = i.product?.price || i.unit_price; const ma = (i.item_modifiers || []).reduce((s: number, m: any) => s + (m.price_adjust || 0), 0); return a + (op + ma) * i.quantity; }, 0); const printDiscount = discountType === 'percent' ? Math.round(printItems.filter((i: any) => !(i.notes || '').includes('[PROMO]')).reduce((a: number, i: any) => a + i.total_price, 0) * (parseInt(discountValue) || 0) / 100) : discountType === 'fixed' ? (parseInt(discountValue) || 0) : 0; const printTotal = Math.max(0, printSubtotal - printDiscount); const ticket = generateBoleta({ table: table.number, waiter: waiterName || '', items: groupItemsForPrint(printItems), subtotal: printSubtotal, originalSubtotal: printOriginalSubtotal, discount: printDiscount, discountLabel: discountType === 'percent' ? `Dcto (${discountValue}%)` : undefined, tip: Math.round(printOriginalSubtotal * 0.1), total: printTotal, payments: [], orderNumber: order?.order_number }); await sendToPrinter(cajaIp, cajaPort, ticket, 'caja'); } playClickPOS(); setIsPrinting(false); setPreCuentaModal(false); onBack(); } catch (e: any) { setIsPrinting(false); if (typeof window !== 'undefined') window.alert('Error: ' + e.message); } }}><Text style={s.bOkT}>{isPrinting ? '⏳ Imprimiendo...' : `🖨 ${payMode === 'partial' && selectedItems.length > 0 ? `Imprimir (${selectedItems.length})` : 'Imprimir'}`}</Text></TouchableOpacity>
+            {guestNames.length > 1 && <TouchableOpacity disabled={isPrinting} style={[s.bOk, { backgroundColor: COLORS.info, opacity: isPrinting ? 0.5 : 1 }]} onPress={printByClient}><Text style={s.bOkT}>{isPrinting ? '⏳ Imprimiendo...' : '🖨 Por socio'}</Text></TouchableOpacity>}
             {(user?.role === 'cajero' || user?.role === 'admin') && unpaidItems.length > 0 && <TouchableOpacity style={[s.bOk, { backgroundColor: COLORS.success }]} onPress={() => { setPreCuentaModal(false); if (payMode === 'partial' && selectedItems.length > 0) { setPaySelectedModal(true); } else { const tip10 = Math.round(unpaidSubtotal * 0.1); setPayEntries([{ method: 'efectivo', amount: String(unpaidTotal + tip10) }]); setTipEntries([{ method: 'efectivo', amount: String(tip10) }]); setCloseModal(true); } }}><Text style={s.bOkT}>💳 Pagar</Text></TouchableOpacity>}
           </View>
         </View></ScrollView></View>
@@ -1535,6 +1543,30 @@ export default function OrderScreen({ table, onBack }: Props) {
               <Text style={{ color: COLORS.textSecondary, fontWeight: '600' }}>Cancelar</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => { saveGuestNames(guestNames); setGuestSearchResults([]); setGuestSearchIndex(-1); }} style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: COLORS.primary, alignItems: 'center' }}>
+              <Text style={{ color: '#fff', fontWeight: '700' }}>Guardar</Text>
+            </TouchableOpacity>
+          </View>
+        </View></View>
+      </Modal>
+
+      {/* EDITAR PERSONAS */}
+      <Modal visible={editPersonasModal} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+        <View style={{ backgroundColor: COLORS.card, borderRadius: 16, padding: 20, width: '90%', maxWidth: 360 }}>
+          <Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.text, marginBottom: 12 }}>Personas en mesa</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+            {['1','2','3','4','5','6','7','8','10','12','15','20'].map(n => (
+              <TouchableOpacity key={n} onPress={() => setEditPersonasCount(n)}
+                style={{ width: 48, height: 48, borderRadius: 10, backgroundColor: editPersonasCount === n ? COLORS.primary : COLORS.background, borderWidth: 1, borderColor: editPersonasCount === n ? COLORS.primary : COLORS.border, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 16, fontWeight: '700', color: editPersonasCount === n ? '#fff' : COLORS.text }}>{n}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TouchableOpacity onPress={() => setEditPersonasModal(false)} style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: COLORS.background, alignItems: 'center' }}>
+              <Text style={{ color: COLORS.textSecondary, fontWeight: '600' }}>Cancelar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={async () => { if (order) { await supabase.from('orders').update({ personas: parseInt(editPersonasCount) || 1 }).eq('id', order.id); setOrder({ ...order, personas: parseInt(editPersonasCount) || 1 } as any); } setEditPersonasModal(false); }} style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: COLORS.primary, alignItems: 'center' }}>
               <Text style={{ color: '#fff', fontWeight: '700' }}>Guardar</Text>
             </TouchableOpacity>
           </View>

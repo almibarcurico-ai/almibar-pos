@@ -100,6 +100,8 @@ export default function MobileTableScreen({ onOpenOrder, onLogout }: Props) {
         table_id: selectedTable.id, type: 'mesa', status: 'abierta', waiter_id: user.id,
         notes: customerName ? `Cliente: ${customerName}` : null,
         client_id: selectedClient ? selectedClient.id : null,
+        personas: parseInt(customerCount) || 2,
+        guest_names: [customerName.trim()],
       }).select().single();
       if (oe) throw oe;
       await supabase.from('tables').update({ status: 'ocupada', current_order_id: od.id }).eq('id', selectedTable.id);
