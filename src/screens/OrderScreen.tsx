@@ -262,13 +262,6 @@ export default function OrderScreen({ table, onBack }: Props) {
     const isVip = clientTier === 'vip';
     const isHH = dow >= 1 && dow <= 6 && dow !== 3 && hora >= '17:00' && hora < '21:00';
 
-    // ═══ PROMO HOY 24/04/2026: 50% barra solo VIP ═══
-    const fechaHoy = now.toLocaleDateString('en-CA', { timeZone: 'America/Santiago' });
-    if (fechaHoy === '2026-04-24' && isVip && HH_CATS.has(product.category_id)) {
-      return { price: Math.round(product.price * 0.50), note: '[Promo VIP Hoy -50% barra]' };
-    }
-    // ═══ FIN PROMO HOY ═══
-
     // HH: 17-21 (Lun-Sáb, excl Mié) en Cócteles Clásicos, Spritz, Sours
     if (isHH && HH_CATS.has(product.category_id)) {
       const pct = isVip ? 0.50 : 0.35;
@@ -551,6 +544,11 @@ export default function OrderScreen({ table, onBack }: Props) {
         : unpaidItems;
       if (clientItems.length === 0) continue;
       const clientSubtotal = clientItems.reduce((a: number, i: any) => a + i.total_price, 0);
+      const clientOriginalSubtotal = clientItems.reduce((a: number, i: any) => {
+        const op = i.product?.price || i.unit_price;
+        const ma = (i.item_modifiers || []).reduce((s: number, m: any) => s + (m.price_adjust || 0), 0);
+        return a + (op + ma) * i.quantity;
+      }, 0);
       const clientDiscount = discountType === 'percent'
         ? Math.round(clientItems.filter((i: any) => !(i.notes || '').includes('[PROMO]')).reduce((a: number, i: any) => a + i.total_price, 0) * (parseInt(discountValue) || 0) / 100)
         : 0;
@@ -560,9 +558,10 @@ export default function OrderScreen({ table, onBack }: Props) {
         waiter: waiterName || '',
         items: groupItemsForPrint(clientItems),
         subtotal: clientSubtotal,
+        originalSubtotal: clientOriginalSubtotal,
         discount: clientDiscount,
         discountLabel: discountType === 'percent' ? `Dcto (${discountValue}%)` : undefined,
-        tip: Math.round(clientSubtotal * 0.1),
+        tip: Math.round(clientOriginalSubtotal * 0.1),
         total: clientTotal,
         payments: [],
         orderNumber: order.order_number,
@@ -1005,7 +1004,7 @@ export default function OrderScreen({ table, onBack }: Props) {
       <View style={s.foot}>
         <View><Text style={{ fontSize: 13, color: COLORS.textSecondary }}>Total:</Text><Text style={{ fontSize: 24, fontWeight: '800', color: COLORS.primary }}>{fmt(order?.total || 0)}</Text></View>
         {(user?.role === 'cajero' || user?.role === 'admin') && orderItems.length > 0 && (
-          <TouchableOpacity style={s.clBtn} onPress={() => { const tip10 = Math.round(unpaidSubtotal * 0.1); setPayEntries([{ method: 'efectivo', amount: String(unpaidTotal + tip10) }]); setTipEntries([{ method: 'efectivo', amount: String(tip10) }]); setCloseModal(true); }}><Text style={s.clBtnT}>Cerrar mesa {table.number}</Text></TouchableOpacity>
+          <TouchableOpacity style={s.clBtn} onPress={() => { const tip10 = Math.round(unpaidOriginalSubtotal * 0.1); setPayEntries([{ method: 'efectivo', amount: String(unpaidTotal + tip10) }]); setTipEntries([{ method: 'efectivo', amount: String(tip10) }]); setCloseModal(true); }}><Text style={s.clBtnT}>Cerrar mesa {table.number}</Text></TouchableOpacity>
         )}
         {orderItems.length === 0 && (
           <TouchableOpacity style={[s.clBtn, { backgroundColor: '#334155' }]} onPress={async () => {
@@ -1276,7 +1275,7 @@ export default function OrderScreen({ table, onBack }: Props) {
             <TouchableOpacity style={s.bC} onPress={() => { setPreCuentaModal(false); resetPayState(); }}><Text style={s.bCT}>✕ Cerrar</Text></TouchableOpacity>
             <TouchableOpacity disabled={isPrinting} style={[s.bOk, { backgroundColor: COLORS.warning, opacity: isPrinting ? 0.5 : 1 }]} onPress={async () => { if (isPrinting) return; setIsPrinting(true); try { if (order) await supabase.from('orders').update({ discount_type: discountType, discount_value: parseInt(discountValue) || 0, subtotal: unpaidSubtotal, total: unpaidTotal }).eq('id', order.id); await supabase.from('tables').update({ status: 'cuenta' }).eq('id', table.id); const cajaIp = PRINTER_CONFIG.caja?.ip || PRINTER_CONFIG.barra?.ip; const cajaPort = PRINTER_CONFIG.caja?.port || PRINTER_CONFIG.barra?.port || 9100; if (cajaIp) { const printItems = payMode === 'partial' && selectedItems.length > 0 ? selectedItems : unpaidItems; const printSubtotal = printItems.reduce((a: number, i: any) => a + i.total_price, 0); const printOriginalSubtotal = printItems.reduce((a: number, i: any) => { const op = i.product?.price || i.unit_price; const ma = (i.item_modifiers || []).reduce((s: number, m: any) => s + (m.price_adjust || 0), 0); return a + (op + ma) * i.quantity; }, 0); const printDiscount = discountType === 'percent' ? Math.round(printItems.filter((i: any) => !(i.notes || '').includes('[PROMO]')).reduce((a: number, i: any) => a + i.total_price, 0) * (parseInt(discountValue) || 0) / 100) : discountType === 'fixed' ? (parseInt(discountValue) || 0) : 0; const printTotal = Math.max(0, printSubtotal - printDiscount); const ticket = generateBoleta({ table: table.number, waiter: waiterName || '', items: groupItemsForPrint(printItems), subtotal: printSubtotal, originalSubtotal: printOriginalSubtotal, discount: printDiscount, discountLabel: discountType === 'percent' ? `Dcto (${discountValue}%)` : undefined, tip: Math.round(printOriginalSubtotal * 0.1), total: printTotal, payments: [], orderNumber: order?.order_number }); await sendToPrinter(cajaIp, cajaPort, ticket, 'caja'); } playClickPOS(); setIsPrinting(false); setPreCuentaModal(false); onBack(); } catch (e: any) { setIsPrinting(false); if (typeof window !== 'undefined') window.alert('Error: ' + e.message); } }}><Text style={s.bOkT}>{isPrinting ? '⏳ Imprimiendo...' : `🖨 ${payMode === 'partial' && selectedItems.length > 0 ? `Imprimir (${selectedItems.length})` : 'Imprimir'}`}</Text></TouchableOpacity>
             {guestNames.length > 1 && <TouchableOpacity disabled={isPrinting} style={[s.bOk, { backgroundColor: COLORS.info, opacity: isPrinting ? 0.5 : 1 }]} onPress={printByClient}><Text style={s.bOkT}>{isPrinting ? '⏳ Imprimiendo...' : '🖨 Por socio'}</Text></TouchableOpacity>}
-            {(user?.role === 'cajero' || user?.role === 'admin') && unpaidItems.length > 0 && <TouchableOpacity style={[s.bOk, { backgroundColor: COLORS.success }]} onPress={() => { setPreCuentaModal(false); if (payMode === 'partial' && selectedItems.length > 0) { setPaySelectedModal(true); } else { const tip10 = Math.round(unpaidSubtotal * 0.1); setPayEntries([{ method: 'efectivo', amount: String(unpaidTotal + tip10) }]); setTipEntries([{ method: 'efectivo', amount: String(tip10) }]); setCloseModal(true); } }}><Text style={s.bOkT}>💳 Pagar</Text></TouchableOpacity>}
+            {(user?.role === 'cajero' || user?.role === 'admin') && unpaidItems.length > 0 && <TouchableOpacity style={[s.bOk, { backgroundColor: COLORS.success }]} onPress={() => { setPreCuentaModal(false); if (payMode === 'partial' && selectedItems.length > 0) { setPaySelectedModal(true); } else { const tip10 = Math.round(unpaidOriginalSubtotal * 0.1); setPayEntries([{ method: 'efectivo', amount: String(unpaidTotal + tip10) }]); setTipEntries([{ method: 'efectivo', amount: String(tip10) }]); setCloseModal(true); } }}><Text style={s.bOkT}>💳 Pagar</Text></TouchableOpacity>}
           </View>
         </View></ScrollView></View>
       </Modal>
