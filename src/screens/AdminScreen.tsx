@@ -246,33 +246,71 @@ function ClientesEnLocal() {
   const [qrModal, setQrModal] = useState(false);
   const [qrQueue, setQrQueue] = useState<any[]>([]);
   const [qrIndex, setQrIndex] = useState(0);
+  const [blastModal, setBlastModal] = useState(false);
+  const [blastText, setBlastText] = useState('');
+  const [blastTarget, setBlastTarget] = useState<'vip'|'all'|'active'>('vip');
+  const [blastSending, setBlastSending] = useState(false);
+  const [blastResult, setBlastResult] = useState<any>(null);
+  const [promoItems, setPromoItems] = useState<any[]>([]);
+  const [selectedPromos, setSelectedPromos] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     load();
     supabase.from('promo_banners').select('active').eq('title', 'PROMO FLASH').limit(1).then(({ data }) => {
       if (data?.[0]) setPromoActiva(data[0].active);
     });
+    supabase.from('promo_flash_items').select('*').order('created_at').then(({ data }) => {
+      if (data) { setPromoItems(data); setSelectedPromos(new Set(data.filter((i: any) => i.active).map((i: any) => i.id))); }
+    });
     const i = setInterval(load, 15000);
     return () => clearInterval(i);
   }, []);
 
   const load = async () => {
+    // 1. Clientes en mesas abiertas
     const { data } = await supabase
       .from('orders')
-      .select('id, notes, client_id, table_id, opened_at, tables:table_id(number), clients:client_id(name, phone, member_number, total_visits)')
+      .select('id, notes, client_id, table_id, opened_at, tables:table_id(number), clients:client_id(id, name, phone, member_number, total_visits)')
       .eq('status', 'abierta')
       .not('table_id', 'is', null);
-    if (!data) { setClientes([]); return; }
-    const list = data.map((o: any) => ({
+    const mesaList = (data || []).map((o: any) => ({
       orderId: o.id,
+      clientId: o.clients?.id || null,
       mesa: o.tables?.number || '?',
       nombre: o.clients?.name || (o.notes?.replace('Cliente: ', '').split('|')[0]?.trim()) || 'Sin nombre',
       phone: o.clients?.phone || null,
       member: o.clients?.member_number || null,
       visitas: o.clients?.total_visits || 0,
       hora: o.opened_at,
-    })).sort((a: any, b: any) => a.mesa - b.mesa);
-    setClientes(list);
+      source: 'mesa' as const,
+    }));
+
+    // 2. Clientes con visita QR hoy
+    const hoyStart = new Date(); hoyStart.setHours(0,0,0,0);
+    const { data: visits } = await supabase
+      .from('client_visits')
+      .select('client_id, created_at, client:client_id(id, name, phone, member_number, total_visits, tier)')
+      .gte('created_at', hoyStart.toISOString());
+    const mesaClientIds = new Set(mesaList.filter((m: any) => m.clientId).map((m: any) => m.clientId));
+    const qrList = (visits || [])
+      .filter((v: any) => v.client && !mesaClientIds.has(v.client.id))
+      .map((v: any) => ({
+        orderId: 'qr-' + v.client.id,
+        clientId: v.client.id,
+        mesa: 'QR',
+        nombre: v.client.name,
+        phone: v.client.phone || null,
+        member: v.client.member_number || null,
+        visitas: v.client.total_visits || 0,
+        hora: v.created_at,
+        source: 'qr' as const,
+        tier: v.client.tier,
+      }));
+    // Deduplicar QR (mismo client_id)
+    const seenQr = new Set<string>();
+    const uniqueQr = qrList.filter((q: any) => { if (seenQr.has(q.clientId)) return false; seenQr.add(q.clientId); return true; });
+
+    setClientes([...mesaList.sort((a: any, b: any) => a.mesa - b.mesa), ...uniqueQr]);
   };
 
   const getWaLink = (c: any) => {
@@ -329,48 +367,146 @@ function ClientesEnLocal() {
   };
 
   const togglePromo = async () => {
-    const nueva = !promoActiva;
-    setPromoActiva(nueva);
+    if (promoActiva) {
+      // Desactivar
+      setPromoActiva(false);
+      await supabase.from('promo_banners').update({ active: false }).eq('title', 'PROMO FLASH');
+      await supabase.from('promo_flash_items').update({ active: false }).neq('id', '');
+      await supabase.from('promo_flash_recipients').delete().neq('id', '');
+      Alert.alert('Promo desactivada', 'El banner y los descuentos se desactivaron');
+      return;
+    }
+    // Abrir modal blast con selector de productos
+    setBlastResult(null);
+    const selected = promoItems.filter(i => selectedPromos.has(i.id));
+    const promoText = selected.map((i: any) => i.label).join(' · ');
+    setBlastText(promoText || 'Promo Flash en Almibar!');
+    setBlastModal(true);
+  };
 
-    // Log quién activa/desactiva
+  const activarPromoYEnviar = async () => {
+    if (selectedPromos.size === 0) { Alert.alert('', 'Selecciona al menos un producto'); return; }
+    setBlastSending(true);
+    setBlastResult(null);
+
+    // 1. Activar items seleccionados en DB
+    await supabase.from('promo_flash_items').update({ active: false }).neq('id', '');
+    for (const id of selectedPromos) {
+      await supabase.from('promo_flash_items').update({ active: true }).eq('id', id);
+    }
+
+    // 2. Activar banner
+    const selected = promoItems.filter(i => selectedPromos.has(i.id));
+    const subtitle = selected.map((i: any) => i.label).join(' · ');
+    const ahora = new Date().toISOString();
+    const { data: existing } = await supabase.from('promo_banners').select('id').eq('title', 'PROMO FLASH').limit(1);
+    if (existing && existing.length > 0) {
+      await supabase.from('promo_banners').update({ active: true, subtitle, emoji: '🔥', sort_order: 0, created_at: ahora }).eq('id', existing[0].id);
+    } else {
+      await supabase.from('promo_banners').insert({ title: 'PROMO FLASH', subtitle, emoji: '🔥', image_url: '', sort_order: 0, active: true, created_at: ahora });
+    }
+    setPromoActiva(true);
+
+    // 3. Enviar WhatsApp blast a clientes en mesas
+    const WA_TOKEN = 'EAAOIZBr9SYXEBReEeD4oUOgZBXlNCQIgX56DWrr7IeSX4LBRcRZCGbFNqAUDqoWeDkhVZAh0qUtTJqYMlLZCyK0kYsAlofWhyH4Jdek27bUe0x0vbWtQL3hsZBBF4xb8EsAZAYHDI0v1j4pyFKXsS6TQ8HSpi4Fzs40oDPFdvw6S3eD7TKfLzuyvZAhyRIATWuOzVTrtZAPwoNQZBwKY0feSK08Msi03utrZCTdt68nBo0b';
+    const PHONE_ID = '112291225051441';
+    const conTel = clientes.filter(c => c.phone);
+    let enviados = 0, errores = 0, omitidos = 0;
+    const recipientIds: string[] = [];
+
+    const msgText = 'Promo Flash en Almibar! ' + subtitle + '. Escanea el QR de tu mesa, revisa tu cuenta en la app y agrega tus productos con descuento. Solo por ahora!';
+
+    for (const c of conTel) {
+      let phone = (c.phone || '').replace(/[^0-9]/g, '');
+      if (phone.startsWith('9') && phone.length === 9) phone = '56' + phone;
+      if (phone.length < 10) { omitidos++; continue; }
+      if (!phone.startsWith('56')) phone = '56' + phone;
+      const nombre = (c.nombre || 'Amigo').split(' ')[0];
+      const primerNombre = nombre.charAt(0).toUpperCase() + nombre.slice(1).toLowerCase();
+      try {
+        const res = await fetch(`https://graph.facebook.com/v22.0/${PHONE_ID}/messages`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${WA_TOKEN}` },
+          body: JSON.stringify({ messaging_product: 'whatsapp', to: phone, type: 'template',
+            template: { name: 'promo_almibar', language: { code: 'es_CL' },
+              components: [{ type: 'body', parameters: [{ type: 'text', text: primerNombre }, { type: 'text', text: msgText }] }] } }),
+        });
+        if (res.ok) { enviados++; if (c.clientId) recipientIds.push(c.clientId); }
+        else errores++;
+      } catch { errores++; }
+      await new Promise(r => setTimeout(r, 200));
+    }
+
+    // 4. Guardar recipients (solo mesas que recibieron)
+    await supabase.from('promo_flash_recipients').delete().neq('id', '');
+    if (recipientIds.length > 0) {
+      await supabase.from('promo_flash_recipients').insert(recipientIds.map(id => ({ client_id: id })));
+    }
+
+    setBlastResult({ enviados, errores, omitidos });
+    setBlastSending(false);
+
+    // 5. Auto-desactivar en 7 minutos
+    setTimeout(async () => {
+      await supabase.from('promo_banners').update({ active: false }).eq('title', 'PROMO FLASH');
+      await supabase.from('promo_flash_items').update({ active: false }).neq('id', '');
+      setPromoActiva(false);
+    }, 10 * 60 * 1000);
+
+    // Log
     await supabase.from('monitoring_alerts').insert({
-      type: 'promo_flash_toggle',
-      severity: 'info',
-      title: (nueva ? 'Promo Flash ACTIVADA' : 'Promo Flash DESACTIVADA') + ' por ' + (user?.name || 'desconocido'),
-      description: 'Desde ' + (navigator.userAgent.includes('Mobile') ? 'celular' : 'PC') + ' a las ' + new Date().toLocaleTimeString('es-CL'),
-      metadata: { user_id: user?.id, user_name: user?.name, action: nueva ? 'activate' : 'deactivate' },
+      type: 'promo_flash_toggle', severity: 'info',
+      title: 'Promo Flash ACTIVADA por ' + (user?.name || 'desconocido'),
+      description: subtitle + ' | Enviado a ' + enviados + ' clientes',
+      metadata: { user_id: user?.id, products: selected.map((s: any) => s.label), recipients: enviados },
     });
 
-    if (nueva) {
-      // Activar: insertar o actualizar banner promo flash
-      const ahora = new Date().toISOString();
-      const { data: existing } = await supabase.from('promo_banners').select('id').eq('title', 'PROMO FLASH').limit(1);
-      if (existing && existing.length > 0) {
-        await supabase.from('promo_banners').update({ active: true, subtitle: '🥃 Shot Tequila $1.000 · 🍺 Schop $2.500 · 🍹 Mojito $2.500', emoji: '🔥', sort_order: 0, created_at: ahora }).eq('id', existing[0].id);
-      } else {
-        await supabase.from('promo_banners').insert({ title: 'PROMO FLASH', subtitle: '🥃 Shot Tequila $1.000 · 🍺 Schop $2.500 · 🍹 Mojito $2.500', emoji: '🔥', image_url: '', sort_order: 0, active: true, created_at: ahora });
+  };
+
+  const enviarBlastWA = async () => {
+    if (!blastText.trim()) { Alert.alert('', 'Escribe el texto de la promo'); return; }
+    const WA_TOKEN = 'EAAOIZBr9SYXEBReEeD4oUOgZBXlNCQIgX56DWrr7IeSX4LBRcRZCGbFNqAUDqoWeDkhVZAh0qUtTJqYMlLZCyK0kYsAlofWhyH4Jdek27bUe0x0vbWtQL3hsZBBF4xb8EsAZAYHDI0v1j4pyFKXsS6TQ8HSpi4Fzs40oDPFdvw6S3eD7TKfLzuyvZAhyRIATWuOzVTrtZAPwoNQZBwKY0feSK08Msi03utrZCTdt68nBo0b';
+    const PHONE_ID = '112291225051441';
+    setBlastSending(true);
+    setBlastResult(null);
+    try {
+      // Cargar clientes
+      let query = supabase.from('clients').select('id, name, phone, tier').eq('active', true).not('phone', 'is', null);
+      if (blastTarget === 'vip') query = query.eq('tier', 'vip');
+      const { data: clients } = await query;
+      if (!clients || clients.length === 0) { setBlastResult({ enviados: 0, errores: 0, omitidos: 0 }); setBlastSending(false); return; }
+
+      let enviados = 0, errores = 0, omitidos = 0;
+      for (const c of clients) {
+        let phone = (c.phone || '').replace(/[^0-9]/g, '');
+        if (phone.startsWith('9') && phone.length === 9) phone = '56' + phone;
+        if (phone.length < 10) { omitidos++; continue; }
+        if (!phone.startsWith('56')) phone = '56' + phone;
+
+        const nombre = (c.name || 'Amigo').split(' ')[0];
+        const primerNombre = nombre.charAt(0).toUpperCase() + nombre.slice(1).toLowerCase();
+
+        try {
+          const res = await fetch(`https://graph.facebook.com/v22.0/${PHONE_ID}/messages`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${WA_TOKEN}` },
+            body: JSON.stringify({
+              messaging_product: 'whatsapp', to: phone, type: 'template',
+              template: { name: 'promo_almibar', language: { code: 'es_CL' },
+                components: [{ type: 'body', parameters: [{ type: 'text', text: primerNombre }, { type: 'text', text: blastText }] }] },
+            }),
+          });
+          const r = await res.json();
+          if (res.ok) enviados++;
+          else { errores++; console.log('WA error:', c.name, r.error?.message); }
+        } catch { errores++; }
+        await new Promise(r => setTimeout(r, 200));
       }
-      // Auto-desactivar en 7 minutos
-      setTimeout(async () => {
-        await supabase.from('promo_banners').update({ active: false }).eq('title', 'PROMO FLASH');
-        setPromoActiva(false);
-      }, 7 * 60 * 1000);
-      // Mostrar QRs para enviar WhatsApp desde el celular
-      await load();
-      const conTel = clientes.filter(c => c.phone && !enviados.has(c.orderId));
-      if (conTel.length > 0) {
-        setQrQueue(conTel);
-        setQrIndex(0);
-        setQrModal(true);
-        Alert.alert('⚡ Promo Flash activada', `3 productos en promo por 7 minutos.\n\n📱 Escanea los QR para enviar WhatsApp a ${conTel.length} socio${conTel.length > 1 ? 's' : ''}`);
-      } else {
-        Alert.alert('⚡ Promo Flash activada', '4 productos en promo por 7 minutos.\nShot Tequila $1.000\nSchop Patagonia $2.500\nMojito Cubano $2.500\nPisco Mistral $2.500\n\nNo hay socios con teléfono en mesas activas.');
-      }
-    } else {
-      // Desactivar: ocultar banner
-      await supabase.from('promo_banners').update({ active: false }).eq('title', 'PROMO FLASH');
-      Alert.alert('Promo desactivada', 'El banner ya no aparece en la app');
+      setBlastResult({ enviados, errores, omitidos });
+    } catch (e: any) {
+      setBlastResult({ error: e.message });
     }
+    setBlastSending(false);
   };
 
   if (clientes.length === 0) return null;
@@ -390,6 +526,9 @@ function ClientesEnLocal() {
         <TouchableOpacity style={cl.enviarTodos} onPress={enviarATodos}>
           <Text style={{ fontSize: 11, color: '#25D366', fontWeight: '700' }}>💬 Enviar a todos</Text>
         </TouchableOpacity>
+        <TouchableOpacity style={[cl.enviarTodos, { backgroundColor: '#25D366', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 6 }]} onPress={() => { setBlastText(''); setBlastResult(null); setBlastModal(true); }}>
+          <Text style={{ fontSize: 11, color: '#fff', fontWeight: '700' }}>📢 Blast WhatsApp</Text>
+        </TouchableOpacity>
       </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 8 }}>
@@ -397,7 +536,7 @@ function ClientesEnLocal() {
           const yaEnviado = enviados.has(c.orderId);
           return (
             <TouchableOpacity key={i} style={[cl.card, yaEnviado && cl.cardEnviado]} onPress={() => enviarPromo(c)} activeOpacity={0.7}>
-              <View style={cl.mesaBadge}><Text style={cl.mesaNum}>{c.mesa}</Text></View>
+              <View style={[cl.mesaBadge, c.source === 'qr' && { backgroundColor: '#25D36618' }]}><Text style={[cl.mesaNum, c.source === 'qr' && { color: '#25D366' }]}>{c.source === 'qr' ? 'QR' : c.mesa}</Text></View>
               <Text style={cl.nombre} numberOfLines={1}>{c.nombre}</Text>
               <Text style={cl.hora}>Desde {fH(c.hora)}</Text>
               {c.member && <Text style={cl.socio}>Socio #{c.member}</Text>}
@@ -433,6 +572,48 @@ function ClientesEnLocal() {
                 </TouchableOpacity>
               </View>
             </>)}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Blast WhatsApp Modal */}
+      <Modal visible={blastModal} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: COLORS.overlay, justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ backgroundColor: COLORS.card, borderRadius: 16, padding: 24, width: 380 }}>
+            <Text style={{ fontSize: 16, fontWeight: '800', color: COLORS.text, marginBottom: 16 }}>⚡ Promo Flash — Selecciona productos</Text>
+
+            <Text style={{ fontSize: 12, color: COLORS.textMuted, marginBottom: 8 }}>Productos con descuento:</Text>
+            {promoItems.map((item: any) => (
+              <TouchableOpacity key={item.id} onPress={() => setSelectedPromos(prev => { const n = new Set(prev); n.has(item.id) ? n.delete(item.id) : n.add(item.id); return n; })}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 8, marginBottom: 4, backgroundColor: selectedPromos.has(item.id) ? '#25D36610' : 'transparent', borderWidth: 1, borderColor: selectedPromos.has(item.id) ? '#25D366' : COLORS.border }}>
+                <Text style={{ fontSize: 18 }}>{selectedPromos.has(item.id) ? '✅' : '⬜'}</Text>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: selectedPromos.has(item.id) ? '#25D366' : COLORS.text }}>{item.label}</Text>
+              </TouchableOpacity>
+            ))}
+
+            <Text style={{ fontSize: 12, color: COLORS.textMuted, marginBottom: 6, marginTop: 12 }}>Enviar a clientes en mesas con teléfono ({clientes.filter(c => c.phone).length})</Text>
+            <Text style={{ fontSize: 11, color: COLORS.textMuted, marginBottom: 12 }}>Solo ellos podrán ver la promo en la app. Válida por 7 minutos.</Text>
+
+            {blastResult && !blastResult.error && (
+              <View style={{ backgroundColor: '#25D36610', borderRadius: 8, padding: 12, marginBottom: 14, borderWidth: 1, borderColor: '#25D36630' }}>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: '#25D366' }}>Enviados: {blastResult.enviados}</Text>
+                <Text style={{ fontSize: 12, color: COLORS.textMuted }}>Errores: {blastResult.errores} · Omitidos: {blastResult.omitidos}</Text>
+              </View>
+            )}
+            {blastResult?.error && (
+              <View style={{ backgroundColor: '#e05a4a10', borderRadius: 8, padding: 12, marginBottom: 14, borderWidth: 1, borderColor: '#e05a4a30' }}>
+                <Text style={{ fontSize: 12, color: '#e05a4a' }}>Error: {blastResult.error}</Text>
+              </View>
+            )}
+
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <TouchableOpacity style={{ flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center' }} onPress={() => setBlastModal(false)}>
+                <Text style={{ color: COLORS.textSecondary, fontWeight: '600' }}>Cerrar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity disabled={blastSending} style={{ flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: blastSending ? COLORS.textMuted : '#25D366', alignItems: 'center' }} onPress={activarPromoYEnviar}>
+                <Text style={{ color: '#fff', fontWeight: '700' }}>{blastSending ? 'Enviando...' : '⚡ Activar y Enviar'}</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>

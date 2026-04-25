@@ -99,9 +99,11 @@ export default function ClientsScreen() {
       p_client_id: client.id,
       p_method: 'manual',
     });
-    // ═══ PROMO HOY 24/04/2026: visita = upgrade VIP automático ═══
+    // ═══ PROMO HOY 24/04/2026: visita = upgrade VIP (solo clientes existentes, NO inscritos hoy) ═══
     const fechaHoy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Santiago' });
-    if (fechaHoy === '2026-04-24' && client.tier !== 'vip') {
+    const memberDate = client.member_since ? new Date(client.member_since).toLocaleDateString('en-CA', { timeZone: 'America/Santiago' }) : '';
+    const esNuevoHoy = memberDate === fechaHoy;
+    if (fechaHoy === '2026-04-24' && client.tier !== 'vip' && !esNuevoHoy) {
       await supabase.from('clients').update({ tier: 'vip', vip_expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() }).eq('id', client.id);
       window.alert(`🎉 ¡Felicidades!\n${client.name} ahora es Socio VIP con 50% en toda la barra hoy!`);
     // ═══ FIN PROMO HOY ═══
