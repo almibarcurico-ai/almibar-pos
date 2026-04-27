@@ -161,6 +161,8 @@ export default function DeliveryScreen({ user }: { user: User }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [darkProducts, setDarkProducts] = useState<Product[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [recipes, setRecipes] = useState<Record<string, { items: { name: string; qty: number; unit: string; cost: number }[]; totalCost: number }>>({});
+  const [fichaOpen, setFichaOpen] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -231,6 +233,28 @@ export default function DeliveryScreen({ user }: { user: User }) {
       .order('brand')
       .order('sort_order');
     if (dk) setDarkProducts(dk.map((p: any) => ({ id: p.id, name: p.name, price: Number(p.price), category_id: p.brand + '|' + p.category })));
+
+    // Load recipes for all products (ficha técnica)
+    const [recRes, riRes, ingRes] = await Promise.all([
+      supabase.from('recipes').select('id, product_id'),
+      supabase.from('recipe_items').select('recipe_id, ingredient_id, quantity, unit'),
+      supabase.from('ingredients').select('id, name, unit, cost_per_unit').eq('active', true),
+    ]);
+    const recMap: Record<string, { items: { name: string; qty: number; unit: string; cost: number }[]; totalCost: number }> = {};
+    const ingMap = Object.fromEntries((ingRes.data || []).map((i: any) => [i.id, i]));
+    (recRes.data || []).forEach((r: any) => {
+      const items = (riRes.data || []).filter((ri: any) => ri.recipe_id === r.id).map((ri: any) => {
+        const ing = ingMap[ri.ingredient_id];
+        if (!ing) return null;
+        const cpu = Number(ing.cost_per_unit) || 0;
+        const qty = Number(ri.quantity) || 0;
+        return { name: ing.name, qty, unit: ri.unit || ing.unit, cost: Math.round(qty * cpu) };
+      }).filter(Boolean) as any[];
+      if (items.length > 0) recMap[r.product_id] = { items, totalCost: items.reduce((s: number, i: any) => s + i.cost, 0) };
+    });
+    // Also map by product name for dark kitchen cross-reference
+    (data || []).forEach((p: any) => { if (recMap[p.id]) recMap[p.name] = recMap[p.id]; });
+    setRecipes(recMap);
   }, []);
 
   const loadUsers = useCallback(async () => {
@@ -649,49 +673,107 @@ export default function DeliveryScreen({ user }: { user: User }) {
                     maxHeight: 200, overflow: 'auto',
                   }}
                 >
-                  {filtered.slice(0, 10).map((p) => (
-                    <div
-                      key={p.id}
-                      style={{
-                        padding: '8px 12px', cursor: 'pointer', fontSize: 13,
-                        display: 'flex', justifyContent: 'space-between',
-                        borderBottom: `1px solid ${COLORS.border}`,
-                      }}
-                      onClick={() => addToCart(p)}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = COLORS.cardHover)}
-                      onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                    >
-                      <span>{p.name}</span>
-                      <span style={{ color: COLORS.textMuted }}>{fmt(p.price)}</span>
-                    </div>
-                  ))}
+                  {filtered.slice(0, 10).map((p) => {
+                    const recipe = recipes[p.id] || recipes[p.name];
+                    return (
+                      <div key={p.id} style={{ borderBottom: `1px solid ${COLORS.border}` }}>
+                        <div
+                          style={{
+                            padding: '8px 12px', cursor: 'pointer', fontSize: 13,
+                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                          }}
+                          onClick={() => addToCart(p)}
+                          onMouseEnter={(e) => (e.currentTarget.style.background = COLORS.cardHover)}
+                          onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                        >
+                          <span>{p.name}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            {recipe && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setFichaOpen(fichaOpen === p.id ? null : p.id); }}
+                                style={{ background: 'none', border: `1px solid ${COLORS.border}`, borderRadius: 4, padding: '2px 6px', fontSize: 10, color: COLORS.primary, fontWeight: 700, cursor: 'pointer' }}
+                              >📋 Ficha</button>
+                            )}
+                            <span style={{ color: COLORS.textMuted }}>{fmt(p.price)}</span>
+                          </div>
+                        </div>
+                        {fichaOpen === p.id && recipe && (
+                          <div style={{ padding: '6px 12px 10px', background: COLORS.background, fontSize: 11, borderTop: `1px solid ${COLORS.border}` }}>
+                            <div style={{ fontWeight: 700, color: COLORS.primary, marginBottom: 4, fontSize: 10, textTransform: 'uppercase' as const, letterSpacing: 1 }}>Ficha Técnica — {p.name}</div>
+                            {recipe.items.map((item: any, idx: number) => (
+                              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', borderBottom: `1px solid ${COLORS.border}22` }}>
+                                <span>{item.name}</span>
+                                <span style={{ color: COLORS.textMuted }}>{item.qty} {item.unit} · {fmt(item.cost)}</span>
+                              </div>
+                            ))}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontWeight: 700, paddingTop: 4, borderTop: `1px solid ${COLORS.border}` }}>
+                              <span>Costo total</span>
+                              <span style={{ color: COLORS.error }}>{fmt(recipe.totalCost)}</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span>Margen</span>
+                              <span style={{ color: COLORS.success }}>{Math.round((1 - recipe.totalCost / p.price) * 100)}%</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
 
             {/* Cart */}
-            <div style={{ maxHeight: 250, overflow: 'auto' }}>
-              {cart.map((c, i) => (
-                <div key={c.product.id} style={{
-                  display: 'flex', alignItems: 'center', gap: 6, padding: '6px 0',
-                  borderBottom: `1px solid ${COLORS.border}`,
-                }}>
-                  <button style={S.btnSm(COLORS.cardHover)} onClick={() => updateQty(i, -1)}>−</button>
-                  <span style={{ fontSize: 14, fontWeight: 700, width: 24, textAlign: 'center' }}>{c.qty}</span>
-                  <button style={S.btnSm(COLORS.cardHover)} onClick={() => updateQty(i, 1)}>+</button>
-                  <span style={{ flex: 1, fontSize: 13 }}>{c.product.name}</span>
-                  <input
-                    style={{ ...S.input, width: 100, padding: '4px 8px', fontSize: 11 }}
-                    value={c.notes}
-                    onChange={(e) => updateItemNotes(i, e.target.value)}
-                    placeholder="💬 nota"
-                  />
-                  <span style={{ fontSize: 13, fontWeight: 600, minWidth: 60, textAlign: 'right' }}>
-                    {fmt(c.product.price * c.qty)}
-                  </span>
-                  <button style={S.btnSm(COLORS.error)} onClick={() => updateQty(i, -c.qty)}>✕</button>
-                </div>
-              ))}
+            <div style={{ maxHeight: 300, overflow: 'auto' }}>
+              {cart.map((c, i) => {
+                const recipe = recipes[c.product.id] || recipes[c.product.name];
+                const isOpen = fichaOpen === `cart_${c.product.id}`;
+                return (
+                  <div key={c.product.id} style={{ borderBottom: `1px solid ${COLORS.border}` }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 0' }}>
+                      <button style={S.btnSm(COLORS.cardHover)} onClick={() => updateQty(i, -1)}>−</button>
+                      <span style={{ fontSize: 14, fontWeight: 700, width: 24, textAlign: 'center' }}>{c.qty}</span>
+                      <button style={S.btnSm(COLORS.cardHover)} onClick={() => updateQty(i, 1)}>+</button>
+                      <span style={{ flex: 1, fontSize: 13, cursor: recipe ? 'pointer' : 'default', textDecoration: recipe ? 'underline dotted' : 'none' }}
+                        onClick={() => recipe && setFichaOpen(isOpen ? null : `cart_${c.product.id}`)}
+                        title={recipe ? 'Click para ver ficha técnica' : ''}
+                      >
+                        {c.product.name}
+                        {recipe && <span style={{ fontSize: 9, color: COLORS.primary, marginLeft: 4 }}>📋</span>}
+                      </span>
+                      <input
+                        style={{ ...S.input, width: 100, padding: '4px 8px', fontSize: 11 }}
+                        value={c.notes}
+                        onChange={(e) => updateItemNotes(i, e.target.value)}
+                        placeholder="💬 nota"
+                      />
+                      <span style={{ fontSize: 13, fontWeight: 600, minWidth: 60, textAlign: 'right' }}>
+                        {fmt(c.product.price * c.qty)}
+                      </span>
+                      <button style={S.btnSm(COLORS.error)} onClick={() => updateQty(i, -c.qty)}>✕</button>
+                    </div>
+                    {isOpen && recipe && (
+                      <div style={{ padding: '4px 8px 8px 38px', fontSize: 11, background: COLORS.background, borderRadius: 6, marginBottom: 4 }}>
+                        <div style={{ fontWeight: 700, color: COLORS.primary, marginBottom: 4, fontSize: 10, textTransform: 'uppercase' as const, letterSpacing: 1 }}>
+                          Ficha Técnica {c.qty > 1 ? `(×${c.qty})` : ''}
+                        </div>
+                        {recipe.items.map((item: any, idx: number) => (
+                          <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '1px 0' }}>
+                            <span style={{ color: COLORS.text }}>{item.name}</span>
+                            <span style={{ color: COLORS.textMuted }}>
+                              {c.qty > 1 ? `${(item.qty * c.qty).toFixed(1)}` : item.qty} {item.unit}
+                            </span>
+                          </div>
+                        ))}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, paddingTop: 4, borderTop: `1px solid ${COLORS.border}`, fontWeight: 700 }}>
+                          <span>Costo {c.qty > 1 ? `×${c.qty}` : ''}</span>
+                          <span style={{ color: COLORS.error }}>{fmt(recipe.totalCost * c.qty)}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
             {/* Totals */}
