@@ -104,8 +104,19 @@ export default function FichasScreen({ darkOnly }: { darkOnly?: boolean } = {}) 
         const pName = products.find(p => p.id === productId)?.name;
         if (pName) {
           const { data: almMatch } = await supabase.from('products').select('id').ilike('name', pName).limit(1).single();
-          if (almMatch) { targetId = almMatch.id; }
-          else { Alert.alert('Error', `"${pName}" no existe en productos de Almíbar. Créalo primero en Productos.`); return; }
+          if (almMatch) {
+            targetId = almMatch.id;
+          } else {
+            // Create product in products table for recipe FK (as inactive, dark kitchen only)
+            const dp = products.find(pp => pp.id === productId);
+            const { data: newProd } = await supabase.from('products').insert({
+              name: pName, price: dp?.price || 0, active: false,
+              category_id: 'd0000000-0000-0000-0000-000000000099', // Descontinuados
+              description: `[Dark Kitchen: ${dp?._brand || ''}]`,
+            }).select().single();
+            if (newProd) { targetId = newProd.id; }
+            else { Alert.alert('Error', 'No se pudo crear producto para receta'); return; }
+          }
         } else { Alert.alert('Error', 'Producto no encontrado'); return; }
       }
 
@@ -209,7 +220,7 @@ th{background:#f3f4f6;padding:5px 8px;text-align:left;font-weight:700}td{padding
                 const fcColor = fc > 35 ? COLORS.error : fc > 28 ? '#D97706' : COLORS.success;
 
                 return (
-                  <View key={p.id} style={[st.card, isExpanded && { borderColor: COLORS.primary, borderWidth: 2 }]}>
+                  <View key={p.id} style={[st.card, isExpanded && { borderColor: COLORS.primary, borderWidth: 2, zIndex: 100 }]}>
                     <TouchableOpacity onPress={() => setExpandedId(isExpanded ? null : p.id)}>
                       <Text style={st.cardName}>{p.name}</Text>
                       <View style={{ flexDirection: 'row', gap: 10, marginBottom: 6, alignItems: 'center' }}>
@@ -363,6 +374,6 @@ const st = StyleSheet.create({
   title: { fontSize: 18, fontWeight: '700', color: COLORS.text },
   catTitle: { fontSize: 14, fontWeight: '800', color: COLORS.primary, marginTop: 16, marginBottom: 8, paddingBottom: 4, borderBottomWidth: 2, borderBottomColor: COLORS.primary, textTransform: 'uppercase', letterSpacing: 1 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  card: { backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, padding: 14, width: 380, marginBottom: 4 },
+  card: { backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, padding: 14, width: 380, marginBottom: 4, overflow: 'visible' as any, zIndex: 1 },
   cardName: { fontSize: 16, fontWeight: '800', color: COLORS.text, marginBottom: 4 },
 });
