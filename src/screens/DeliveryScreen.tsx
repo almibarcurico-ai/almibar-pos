@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase';
 import { COLORS } from '../theme';
 
 // ─── Types ────────────────────────────────────────────────────
-type Source = 'app' | 'mostrador' | 'whatsapp' | 'telefono';
+type Source = 'app' | 'mostrador' | 'whatsapp' | 'telefono' | 'Pizza York' | 'Sushi Go' | 'Monkey Burger';
 type Status =
   | 'pendiente' | 'aceptado' | 'rechazado'
   | 'en_preparacion' | 'listo' | 'en_camino'
@@ -95,7 +95,13 @@ const SOURCE_LABELS: Record<Source, string> = {
   mostrador: '🏪 Mostrador',
   whatsapp: '💬 WhatsApp',
   telefono: '📞 Teléfono',
+  'Pizza York': '🍕 Pizza York',
+  'Sushi Go': '🍣 Sushi Go',
+  'Monkey Burger': '🍔 Monkey Burger',
 };
+const DARK_BRANDS: Source[] = ['Pizza York', 'Sushi Go', 'Monkey Burger'];
+const DARK_COLORS: Record<string, string> = { 'Pizza York': '#E63946', 'Sushi Go': '#D42027', 'Monkey Burger': '#F5A623' };
+const isDarkBrand = (s: Source) => DARK_BRANDS.includes(s);
 const STATUS_CONFIG: Record<Status, { label: string; color: string; bg: string; icon: string }> = {
   pendiente:       { label: 'Pendiente',       color: '#f59e0b', bg: '#f59e0b20', icon: '🔔' },
   aceptado:        { label: 'Aceptado',        color: '#3b82f6', bg: '#3b82f620', icon: '✅' },
@@ -153,6 +159,7 @@ export default function DeliveryScreen({ user }: { user: User }) {
   // ─── State ────────────────────────────────────────────────
   const [orders, setOrders] = useState<DeliveryOrder[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [darkProducts, setDarkProducts] = useState<Product[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -216,6 +223,14 @@ export default function DeliveryScreen({ user }: { user: User }) {
       .order('category_id')
       .order('name');
     if (data) setProducts(data as Product[]);
+    // Dark Kitchen products
+    const { data: dk } = await supabase
+      .from('delivery_products')
+      .select('id, name, price, brand, category')
+      .eq('is_active', true)
+      .order('brand')
+      .order('sort_order');
+    if (dk) setDarkProducts(dk.map((p: any) => ({ id: p.id, name: p.name, price: Number(p.price), category_id: p.brand + '|' + p.category })));
   }, []);
 
   const loadUsers = useCallback(async () => {
@@ -454,7 +469,11 @@ export default function DeliveryScreen({ user }: { user: User }) {
     const search = noSearch, setSearch = setNoSearch;
     const searchRef = noSearchRef;
 
-    const filtered = products.filter(
+    // Show dark kitchen products when a dark brand is selected, otherwise regular products
+    const activeProducts = isDarkBrand(source)
+      ? darkProducts.filter(p => p.category_id.startsWith(source + '|'))
+      : products;
+    const filtered = activeProducts.filter(
       (p) => p.name.toLowerCase().includes(search.toLowerCase())
     );
 
@@ -498,7 +517,7 @@ export default function DeliveryScreen({ user }: { user: User }) {
       const { data: order, error } = await supabase
         .from('delivery_orders')
         .insert({
-          source,
+          source: isDarkBrand(source) ? source : source,
           status: source === 'mostrador' ? 'aceptado' : 'pendiente',
           customer_name: name || (source === 'mostrador' ? 'Mostrador' : ''),
           customer_phone: phone,
@@ -509,6 +528,7 @@ export default function DeliveryScreen({ user }: { user: User }) {
           subtotal: cartTotal,
           total: grandTotal,
           delivery_fee: delivFee,
+          payment_method: isDarkBrand(source) ? 'efectivo' : undefined,
           accepted_at: source === 'mostrador' ? new Date().toISOString() : null,
         })
         .select()
@@ -541,16 +561,34 @@ export default function DeliveryScreen({ user }: { user: User }) {
             <button style={S.btnSm(COLORS.textMuted)} onClick={() => setShowNewOrder(false)}>✕</button>
           </div>
           <div style={S.modalBody}>
-            {/* Source selector */}
-            <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
-              {(Object.keys(SOURCE_LABELS) as Source[]).map((s) => (
+            {/* Source selector — Almíbar */}
+            <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.textMuted, marginBottom: 4, textTransform: 'uppercase' as const, letterSpacing: 1 }}>Almíbar</div>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+              {(['app', 'mostrador', 'whatsapp', 'telefono'] as Source[]).map((s) => (
                 <button
                   key={s}
                   style={{
-                    ...S.btnSm(source === s ? '#3b82f6' : COLORS.cardHover),
+                    ...S.btnSm(source === s ? '#059669' : COLORS.cardHover),
                     padding: '6px 12px',
                   }}
-                  onClick={() => setSource(s)}
+                  onClick={() => { setSource(s); setCart([]); setSearch(''); }}
+                >
+                  {SOURCE_LABELS[s]}
+                </button>
+              ))}
+            </div>
+            {/* Source selector — Dark Kitchens */}
+            <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.textMuted, marginBottom: 4, textTransform: 'uppercase' as const, letterSpacing: 1 }}>Dark Kitchens</div>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+              {DARK_BRANDS.map((s) => (
+                <button
+                  key={s}
+                  style={{
+                    ...S.btnSm(source === s ? DARK_COLORS[s] : COLORS.cardHover),
+                    padding: '6px 12px',
+                    color: source === s ? '#fff' : COLORS.text,
+                  }}
+                  onClick={() => { setSource(s); setCart([]); setSearch(''); }}
                 >
                   {SOURCE_LABELS[s]}
                 </button>
@@ -1211,7 +1249,11 @@ export default function DeliveryScreen({ user }: { user: User }) {
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <span style={S.cardNum}>#{order.order_number}</span>
-                        <span style={S.cardSrc(cfg.bg)}>{SOURCE_LABELS[order.source]}</span>
+                        <span style={S.cardSrc(isDarkBrand(order.source as Source) ? (DARK_COLORS[order.source] || cfg.bg) + '30' : cfg.bg)}>
+                          {isDarkBrand(order.source as Source)
+                            ? <span style={{ color: DARK_COLORS[order.source] || '#666', fontWeight: 700 }}>{SOURCE_LABELS[order.source as Source]}</span>
+                            : SOURCE_LABELS[order.source as Source] || order.source}
+                        </span>
                       </div>
                       {order.customer_name && (
                         <div style={S.cardCustomer}>
