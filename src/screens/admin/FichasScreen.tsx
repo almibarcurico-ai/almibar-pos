@@ -4,6 +4,8 @@ import { supabase } from '../../lib/supabase';
 import { COLORS } from '../../theme';
 
 const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-CL');
+const IVA = 1.19;
+const neto = (bruto: number) => Math.round(bruto / IVA);
 
 export default function FichasScreen({ darkOnly }: { darkOnly?: boolean } = {}) {
   const [products, setProducts] = useState<any[]>([]);
@@ -177,8 +179,9 @@ th{background:#f3f4f6;padding:5px 8px;text-align:left;font-weight:700}td{padding
     for (const [cat, prods] of Object.entries(cats).sort(([a], [b]) => a.localeCompare(b))) {
       html += `<div class="cat">${cat}</div><div class="grid">`;
       for (const p of prods) {
-        const fc = p.price > 0 ? Math.round(p.cost / p.price * 100) : 0;
-        html += `<div class="card"><div class="card-name">${p.name}</div><div class="card-meta">Precio: <b>${fmt(p.price)}</b> · Costo: <b>${fmt(p.cost)}</b> · FC: <b>${fc}%</b></div>
+        const pNeto = neto(p.price);
+        const fc = pNeto > 0 ? Math.round(p.cost / pNeto * 100) : 0;
+        html += `<div class="card"><div class="card-name">${p.name}</div><div class="card-meta">Precio: <b>${fmt(p.price)}</b> (neto: ${fmt(pNeto)}) · Costo: <b>${fmt(p.cost)}</b> · FC: <b>${fc}%</b></div>
 <table><tr><th>Ingrediente</th><th>Cant.</th><th>Und.</th><th>Costo</th></tr>`;
         for (const it of p.items) html += `<tr><td>${it.name}</td><td>${it.qty}</td><td>${it.unit}</td><td>${fmt(it.cost)}</td></tr>`;
         html += `<tr class="cost-row"><td colspan="3">COSTO TOTAL</td><td>${fmt(p.cost)}</td></tr></table></div>`;
@@ -225,14 +228,16 @@ th{background:#f3f4f6;padding:5px 8px;text-align:left;font-weight:700}td{padding
             <View style={st.grid}>
               {prods.sort((a: any, b: any) => a.name.localeCompare(b.name)).map((p: any) => {
                 const isExpanded = expandedId === p.id;
-                const fc = p.price > 0 ? Math.round(p.cost / p.price * 100) : 0;
+                const pNeto = neto(p.price);
+                const fc = pNeto > 0 ? Math.round(p.cost / pNeto * 100) : 0;
+                const margenNeto = pNeto - p.cost;
                 const fcColor = fc > 35 ? COLORS.error : fc > 28 ? '#D97706' : COLORS.success;
 
                 return (
                   <View key={p.id} style={[st.card, isExpanded && { borderColor: COLORS.primary, borderWidth: 2, zIndex: 100 }]}>
                     <TouchableOpacity onPress={() => setExpandedId(isExpanded ? null : p.id)}>
                       <Text style={st.cardName}>{p.name}</Text>
-                      <View style={{ flexDirection: 'row', gap: 10, marginBottom: 6, alignItems: 'center' }}>
+                      <View style={{ flexDirection: 'row', gap: 10, marginBottom: 2, alignItems: 'center' }}>
                         <Text style={{ fontSize: 14, fontWeight: '800', color: COLORS.primary }}>{fmt(p.price)}</Text>
                         {p.hasRecipe ? (
                           <>
@@ -245,6 +250,11 @@ th{background:#f3f4f6;padding:5px 8px;text-align:left;font-weight:700}td{padding
                           <Text style={{ fontSize: 12, fontWeight: '600', color: COLORS.textMuted }}>Sin receta</Text>
                         )}
                         <Text style={{ fontSize: 14, color: COLORS.textMuted, marginLeft: 'auto' }}>{isExpanded ? '▲' : '▼'}</Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', gap: 6, marginBottom: 6, alignItems: 'center' }}>
+                        <Text style={{ fontSize: 10, color: COLORS.textMuted }}>Neto: {fmt(pNeto)}</Text>
+                        {p.hasRecipe && <Text style={{ fontSize: 10, color: COLORS.textMuted }}>· Margen neto: {fmt(margenNeto)}</Text>}
+                        <Text style={{ fontSize: 10, color: COLORS.textMuted, fontStyle: 'italic' }}>ⓘ FC sobre precio neto (sin IVA)</Text>
                       </View>
                     </TouchableOpacity>
 
@@ -280,7 +290,7 @@ th{background:#f3f4f6;padding:5px 8px;text-align:left;font-weight:700}td{padding
                           <View style={{ marginBottom: 10 }}>
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
                               <Text style={{ fontSize: 11, color: COLORS.textMuted }}>Food Cost</Text>
-                              <Text style={{ fontSize: 11, fontWeight: '700', color: fcColor }}>{fc}% — Margen {fmt(p.price - p.cost)}</Text>
+                              <Text style={{ fontSize: 11, fontWeight: '700', color: fcColor }}>{fc}% — Margen neto {fmt(margenNeto)}</Text>
                             </View>
                             <View style={{ height: 10, backgroundColor: COLORS.border, borderRadius: 5, overflow: 'hidden' }}>
                               <View style={{ height: '100%', width: `${Math.min(fc, 100)}%`, backgroundColor: fcColor, borderRadius: 5 }} />
