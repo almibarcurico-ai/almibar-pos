@@ -227,15 +227,14 @@ th{background:#f3f4f6;padding:5px 8px;text-align:left;font-weight:700}td{padding
             <Text style={st.catTitle}>{cat} ({prods.length})</Text>
             <View style={st.grid}>
               {prods.sort((a: any, b: any) => a.name.localeCompare(b.name)).map((p: any) => {
-                const isExpanded = expandedId === p.id;
                 const pNeto = neto(p.price);
                 const fc = pNeto > 0 ? Math.round(p.cost / pNeto * 100) : 0;
                 const margenNeto = pNeto - p.cost;
                 const fcColor = fc > 35 ? COLORS.error : fc > 28 ? '#D97706' : COLORS.success;
 
                 return (
-                  <View key={p.id} style={[st.card, isExpanded && { borderColor: COLORS.primary, borderWidth: 2, zIndex: 100 }]}>
-                    <TouchableOpacity onPress={() => setExpandedId(isExpanded ? null : p.id)}>
+                  <View key={p.id} style={[st.card, { zIndex: expandedId === p.id ? 100 : 1 }]}>
+                    <TouchableOpacity onPress={() => setExpandedId(expandedId === p.id ? null : p.id)}>
                       <Text style={st.cardName}>{p.name}</Text>
                       <View style={{ flexDirection: 'row', gap: 10, marginBottom: 2, alignItems: 'center' }}>
                         <Text style={{ fontSize: 14, fontWeight: '800', color: COLORS.primary }}>{fmt(p.price)}</Text>
@@ -249,7 +248,7 @@ th{background:#f3f4f6;padding:5px 8px;text-align:left;font-weight:700}td{padding
                         ) : (
                           <Text style={{ fontSize: 12, fontWeight: '600', color: COLORS.textMuted }}>Sin receta</Text>
                         )}
-                        <Text style={{ fontSize: 14, color: COLORS.textMuted, marginLeft: 'auto' }}>{isExpanded ? '▲' : '▼'}</Text>
+                        <Text style={{ fontSize: 14, color: COLORS.textMuted, marginLeft: 'auto' }}>▼</Text>
                       </View>
                       <View style={{ flexDirection: 'row', gap: 6, marginBottom: 6, alignItems: 'center' }}>
                         <Text style={{ fontSize: 10, color: COLORS.textMuted }}>Neto: {fmt(pNeto)}</Text>
@@ -258,34 +257,8 @@ th{background:#f3f4f6;padding:5px 8px;text-align:left;font-weight:700}td{padding
                       </View>
                     </TouchableOpacity>
 
-                    {/* Collapsed: mini table */}
-                    {!isExpanded && p.hasRecipe && (
-                      <View style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, overflow: 'hidden' }}>
-                        <View style={{ flexDirection: 'row', backgroundColor: COLORS.background, paddingVertical: 5, paddingHorizontal: 8 }}>
-                          <Text style={{ flex: 1, fontSize: 10, fontWeight: '700', color: COLORS.textMuted }}>Ingrediente</Text>
-                          <Text style={{ width: 55, fontSize: 10, fontWeight: '700', color: COLORS.textMuted, textAlign: 'right' }}>Cant.</Text>
-                          <Text style={{ width: 40, fontSize: 10, fontWeight: '700', color: COLORS.textMuted, textAlign: 'center' }}>Und.</Text>
-                          <Text style={{ width: 55, fontSize: 10, fontWeight: '700', color: COLORS.textMuted, textAlign: 'right' }}>Costo</Text>
-                        </View>
-                        {p.items.map((it: any, i: number) => (
-                          <View key={i} style={{ flexDirection: 'row', paddingVertical: 4, paddingHorizontal: 8, borderTopWidth: 1, borderTopColor: COLORS.border }}>
-                            <Text style={{ flex: 1, fontSize: 11, color: COLORS.text }}>{it.name}</Text>
-                            <Text style={{ width: 55, fontSize: 12, fontWeight: '700', textAlign: 'right' }}>{it.qty}</Text>
-                            <Text style={{ width: 40, fontSize: 10, color: COLORS.textMuted, textAlign: 'center' }}>{it.unit}</Text>
-                            <Text style={{ width: 55, fontSize: 11, fontWeight: '600', color: COLORS.textSecondary, textAlign: 'right' }}>{fmt(it.cost)}</Text>
-                          </View>
-                        ))}
-                        <View style={{ flexDirection: 'row', paddingVertical: 5, paddingHorizontal: 8, backgroundColor: '#D1FAE5', borderTopWidth: 2, borderTopColor: COLORS.primary }}>
-                          <Text style={{ flex: 1, fontSize: 11, fontWeight: '800', color: '#047857' }}>COSTO TOTAL</Text>
-                          <Text style={{ fontSize: 13, fontWeight: '800', color: '#047857' }}>{fmt(p.cost)}</Text>
-                        </View>
-                      </View>
-                    )}
-
-                    {/* Expanded: editable table */}
-                    {isExpanded && (
-                      <View style={{ marginTop: 4 }}>
-                        {/* Food cost bar */}
+                    {/* Always editable table */}
+                    <View style={{ marginTop: 4 }}>
                         {p.hasRecipe && (
                           <View style={{ marginBottom: 10 }}>
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
@@ -375,7 +348,6 @@ th{background:#f3f4f6;padding:5px 8px;text-align:left;font-weight:700}td{padding
 
                         {saving && <Text style={{ fontSize: 11, color: COLORS.primary, marginTop: 4 }}>Guardando...</Text>}
                       </View>
-                    )}
                   </View>
                 );
               })}
