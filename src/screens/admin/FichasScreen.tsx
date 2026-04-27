@@ -154,8 +154,17 @@ export default function FichasScreen({ darkOnly }: { darkOnly?: boolean } = {}) 
     setSaving(false);
   };
 
-  const updateUnit = async (riId: string, newUnit: string) => {
-    await supabase.from('recipe_items').update({ unit: newUnit }).eq('id', riId);
+  const updateUnit = async (riId: string, currentUnit: string, currentQty: number, newUnit: string) => {
+    // Auto-convert quantity when switching units
+    let newQty = currentQty;
+    const from = currentUnit.toLowerCase();
+    const to = newUnit.toLowerCase();
+    if (from === 'kg' && to === 'g') newQty = currentQty * 1000;
+    else if (from === 'g' && to === 'kg') newQty = currentQty / 1000;
+    else if (from === 'lt' && to === 'ml') newQty = currentQty * 1000;
+    else if (from === 'ml' && to === 'lt') newQty = currentQty / 1000;
+
+    await supabase.from('recipe_items').update({ unit: newUnit, quantity: newQty }).eq('id', riId);
     load();
   };
 
@@ -298,7 +307,7 @@ th{background:#f3f4f6;padding:5px 8px;text-align:left;font-weight:700}td{padding
                                   const units = ['kg', 'g', 'lt', 'ml', 'unidad'];
                                   const idx = units.indexOf(it.unit);
                                   const next = units[(idx + 1) % units.length];
-                                  updateUnit(it.riId, next);
+                                  updateUnit(it.riId, it.unit, it.qty, next);
                                 }}
                               >
                                 <Text style={{ fontSize: 11, color: COLORS.primary, fontWeight: '600', textDecorationLine: 'underline' }}>{it.unit}</Text>
