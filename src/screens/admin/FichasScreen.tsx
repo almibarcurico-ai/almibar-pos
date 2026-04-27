@@ -146,16 +146,14 @@ export default function FichasScreen({ darkOnly }: { darkOnly?: boolean } = {}) 
     load();
   };
 
-  const updateQty = async (riId: string, newQty: number) => {
+  // Optimistic update: change state immediately, then save to Supabase
+  const updateQty = (riId: string, newQty: number) => {
     if (isNaN(newQty) || newQty < 0) return;
-    setSaving(true);
-    await supabase.from('recipe_items').update({ quantity: newQty }).eq('id', riId);
-    await load();
-    setSaving(false);
+    setRecipeItems(prev => prev.map(ri => ri.id === riId ? { ...ri, quantity: newQty } : ri));
+    supabase.from('recipe_items').update({ quantity: newQty }).eq('id', riId);
   };
 
-  const updateUnit = async (riId: string, currentUnit: string, currentQty: number, newUnit: string) => {
-    // Auto-convert quantity when switching units
+  const updateUnit = (riId: string, currentUnit: string, currentQty: number, newUnit: string) => {
     let newQty = currentQty;
     const from = currentUnit.toLowerCase();
     const to = newUnit.toLowerCase();
@@ -163,9 +161,9 @@ export default function FichasScreen({ darkOnly }: { darkOnly?: boolean } = {}) 
     else if (from === 'g' && to === 'kg') newQty = currentQty / 1000;
     else if (from === 'lt' && to === 'ml') newQty = currentQty * 1000;
     else if (from === 'ml' && to === 'lt') newQty = currentQty / 1000;
-
-    await supabase.from('recipe_items').update({ unit: newUnit, quantity: newQty }).eq('id', riId);
-    load();
+    // Optimistic: update state immediately
+    setRecipeItems(prev => prev.map(ri => ri.id === riId ? { ...ri, unit: newUnit, quantity: newQty } : ri));
+    supabase.from('recipe_items').update({ unit: newUnit, quantity: newQty }).eq('id', riId);
   };
 
   // ── Descargar HTML ──
@@ -294,11 +292,11 @@ th{background:#f3f4f6;padding:5px 8px;text-align:left;font-weight:700}td{padding
                               <Text style={{ flex: 1, fontSize: 12, color: COLORS.text }}>{it.name}</Text>
                               <TextInput
                                 style={{ width: 70, borderWidth: 1, borderColor: COLORS.border, borderRadius: 4, padding: 3, fontSize: 13, fontWeight: '700', textAlign: 'center', backgroundColor: '#fff' }}
-                                defaultValue={String(it.qty)}
+                                value={String(it.qty)}
                                 keyboardType="decimal-pad"
-                                onEndEditing={(e) => {
-                                  const v = parseFloat(e.nativeEvent.text);
-                                  if (!isNaN(v) && v !== it.qty) updateQty(it.riId, v);
+                                onChangeText={(text) => {
+                                  const v = parseFloat(text);
+                                  if (!isNaN(v)) updateQty(it.riId, v);
                                 }}
                               />
                               <TouchableOpacity
