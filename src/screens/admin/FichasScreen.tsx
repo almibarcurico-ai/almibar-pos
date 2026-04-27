@@ -32,16 +32,19 @@ export default function FichasScreen({ darkOnly }: { darkOnly?: boolean } = {}) 
       if (dk && p) {
         const almProducts = p;
         const darkProds = dk.map((dp: any) => {
-          const almMatch = almProducts.find((ap: any) => ap.name === dp.name);
+          // Match by name (case-insensitive, trimmed)
+          const dpName = (dp.name || '').trim().toLowerCase();
+          const almMatch = almProducts.find((ap: any) => (ap.name || '').trim().toLowerCase() === dpName);
           return {
-            id: almMatch?.id || dp.id,
+            id: almMatch?.id || dp.id, // MUST use Almíbar id for recipe lookup
             name: dp.name,
             price: Number(dp.price),
-            category_id: dp.brand, // use brand as category_id for grouping
+            category_id: dp.brand,
             description: dp.description,
             _brand: dp.brand,
             _category: dp.category,
             _darkId: dp.id,
+            _hasAlmMatch: !!almMatch,
           };
         });
         setProducts(darkProds);
