@@ -63,7 +63,15 @@ export default function FichasScreen({ darkOnly }: { darkOnly?: boolean } = {}) 
       if (!ing) return null;
       const cpu = Number(ing.cost_per_unit) || 0;
       const qty = Number(ri.quantity) || 0;
-      return { riId: ri.id, ingId: ing.id, name: ing.name, qty, unit: ri.unit || ing.unit, cpu, cost: Math.round(qty * cpu) };
+      const iu = (ing.unit || '').toLowerCase();
+      const ru = (ri.unit || iu).toLowerCase();
+      // Convert units: if ingredient is in kg but recipe says g, divide by 1000
+      let cost = qty * cpu;
+      if (iu === 'kg' && ru === 'g') cost = qty * cpu / 1000;
+      else if (iu === 'lt' && ru === 'ml') cost = qty * cpu / 1000;
+      else if (iu === 'g' && ru === 'kg') cost = qty * cpu * 1000;
+      else if (iu === 'ml' && ru === 'lt') cost = qty * cpu * 1000;
+      return { riId: ri.id, ingId: ing.id, name: ing.name, qty, unit: ri.unit || ing.unit, ingUnit: iu, cpu, cost: Math.round(cost) };
     }).filter(Boolean);
   };
 
