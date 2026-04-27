@@ -59,12 +59,21 @@ export default function ReportsScreen() {
     setOrders(o || []);
     const ids = (o || []).map((x: any) => x.id);
     if (ids.length > 0) {
-      const [itRes, payRes] = await Promise.all([
-        supabase.from('order_items').select('*, product:product_id(name, category_id, price)').in('order_id', ids),
-        supabase.from('payments').select('*').in('order_id', ids),
-      ]);
-      setItems(itRes.data || []);
-      setPayments(payRes.data || []);
+      // Batch in chunks of 200 to avoid Supabase .in() limit
+      const BATCH = 200;
+      let allItems: any[] = [];
+      let allPayments: any[] = [];
+      for (let i = 0; i < ids.length; i += BATCH) {
+        const batch = ids.slice(i, i + BATCH);
+        const [itRes, payRes] = await Promise.all([
+          supabase.from('order_items').select('*, product:product_id(name, category_id, price)').in('order_id', batch),
+          supabase.from('payments').select('*').in('order_id', batch),
+        ]);
+        if (itRes.data) allItems = allItems.concat(itRes.data);
+        if (payRes.data) allPayments = allPayments.concat(payRes.data);
+      }
+      setItems(allItems);
+      setPayments(allPayments);
     } else { setItems([]); setPayments([]); }
     setLoading(false);
   };
