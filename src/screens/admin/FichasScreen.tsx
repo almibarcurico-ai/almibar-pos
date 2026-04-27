@@ -15,8 +15,8 @@ export default function FichasScreen({ darkOnly }: { darkOnly?: boolean } = {}) 
   const [recipeItems, setRecipeItems] = useState<any[]>([]);
   const [filter, setFilter] = useState<string>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [ingSearch, setIngSearch] = useState('');
-  const [showIngDrop, setShowIngDrop] = useState(false);
+  const [ingSearch, setIngSearch] = useState<Record<string, string>>({});  // per product
+  const [showIngDrop, setShowIngDrop] = useState<string | null>(null);    // product id or null
   const [editQty, setEditQty] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
 
@@ -137,7 +137,8 @@ export default function FichasScreen({ darkOnly }: { darkOnly?: boolean } = {}) 
     const ing = ingredients.find(i => i.id === ingredientId);
     const defaultQty = (ing?.unit === 'unidad') ? 1 : 0.1;
     await supabase.from('recipe_items').insert({ recipe_id: recipe.id, ingredient_id: ingredientId, quantity: defaultQty, unit: ing?.unit || 'kg' });
-    setIngSearch(''); setShowIngDrop(false);
+    setIngSearch(prev => ({ ...prev, [productId]: '' }));
+    setShowIngDrop(null);
     load();
   };
 
@@ -330,16 +331,15 @@ th{background:#f3f4f6;padding:5px 8px;text-align:left;font-weight:700}td{padding
                           <TextInput
                             style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, padding: 8, fontSize: 13, backgroundColor: '#fff' }}
                             placeholder="🔍 Agregar ingrediente..."
-                            value={ingSearch}
-                            onChangeText={t => { setIngSearch(t); setShowIngDrop(t.length >= 2); }}
-                            onFocus={() => ingSearch.length >= 2 && setShowIngDrop(true)}
+                            value={ingSearch[p.id] || ''}
+                            onChangeText={t => { setIngSearch(prev => ({ ...prev, [p.id]: t })); setShowIngDrop(t.length >= 2 ? p.id : null); }}
+                            onFocus={() => (ingSearch[p.id] || '').length >= 2 && setShowIngDrop(p.id)}
                           />
-                          {showIngDrop && (
+                          {showIngDrop === p.id && (
                             <View style={{ position: 'absolute' as any, top: 42, left: 0, right: 0, backgroundColor: '#fff', borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, maxHeight: 180, zIndex: 10, ...(Platform.OS === 'web' ? { boxShadow: '0 4px 12px rgba(0,0,0,.1)' } : {}) } as any}>
                               <ScrollView style={{ maxHeight: 180 }}>
                                 {ingredients
-                                  .filter(i => i.name.toLowerCase().includes(ingSearch.toLowerCase()))
-                                  .filter(i => !p.items.some((it: any) => it.ingId === i.id))
+                                  .filter(i => i.name.toLowerCase().includes((ingSearch[p.id] || '').toLowerCase()))
                                   .slice(0, 10)
                                   .map(i => (
                                     <TouchableOpacity key={i.id} onPress={() => addIngredient(p.id, i.id)}
