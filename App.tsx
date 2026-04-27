@@ -73,7 +73,7 @@ function DarkKitchenHub() {
         ))}
       </View>
       {sub === 'productos' && <DarkKitchenProductsScreen />}
-      {sub === 'fichas' && <FichasScreen />}
+      {sub === 'fichas' && <FichasScreen darkOnly />}
     </View>
   );
 }

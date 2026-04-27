@@ -5,16 +5,17 @@ import { COLORS } from '../../theme';
 
 const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-CL');
 
-export default function FichasScreen() {
+export default function FichasScreen({ darkOnly }: { darkOnly?: boolean } = {}) {
   const [products, setProducts] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [ingredients, setIngredients] = useState<any[]>([]);
   const [recipes, setRecipes] = useState<any[]>([]);
   const [recipeItems, setRecipeItems] = useState<any[]>([]);
-  const [filter, setFilter] = useState<'all' | 'cocina' | 'barra'>('all');
+  const [filter, setFilter] = useState<string>('all');
 
-  const COCINA_CATS = ['Burgers & Sándwiches', 'Papas', 'Picoteos & Tablas', 'Pizzas', 'Platos Fríos', 'Salchipapas XL', 'Sushi'];
+  const COCINA_CATS = ['Burgers & Sándwiches', 'Papas', 'Picoteos & Tablas', 'Pizzas', 'Platos Fríos', 'Salchipapas XL', 'Sushi', 'Pizza York'];
   const BARRA_CATS = ['Cócteles Clásicos', 'Coctelería de Autor', 'Cremosos', 'Sours', 'Spritz', 'Old Schools', 'Bottle Drinks', 'Red Bull Drinks', 'Mojitos 1L', 'Mocktails', 'Happy Hour', 'Gin', 'Pisco', 'Whisky', 'Vodka', 'Ron', 'Licores', 'Shots', 'Vinos y Espumantes', 'Cervezas Schop', 'Botellines', 'Bebidas y Jugos', 'Café y Postres', 'Combos'];
+  const DARK_BRANDS = ['Pizza York', 'Sushi Go', 'Monkey Burger'];
 
   const load = useCallback(async () => {
     const [{ data: p }, { data: c }, { data: i }, { data: r }, { data: ri }] = await Promise.all([
@@ -24,8 +25,34 @@ export default function FichasScreen() {
       supabase.from('recipes').select('*'),
       supabase.from('recipe_items').select('*'),
     ]);
-    if (p) setProducts(p);
-    if (c) setCategories(c);
+
+    if (darkOnly) {
+      // Load dark kitchen products and cross-reference recipes by name
+      const { data: dk } = await supabase.from('delivery_products').select('*').eq('is_active', true).order('brand,sort_order');
+      if (dk && p) {
+        const almProducts = p;
+        const darkProds = dk.map((dp: any) => {
+          const almMatch = almProducts.find((ap: any) => ap.name === dp.name);
+          return {
+            id: almMatch?.id || dp.id,
+            name: dp.name,
+            price: Number(dp.price),
+            category_id: dp.brand, // use brand as category_id for grouping
+            description: dp.description,
+            _brand: dp.brand,
+            _category: dp.category,
+            _darkId: dp.id,
+          };
+        });
+        setProducts(darkProds);
+        // Create virtual categories from brands
+        setCategories(DARK_BRANDS.map(b => ({ id: b, name: b })));
+      }
+    } else {
+      if (p) setProducts(p);
+      if (c) setCategories(c);
+    }
+
     if (i) setIngredients(i);
     if (r) setRecipes(r);
     if (ri) setRecipeItems(ri);
@@ -70,7 +97,9 @@ export default function FichasScreen() {
     return { ...p, catName, section: isCocina ? 'cocina' : 'barra', cost: calcCost(p.id), items: getRecipeItems(p.id) };
   });
 
-  const filtered = filter === 'all' ? productsWithRecipe : productsWithRecipe.filter(p => p.section === filter);
+  const filtered = filter === 'all' ? productsWithRecipe
+    : darkOnly ? productsWithRecipe.filter(p => p.catName === filter)
+    : productsWithRecipe.filter(p => p.section === filter);
 
   // Group by category
   const grouped: Record<string, any[]> = {};
@@ -154,8 +183,11 @@ td{padding:6px 8px;border-bottom:1px solid #f3f4f6}
           <Text style={{ fontSize: 12, color: COLORS.textMuted }}>{Object.keys(grouped).length} categorías con receta</Text>
         </View>
         <View style={{ flexDirection: 'row', gap: 6 }}>
-          {([['all', 'Todas'], ['cocina', '🍳 Cocina'], ['barra', '🍸 Barra']] as const).map(([k, l]) => (
-            <TouchableOpacity key={k} onPress={() => setFilter(k as any)}
+          {(darkOnly
+            ? ([['all', 'Todas'], ['Pizza York', '🍕 Pizza York'], ['Sushi Go', '🍣 Sushi Go'], ['Monkey Burger', '🍔 Monkey Burger']] as [string, string][])
+            : ([['all', 'Todas'], ['cocina', '🍳 Cocina'], ['barra', '🍸 Barra']] as [string, string][])
+          ).map(([k, l]) => (
+            <TouchableOpacity key={k} onPress={() => setFilter(k)}
               style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, backgroundColor: filter === k ? COLORS.primary : COLORS.background, borderWidth: 1, borderColor: filter === k ? COLORS.primary : COLORS.border }}>
               <Text style={{ fontSize: 12, fontWeight: '700', color: filter === k ? '#fff' : COLORS.textSecondary }}>{l}</Text>
             </TouchableOpacity>
