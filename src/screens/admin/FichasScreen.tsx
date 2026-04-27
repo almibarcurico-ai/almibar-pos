@@ -133,7 +133,8 @@ export default function FichasScreen({ darkOnly }: { darkOnly?: boolean } = {}) 
       recipe = data;
     }
     const ing = ingredients.find(i => i.id === ingredientId);
-    await supabase.from('recipe_items').insert({ recipe_id: recipe.id, ingredient_id: ingredientId, quantity: 0.1, unit: ing?.unit || 'kg' });
+    const defaultQty = (ing?.unit === 'unidad') ? 1 : 0.1;
+    await supabase.from('recipe_items').insert({ recipe_id: recipe.id, ingredient_id: ingredientId, quantity: defaultQty, unit: ing?.unit || 'kg' });
     setIngSearch(''); setShowIngDrop(false);
     load();
   };
