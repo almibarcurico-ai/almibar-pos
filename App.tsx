@@ -41,6 +41,7 @@ import ProductionScreen from './src/screens/admin/ProductionScreen';
 import CostScreen from './src/screens/admin/CostScreen';
 import PedidosScreen from './src/screens/admin/PedidosScreen';
 import FichasScreen from './src/screens/admin/FichasScreen';
+import DarkKitchenProductsScreen from './src/screens/admin/DarkKitchenProductsScreen';
 import KDSScreen from './src/screens/KDSScreen';
 import TabNavigator from './src/components/TabNavigator';
 import MobileTableScreen from './src/screens/MobileTableScreen';
@@ -54,6 +55,28 @@ type DetailScreen =
   | null;
 
 type ProdSub = 'menu' | 'productos' | 'produccion' | 'ingredientes' | 'modificadores' | 'inventario' | 'pedidos' | 'fichas';
+
+function DarkKitchenHub() {
+  const [sub, setSub] = useState<'productos' | 'fichas'>('productos');
+  return (
+    <View style={{ flex: 1, backgroundColor: COLORS.background }}>
+      <View style={{ flexDirection: 'row', backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingHorizontal: 8 }}>
+        {[
+          { key: 'productos' as const, label: 'Productos Dark Kitchen', icon: '🍕' },
+          { key: 'fichas' as const, label: 'Fichas Técnicas', icon: '📋' },
+        ].map(t => (
+          <TouchableOpacity key={t.key} onPress={() => setSub(t.key)}
+            style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 14, gap: 6, borderBottomWidth: 3, borderBottomColor: sub === t.key ? COLORS.primary : 'transparent', marginBottom: -1 }}>
+            <Text style={{ fontSize: 14 }}>{t.icon}</Text>
+            <Text style={{ fontSize: 13, fontWeight: sub === t.key ? '700' : '500', color: sub === t.key ? COLORS.text : COLORS.textMuted }}>{t.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      {sub === 'productos' && <DarkKitchenProductsScreen />}
+      {sub === 'fichas' && <FichasScreen />}
+    </View>
+  );
+}
 
 function ProductosHub({ deliveryOnly }: { deliveryOnly?: boolean } = {}) {
   const [sub, setSub] = useState<ProdSub>(deliveryOnly ? 'productos' : 'menu');
@@ -243,7 +266,7 @@ function AppContent() {
         {activeTab === 'delivery' && <DeliveryScreen user={user} />}
         {activeTab === 'kds' && <KDSScreen user={user} />}
         {activeTab === 'productos' && <ProductosHub />}
-        {activeTab === 'prod_delivery' && <ProductosHub deliveryOnly />}
+        {activeTab === 'prod_delivery' && <DarkKitchenHub />}
         {activeTab === 'reportes' && <ReportsScreen />}
         {activeTab === 'admin' && <AdminScreen onOpenEditor={navigateToEditor} onOpenInventory={navigateToInventory} />}
         </>)}
