@@ -23,7 +23,8 @@ export default function FichasScreen({ darkOnly }: { darkOnly?: boolean } = {}) 
 
   const load = useCallback(async () => {
     const [{ data: p }, { data: c }, { data: i }, { data: r }, { data: ri }] = await Promise.all([
-      supabase.from('products').select('*').eq('active', true).order('name'),
+      // darkOnly: include inactive products for recipe cross-reference (Pizza York etc may be inactive in Almíbar)
+      darkOnly ? supabase.from('products').select('*').order('name') : supabase.from('products').select('*').eq('active', true).order('name'),
       supabase.from('categories').select('*').eq('active', true).order('name'),
       supabase.from('ingredients').select('*').eq('active', true).order('name'),
       supabase.from('recipes').select('*'),
@@ -89,9 +90,26 @@ export default function FichasScreen({ darkOnly }: { darkOnly?: boolean } = {}) 
 
   // ── CRUD Operations ──
   const addIngredient = async (productId: string, ingredientId: string) => {
+    // For dark kitchen products, the productId might be from delivery_products (no match in products)
+    // Check if there's a recipe already; if not, check if productId exists in products table
     let recipe = getRecipe(productId);
     if (!recipe) {
-      const { data } = await supabase.from('recipes').insert({ product_id: productId, yield_portions: 1 }).select().single();
+      // Verify productId exists in products table (recipes FK requires it)
+      const prodExists = products.find(p => p.id === productId);
+      let targetId = productId;
+
+      // If productId doesn't exist in products (it's a delivery_products id), we can't create recipe
+      if (!prodExists || prodExists._darkId) {
+        // Find by name in all products (including inactive)
+        const pName = products.find(p => p.id === productId)?.name;
+        if (pName) {
+          const { data: almMatch } = await supabase.from('products').select('id').ilike('name', pName).limit(1).single();
+          if (almMatch) { targetId = almMatch.id; }
+          else { Alert.alert('Error', `"${pName}" no existe en productos de Almíbar. Créalo primero en Productos.`); return; }
+        } else { Alert.alert('Error', 'Producto no encontrado'); return; }
+      }
+
+      const { data } = await supabase.from('recipes').insert({ product_id: targetId, yield_portions: 1 }).select().single();
       if (!data) { Alert.alert('Error', 'No se pudo crear receta'); return; }
       recipe = data;
     }
