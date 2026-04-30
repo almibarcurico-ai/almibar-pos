@@ -442,7 +442,7 @@ supabase.channel('tables-changes')
       try {
         const { data: order } = await supabase
           .from('orders')
-          .select('*, order_items(*, product:products(name))')
+          .select('*, order_items(*, product:products(name, price))')
           .eq('id', table.current_order_id)
           .single();
 
@@ -452,18 +452,33 @@ supabase.channel('tables-changes')
         const unpaidItems = (order.order_items || []).filter(i => !i.paid);
         const subtotal = unpaidItems.reduce((a, i) => a + (i.total_price || 0), 0);
 
-        // Descuento: leer de la orden si existe, o calcular miércoles
-        const esMiercoles = new Date().getDay() === 3;
+        // Descuento: SOLO leer de la orden. Los descuentos por línea (HH/Mié)
+        // ya vienen aplicados en unit_price/total_price desde OrderScreen.tsx.
+        // No aplicar descuentos automáticos acá (bug histórico: doble-descuento
+        // los miércoles cuando los items de barra ya tenían 40% aplicado).
         let discount = 0, discountLabel = '';
         if (order.discount_value && order.discount_value > 0) {
           discount = order.discount_value;
           discountLabel = order.discount_type === 'percent' ? 'Dcto ' + Math.round(order.discount_value / subtotal * 100) + '%:' : 'Descuento:';
-        } else if (esMiercoles) {
-          discount = Math.round(subtotal * 0.4);
-          discountLabel = 'Dcto 40% Mie:';
         }
         const subtotalConDesc = subtotal - discount;
-        const tip = Math.round(subtotal * 0.1);
+
+        // Base de propina por ítem (regla del local):
+        // - HH y PROMO: precio post-descuento (es el "precio nuevo" de la casa)
+        // - Mié 40%, VIP día especial, otros descuentos sobre carta: precio original
+        // - Sin notes: precio actual
+        const tipBase = unpaidItems.reduce((a, i) => {
+          const notes = (i.notes || '').toLowerCase();
+          const isHHorPromo = notes.includes('hh') || notes.includes('promo');
+          if (isHHorPromo) return a + (i.total_price || 0);
+          const hasDescuentoSobreCarta = notes.includes('mié') || notes.includes('mie') || notes.includes('vip');
+          if (hasDescuentoSobreCarta) {
+            const origPrice = i.product?.price || i.unit_price || 0;
+            return a + origPrice * (i.quantity || 1);
+          }
+          return a + (i.total_price || 0);
+        }, 0);
+        const tip = Math.round(tipBase * 0.1);
 
         const ticket = generateBoleta({
           table: table.number, waiter: waiter?.name || '',

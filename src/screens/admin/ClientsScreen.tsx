@@ -47,10 +47,12 @@ export default function ClientsScreen() {
   const [addNotes, setAddNotes] = useState('');
 
   const loadClients = useCallback(async () => {
+    // .range(0, 9999) evita el cap default de PostgREST (1000 filas)
     const { data } = await supabase
       .from('clients')
       .select('*')
-      .eq('active', true).order('member_number', { ascending: false });
+      .eq('active', true).order('member_number', { ascending: false })
+      .range(0, 9999);
     if (data) setClients(data);
     setLoading(false);
   }, []);

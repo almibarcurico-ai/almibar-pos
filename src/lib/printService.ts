@@ -3,6 +3,27 @@
 
 const PRINT_SERVER = 'http://localhost:3333/print';
 
+/**
+ * Base de propina por ítem (regla del local):
+ * - HH y PROMO: precio post-descuento (es el "precio nuevo" de la casa)
+ * - Mié 40%, VIP día especial, otros descuentos sobre carta: precio original
+ * - Sin notes / sin descuento por línea: precio actual
+ */
+export function tipBaseForItems(items: any[]): number {
+  return items.reduce((acc, i) => {
+    const notes = (i.notes || '').toLowerCase();
+    const isHHorPromo = notes.includes('hh') || notes.includes('promo');
+    if (isHHorPromo) return acc + (i.total_price || 0);
+    const hasDescuentoSobreCarta = notes.includes('mié') || notes.includes('mie') || notes.includes('vip');
+    if (hasDescuentoSobreCarta) {
+      const op = i.product?.price ?? i.unit_price ?? 0;
+      const ma = (i.item_modifiers || []).reduce((s: number, m: any) => s + (m.price_adjust || 0), 0);
+      return acc + (op + ma) * (i.quantity || 1);
+    }
+    return acc + (i.total_price || 0);
+  }, 0);
+}
+
 // Configuración real de impresoras por estación
 // (override sobre lo que venga de BD para evitar problemas de RLS)
 export const PRINTER_CONFIG: Record<string, { ip: string; port: number }> = {

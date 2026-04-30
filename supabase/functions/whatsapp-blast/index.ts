@@ -45,7 +45,7 @@ serve(async (req: Request) => {
   }
 
   try {
-    const { text, target } = await req.json();
+    const { text, target, client_ids } = await req.json();
 
     if (!text || !target) {
       return new Response(
@@ -57,10 +57,20 @@ serve(async (req: Request) => {
       );
     }
 
-    if (!["vip", "all", "active"].includes(target)) {
+    if (target === "specific" && (!Array.isArray(client_ids) || client_ids.length === 0)) {
+      return new Response(
+        JSON.stringify({ error: "target=specific requiere client_ids: string[]" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    if (!["vip", "all", "active", "specific"].includes(target)) {
       return new Response(
         JSON.stringify({
-          error: "target invalido. Usar: vip | all | active",
+          error: "target invalido. Usar: vip | all | active | specific",
         }),
         {
           status: 400,
@@ -93,6 +103,8 @@ serve(async (req: Request) => {
 
     if (target === "vip") {
       query = query.eq("tier", "vip");
+    } else if (target === "specific") {
+      query = query.in("id", client_ids);
     }
     // "all" y "active" traen todos los activos con telefono
 
@@ -112,6 +124,7 @@ serve(async (req: Request) => {
     let errores = 0;
     let omitidos = 0;
     const errors: Array<{ phone: string; error: string }> = [];
+    const sent_client_ids: string[] = [];
 
     for (const client of clients || []) {
       const phone = normalizeChileanPhone(client.phone || "");
@@ -155,6 +168,7 @@ serve(async (req: Request) => {
 
         if (res.ok) {
           enviados++;
+          if (client.id) sent_client_ids.push(client.id);
         } else {
           errores++;
           const errBody = await res.text();
@@ -170,7 +184,7 @@ serve(async (req: Request) => {
     }
 
     return new Response(
-      JSON.stringify({ enviados, errores, omitidos, errors }),
+      JSON.stringify({ enviados, errores, omitidos, errors, sent_client_ids }),
       {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -162,7 +162,8 @@ function CumpleanosProximos() {
       .from('clients')
       .select('name, birthday, phone, member_number, total_visits')
       .eq('active', true)
-      .not('birthday', 'is', null);
+      .not('birthday', 'is', null)
+      .range(0, 9999);
     if (!data) return;
 
     const hoy = new Date();
@@ -407,34 +408,28 @@ function ClientesEnLocal() {
     }
     setPromoActiva(true);
 
-    // 3. Enviar WhatsApp blast a clientes en mesas
-    const WA_TOKEN = 'EAAOIZBr9SYXEBReEeD4oUOgZBXlNCQIgX56DWrr7IeSX4LBRcRZCGbFNqAUDqoWeDkhVZAh0qUtTJqYMlLZCyK0kYsAlofWhyH4Jdek27bUe0x0vbWtQL3hsZBBF4xb8EsAZAYHDI0v1j4pyFKXsS6TQ8HSpi4Fzs40oDPFdvw6S3eD7TKfLzuyvZAhyRIATWuOzVTrtZAPwoNQZBwKY0feSK08Msi03utrZCTdt68nBo0b';
-    const PHONE_ID = '112291225051441';
-    const conTel = clientes.filter(c => c.phone);
-    let enviados = 0, errores = 0, omitidos = 0;
-    const recipientIds: string[] = [];
-
+    // 3. Enviar WhatsApp blast a clientes en mesas via Edge Function (token server-side)
+    const clientIds = clientes.filter(c => c.phone && c.clientId).map(c => c.clientId as string);
     const msgText = 'Promo Flash en Almibar! ' + subtitle + '. Escanea el QR de tu mesa, revisa tu cuenta en la app y agrega tus productos con descuento. Solo por ahora!';
+    let enviados = 0, errores = 0, omitidos = 0;
+    let recipientIds: string[] = [];
 
-    for (const c of conTel) {
-      let phone = (c.phone || '').replace(/[^0-9]/g, '');
-      if (phone.startsWith('9') && phone.length === 9) phone = '56' + phone;
-      if (phone.length < 10) { omitidos++; continue; }
-      if (!phone.startsWith('56')) phone = '56' + phone;
-      const nombre = (c.nombre || 'Amigo').split(' ')[0];
-      const primerNombre = nombre.charAt(0).toUpperCase() + nombre.slice(1).toLowerCase();
+    if (clientIds.length === 0) {
+      omitidos = clientes.filter(c => c.phone).length;
+    } else {
       try {
-        const res = await fetch(`https://graph.facebook.com/v22.0/${PHONE_ID}/messages`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${WA_TOKEN}` },
-          body: JSON.stringify({ messaging_product: 'whatsapp', to: phone, type: 'template',
-            template: { name: 'promo_almibar', language: { code: 'es_CL' },
-              components: [{ type: 'body', parameters: [{ type: 'text', text: primerNombre }, { type: 'text', text: msgText }] }] } }),
+        const { data: result, error: fnErr } = await supabase.functions.invoke('whatsapp-blast', {
+          body: { text: msgText, target: 'specific', client_ids: clientIds },
         });
-        if (res.ok) { enviados++; if (c.clientId) recipientIds.push(c.clientId); }
-        else errores++;
-      } catch { errores++; }
-      await new Promise(r => setTimeout(r, 200));
+        if (fnErr) throw fnErr;
+        enviados = result?.enviados || 0;
+        errores = result?.errores || 0;
+        omitidos = result?.omitidos || 0;
+        recipientIds = result?.sent_client_ids || [];
+      } catch (e: any) {
+        errores = clientIds.length;
+        console.log('Blast error:', e?.message || e);
+      }
     }
 
     // 4. Guardar recipients (solo mesas que recibieron)
@@ -465,46 +460,21 @@ function ClientesEnLocal() {
 
   const enviarBlastWA = async () => {
     if (!blastText.trim()) { Alert.alert('', 'Escribe el texto de la promo'); return; }
-    const WA_TOKEN = 'EAAOIZBr9SYXEBReEeD4oUOgZBXlNCQIgX56DWrr7IeSX4LBRcRZCGbFNqAUDqoWeDkhVZAh0qUtTJqYMlLZCyK0kYsAlofWhyH4Jdek27bUe0x0vbWtQL3hsZBBF4xb8EsAZAYHDI0v1j4pyFKXsS6TQ8HSpi4Fzs40oDPFdvw6S3eD7TKfLzuyvZAhyRIATWuOzVTrtZAPwoNQZBwKY0feSK08Msi03utrZCTdt68nBo0b';
-    const PHONE_ID = '112291225051441';
     setBlastSending(true);
     setBlastResult(null);
     try {
-      // Cargar clientes
-      let query = supabase.from('clients').select('id, name, phone, tier').eq('active', true).not('phone', 'is', null);
-      if (blastTarget === 'vip') query = query.eq('tier', 'vip');
-      const { data: clients } = await query;
-      if (!clients || clients.length === 0) { setBlastResult({ enviados: 0, errores: 0, omitidos: 0 }); setBlastSending(false); return; }
-
-      let enviados = 0, errores = 0, omitidos = 0;
-      for (const c of clients) {
-        let phone = (c.phone || '').replace(/[^0-9]/g, '');
-        if (phone.startsWith('9') && phone.length === 9) phone = '56' + phone;
-        if (phone.length < 10) { omitidos++; continue; }
-        if (!phone.startsWith('56')) phone = '56' + phone;
-
-        const nombre = (c.name || 'Amigo').split(' ')[0];
-        const primerNombre = nombre.charAt(0).toUpperCase() + nombre.slice(1).toLowerCase();
-
-        try {
-          const res = await fetch(`https://graph.facebook.com/v22.0/${PHONE_ID}/messages`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${WA_TOKEN}` },
-            body: JSON.stringify({
-              messaging_product: 'whatsapp', to: phone, type: 'template',
-              template: { name: 'promo_almibar', language: { code: 'es_CL' },
-                components: [{ type: 'body', parameters: [{ type: 'text', text: primerNombre }, { type: 'text', text: blastText }] }] },
-            }),
-          });
-          const r = await res.json();
-          if (res.ok) enviados++;
-          else { errores++; console.log('WA error:', c.name, r.error?.message); }
-        } catch { errores++; }
-        await new Promise(r => setTimeout(r, 200));
-      }
-      setBlastResult({ enviados, errores, omitidos });
+      const target = blastTarget === 'vip' ? 'vip' : 'all';
+      const { data: result, error: fnErr } = await supabase.functions.invoke('whatsapp-blast', {
+        body: { text: blastText, target },
+      });
+      if (fnErr) throw fnErr;
+      setBlastResult({
+        enviados: result?.enviados || 0,
+        errores: result?.errores || 0,
+        omitidos: result?.omitidos || 0,
+      });
     } catch (e: any) {
-      setBlastResult({ error: e.message });
+      setBlastResult({ error: e?.message || 'Error invocando whatsapp-blast' });
     }
     setBlastSending(false);
   };

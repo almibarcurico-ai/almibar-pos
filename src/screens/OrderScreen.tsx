@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Dimensions } from 'react-native';
 import { supabase } from '../lib/supabase';
-import { printOrder, printOrderForce, generateAnulacion, generateBoleta, sendToPrinter, PRINTER_CONFIG } from '../lib/printService';
+import { printOrder, printOrderForce, generateAnulacion, generateBoleta, sendToPrinter, tipBaseForItems, PRINTER_CONFIG } from '../lib/printService';
 import { useAuth } from '../contexts/AuthContext';
 import { TableWithOrder, Category, Product, OrderItem, Order } from '../types';
 import { COLORS } from '../theme';
@@ -58,6 +58,9 @@ export default function OrderScreen({ table, onBack }: Props) {
   const [editQty, setEditQty] = useState(1);
   const [preCuentaModal, setPreCuentaModal] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
+  const [isPaying, setIsPaying] = useState(false);
   const [editPersonasModal, setEditPersonasModal] = useState(false);
   const [editPersonasCount, setEditPersonasCount] = useState('2');
   const [closeModal, setCloseModal] = useState(false);
@@ -141,10 +144,10 @@ export default function OrderScreen({ table, onBack }: Props) {
         setClientTier(tier);
       } else setClientTier(null);
       // Restore discount from saved order
-      // Miércoles: descuento se aplica por producto, ignorar descuento de orden guardado
+      // Miércoles: el descuento 40% se aplica por producto (no por orden), pero NO borrar
+      // descuentos manuales legítimos. Solo se ignora visualmente si es exactamente el 40% auto-aplicado.
       if (esMiercoles && o.discount_type === 'percent' && o.discount_value === 40) {
-        // Limpiar descuento viejo de la orden
-        await supabase.from('orders').update({ discount_type: 'none', discount_value: 0 }).eq('id', o.id);
+        // No restaurar UI (cada producto trae su propio descuento), pero no destruir el dato en BD
       } else if (o.discount_type && o.discount_type !== 'none' && o.discount_value > 0) {
         setDiscountType(o.discount_type);
         setDiscountValue(String(o.discount_value));
@@ -561,7 +564,7 @@ export default function OrderScreen({ table, onBack }: Props) {
         originalSubtotal: clientOriginalSubtotal,
         discount: clientDiscount,
         discountLabel: discountType === 'percent' ? `Dcto (${discountValue}%)` : undefined,
-        tip: Math.round(clientOriginalSubtotal * 0.1),
+        tip: Math.round(tipBaseForItems(clientItems) * 0.1),
         total: clientTotal,
         payments: [],
         orderNumber: order.order_number,
@@ -587,11 +590,13 @@ export default function OrderScreen({ table, onBack }: Props) {
 
   const sendCartToKitchen = async () => {
     if (!order || !user || cart.length === 0) return;
+    if (isSending) return; // anti doble-tap
     // Bloquear agregar items a ordenes cerradas
     if (order.status === 'cerrada' || order.status === 'anulada') {
       Alert.alert('Error', 'No se pueden agregar productos a una orden cerrada');
       return;
     }
+    setIsSending(true);
     try {
       const items = cart.map(c => {
         const modAdjust = c.modifiers.reduce((s, m) => s + m.price_adjust, 0);
@@ -626,6 +631,7 @@ export default function OrderScreen({ table, onBack }: Props) {
       }
       setCart([]); playClickPOS(); await loadOrder();
     } catch (e: any) { Alert.alert('Error', e.message); }
+    finally { setIsSending(false); }
   };
   const cancelCart = () => { if (cart.length === 0) return; Alert.alert('Cancelar', '¿Descartar?', [{ text: 'No' }, { text: 'Sí', style: 'destructive', onPress: () => setCart([]) }]); };
   const sendOrder = async () => {
@@ -754,8 +760,11 @@ export default function OrderScreen({ table, onBack }: Props) {
   const selectedItems = unpaidItems.filter(i => selectedItemIds.has(i.id));
   const selectedTotal = selectedItems.reduce((a, i) => a + i.total_price, 0);
   const payableTotal = payMode === 'partial' && selectedItems.length > 0 ? selectedTotal : unpaidTotal;
-  // Propina siempre sobre subtotal ORIGINAL sin descuento
-  const tipBase = payMode === 'partial' && selectedItems.length > 0 ? selectedItems.reduce((a, i) => a + ((i.product?.price || i.unit_price) + ((i.item_modifiers || []).reduce((s: number, m: any) => s + (m.price_adjust || 0), 0))) * i.quantity, 0) : unpaidOriginalSubtotal;
+  // Propina por ítem según regla del local:
+  // - HH y PROMO: sobre precio post-descuento
+  // - Mié 40%, VIP día especial: sobre precio original (regalo, no precio nuevo)
+  // - Sin descuento: precio normal
+  const tipBase = payMode === 'partial' && selectedItems.length > 0 ? tipBaseForItems(selectedItems) : tipBaseForItems(unpaidItems);
   const tipAmount = tipCustom ? parseInt(tipCustom) || 0 : Math.round(tipBase * tipPercent / 100);
   const toggleItem = (id: string) => setSelectedItemIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const selectAll = () => setSelectedItemIds(new Set(unpaidItems.map(i => i.id)));
@@ -764,18 +773,33 @@ export default function OrderScreen({ table, onBack }: Props) {
 
   const paySelected = async () => {
     if (!order || !user || selectedItems.length === 0) return;
-    await supabase.from('payments').insert({ order_id: order.id, method: paymentMethod, amount: selectedTotal + tipAmount, tip_amount: tipAmount, created_by: user.id });
-    await supabase.from('order_items').update({ paid: true }).in('id', selectedItems.map(i => i.id));
-    if (unpaidItems.length === selectedItems.length) {
-      await supabase.from('orders').update({ status: 'cerrada', closed_at: new Date().toISOString(), payment_method: paymentMethod, tip_amount: tipAmount }).eq('id', order.id);
-      await supabase.from('tables').update({ status: 'libre', current_order_id: null }).eq('id', table.id);
-      // Update client stats if assigned
-      if (order?.client_id) await supabase.rpc('update_client_stats', { p_client_id: order.client_id });
-      setPaySelectedModal(false); Alert.alert('✅ Mesa cerrada'); onBack();
-    } else { setPaySelectedModal(false); setPreCuentaModal(false); Alert.alert('✅ Pago parcial'); resetPayState(); await loadOrder(); }
+    if (isPaying) return; // anti doble-tap
+    setIsPaying(true);
+    try {
+      await supabase.from('payments').insert({ order_id: order.id, method: paymentMethod, amount: selectedTotal + tipAmount, tip_amount: tipAmount, created_by: user.id });
+      await supabase.from('order_items').update({ paid: true }).in('id', selectedItems.map(i => i.id));
+      if (unpaidItems.length === selectedItems.length) {
+        // Si este pago cierra la orden, grabar también discount_type/value (consistente con closeTable)
+        await supabase.from('orders').update({
+          status: 'cerrada',
+          closed_at: new Date().toISOString(),
+          payment_method: paymentMethod,
+          tip_amount: tipAmount,
+          discount_type: discountType,
+          discount_value: parseInt(discountValue) || 0,
+        }).eq('id', order.id);
+        await supabase.from('tables').update({ status: 'libre', current_order_id: null }).eq('id', table.id);
+        // Update client stats if assigned
+        if (order?.client_id) await supabase.rpc('update_client_stats', { p_client_id: order.client_id });
+        setPaySelectedModal(false); Alert.alert('✅ Mesa cerrada'); onBack();
+      } else { setPaySelectedModal(false); setPreCuentaModal(false); Alert.alert('✅ Pago parcial'); resetPayState(); await loadOrder(); }
+    } finally { setIsPaying(false); }
   };
   const closeTable = async () => {
     if (!order || !user) return;
+    if (isClosing) return; // anti doble-tap
+    setIsClosing(true);
+    try {
     let finalPayEntries = [...payEntries];
     const pTotal = finalPayEntries.reduce((a, e) => a + (parseInt(e.amount) || 0), 0);
 
@@ -835,6 +859,7 @@ export default function OrderScreen({ table, onBack }: Props) {
     if (order?.client_id) await supabase.rpc('update_client_stats', { p_client_id: order.client_id });
     Alert.alert('Mesa cerrada', `Consumo: ${fmt(unpaidTotal)}${tipTotalFinal > 0 ? `\nPropina: ${fmt(tipTotalFinal)}` : ''}${vuelto > 0 ? `\n💵 Vuelto: ${fmt(vuelto)}` : ''}`);
     onBack();
+    } finally { setIsClosing(false); }
   };
 
   // Fudo-style helpers
@@ -974,7 +999,7 @@ export default function OrderScreen({ table, onBack }: Props) {
               <View style={s.cTotR}><Text style={s.cTotL}>Total a confirmar:</Text><Text style={s.cTotV}>{fmt(cartTotal)}</Text></View>
               <View style={s.cBtns}>
                 <TouchableOpacity style={s.canBtn} onPress={cancelCart}><Text style={s.canBtnT}>Cancelar</Text></TouchableOpacity>
-                <TouchableOpacity style={s.conBtn} onPress={sendCartToKitchen}><Text style={s.conBtnT}>Confirmar</Text></TouchableOpacity>
+                <TouchableOpacity style={[s.conBtn, isSending && { opacity: 0.5 }]} onPress={sendCartToKitchen} disabled={isSending}><Text style={s.conBtnT}>{isSending ? 'Enviando...' : 'Confirmar'}</Text></TouchableOpacity>
               </View>
             </View>
           )}
@@ -1004,7 +1029,7 @@ export default function OrderScreen({ table, onBack }: Props) {
       <View style={s.foot}>
         <View><Text style={{ fontSize: 13, color: COLORS.textSecondary }}>Total:</Text><Text style={{ fontSize: 24, fontWeight: '800', color: COLORS.primary }}>{fmt(order?.total || 0)}</Text></View>
         {(user?.role === 'cajero' || user?.role === 'admin') && orderItems.length > 0 && (
-          <TouchableOpacity style={s.clBtn} onPress={() => { const tip10 = Math.round(unpaidOriginalSubtotal * 0.1); setPayEntries([{ method: 'efectivo', amount: String(unpaidTotal + tip10) }]); setTipEntries([{ method: 'efectivo', amount: String(tip10) }]); setCloseModal(true); }}><Text style={s.clBtnT}>Cerrar mesa {table.number}</Text></TouchableOpacity>
+          <TouchableOpacity style={s.clBtn} onPress={() => { const tip10 = Math.round(tipBaseForItems(unpaidItems) * 0.1); setPayEntries([{ method: 'efectivo', amount: String(unpaidTotal + tip10) }]); setTipEntries([{ method: 'efectivo', amount: String(tip10) }]); setCloseModal(true); }}><Text style={s.clBtnT}>Cerrar mesa {table.number}</Text></TouchableOpacity>
         )}
         {orderItems.length === 0 && (
           <TouchableOpacity style={[s.clBtn, { backgroundColor: '#334155' }]} onPress={async () => {
@@ -1273,9 +1298,9 @@ export default function OrderScreen({ table, onBack }: Props) {
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 }}><Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.text }}>TOTAL</Text><Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.primary }}>{fmt(unpaidTotal + Math.round(unpaidOriginalSubtotal * 0.1))}</Text></View>
           <View style={{ flexDirection: 'row', gap: 8, marginTop: 20, flexWrap: 'wrap' }}>
             <TouchableOpacity style={s.bC} onPress={() => { setPreCuentaModal(false); resetPayState(); }}><Text style={s.bCT}>✕ Cerrar</Text></TouchableOpacity>
-            <TouchableOpacity disabled={isPrinting} style={[s.bOk, { backgroundColor: COLORS.warning, opacity: isPrinting ? 0.5 : 1 }]} onPress={async () => { if (isPrinting) return; setIsPrinting(true); try { if (order) await supabase.from('orders').update({ discount_type: discountType, discount_value: parseInt(discountValue) || 0, subtotal: unpaidSubtotal, total: unpaidTotal }).eq('id', order.id); await supabase.from('tables').update({ status: 'cuenta' }).eq('id', table.id); const cajaIp = PRINTER_CONFIG.caja?.ip || PRINTER_CONFIG.barra?.ip; const cajaPort = PRINTER_CONFIG.caja?.port || PRINTER_CONFIG.barra?.port || 9100; if (cajaIp) { const printItems = payMode === 'partial' && selectedItems.length > 0 ? selectedItems : unpaidItems; const printSubtotal = printItems.reduce((a: number, i: any) => a + i.total_price, 0); const printOriginalSubtotal = printItems.reduce((a: number, i: any) => { const op = i.product?.price || i.unit_price; const ma = (i.item_modifiers || []).reduce((s: number, m: any) => s + (m.price_adjust || 0), 0); return a + (op + ma) * i.quantity; }, 0); const printDiscount = discountType === 'percent' ? Math.round(printItems.filter((i: any) => !(i.notes || '').includes('[PROMO]')).reduce((a: number, i: any) => a + i.total_price, 0) * (parseInt(discountValue) || 0) / 100) : discountType === 'fixed' ? (parseInt(discountValue) || 0) : 0; const printTotal = Math.max(0, printSubtotal - printDiscount); const ticket = generateBoleta({ table: table.number, waiter: waiterName || '', items: groupItemsForPrint(printItems), subtotal: printSubtotal, originalSubtotal: printOriginalSubtotal, discount: printDiscount, discountLabel: discountType === 'percent' ? `Dcto (${discountValue}%)` : undefined, tip: Math.round(printOriginalSubtotal * 0.1), total: printTotal, payments: [], orderNumber: order?.order_number }); await sendToPrinter(cajaIp, cajaPort, ticket, 'caja'); } playClickPOS(); setIsPrinting(false); setPreCuentaModal(false); onBack(); } catch (e: any) { setIsPrinting(false); if (typeof window !== 'undefined') window.alert('Error: ' + e.message); } }}><Text style={s.bOkT}>{isPrinting ? '⏳ Imprimiendo...' : `🖨 ${payMode === 'partial' && selectedItems.length > 0 ? `Imprimir (${selectedItems.length})` : 'Imprimir'}`}</Text></TouchableOpacity>
+            <TouchableOpacity disabled={isPrinting} style={[s.bOk, { backgroundColor: COLORS.warning, opacity: isPrinting ? 0.5 : 1 }]} onPress={async () => { if (isPrinting) return; setIsPrinting(true); try { if (order) await supabase.from('orders').update({ discount_type: discountType, discount_value: parseInt(discountValue) || 0, subtotal: unpaidSubtotal, total: unpaidTotal }).eq('id', order.id); await supabase.from('tables').update({ status: 'cuenta' }).eq('id', table.id); const cajaIp = PRINTER_CONFIG.caja?.ip || PRINTER_CONFIG.barra?.ip; const cajaPort = PRINTER_CONFIG.caja?.port || PRINTER_CONFIG.barra?.port || 9100; if (cajaIp) { const printItems = payMode === 'partial' && selectedItems.length > 0 ? selectedItems : unpaidItems; const printSubtotal = printItems.reduce((a: number, i: any) => a + i.total_price, 0); const printOriginalSubtotal = printItems.reduce((a: number, i: any) => { const op = i.product?.price || i.unit_price; const ma = (i.item_modifiers || []).reduce((s: number, m: any) => s + (m.price_adjust || 0), 0); return a + (op + ma) * i.quantity; }, 0); const printDiscount = discountType === 'percent' ? Math.round(printItems.filter((i: any) => !(i.notes || '').includes('[PROMO]')).reduce((a: number, i: any) => a + i.total_price, 0) * (parseInt(discountValue) || 0) / 100) : discountType === 'fixed' ? (parseInt(discountValue) || 0) : 0; const printTotal = Math.max(0, printSubtotal - printDiscount); const ticket = generateBoleta({ table: table.number, waiter: waiterName || '', items: groupItemsForPrint(printItems), subtotal: printSubtotal, originalSubtotal: printOriginalSubtotal, discount: printDiscount, discountLabel: discountType === 'percent' ? `Dcto (${discountValue}%)` : undefined, tip: Math.round(tipBaseForItems(printItems) * 0.1), total: printTotal, payments: [], orderNumber: order?.order_number }); await sendToPrinter(cajaIp, cajaPort, ticket, 'caja'); } playClickPOS(); setIsPrinting(false); setPreCuentaModal(false); onBack(); } catch (e: any) { setIsPrinting(false); if (typeof window !== 'undefined') window.alert('Error: ' + e.message); } }}><Text style={s.bOkT}>{isPrinting ? '⏳ Imprimiendo...' : `🖨 ${payMode === 'partial' && selectedItems.length > 0 ? `Imprimir (${selectedItems.length})` : 'Imprimir'}`}</Text></TouchableOpacity>
             {guestNames.length > 1 && <TouchableOpacity disabled={isPrinting} style={[s.bOk, { backgroundColor: COLORS.info, opacity: isPrinting ? 0.5 : 1 }]} onPress={printByClient}><Text style={s.bOkT}>{isPrinting ? '⏳ Imprimiendo...' : '🖨 Por socio'}</Text></TouchableOpacity>}
-            {(user?.role === 'cajero' || user?.role === 'admin') && unpaidItems.length > 0 && <TouchableOpacity style={[s.bOk, { backgroundColor: COLORS.success }]} onPress={() => { setPreCuentaModal(false); if (payMode === 'partial' && selectedItems.length > 0) { setPaySelectedModal(true); } else { const tip10 = Math.round(unpaidOriginalSubtotal * 0.1); setPayEntries([{ method: 'efectivo', amount: String(unpaidTotal + tip10) }]); setTipEntries([{ method: 'efectivo', amount: String(tip10) }]); setCloseModal(true); } }}><Text style={s.bOkT}>💳 Pagar</Text></TouchableOpacity>}
+            {(user?.role === 'cajero' || user?.role === 'admin') && unpaidItems.length > 0 && <TouchableOpacity style={[s.bOk, { backgroundColor: COLORS.success }]} onPress={() => { setPreCuentaModal(false); if (payMode === 'partial' && selectedItems.length > 0) { setPaySelectedModal(true); } else { const tip10 = Math.round(tipBaseForItems(unpaidItems) * 0.1); setPayEntries([{ method: 'efectivo', amount: String(unpaidTotal + tip10) }]); setTipEntries([{ method: 'efectivo', amount: String(tip10) }]); setCloseModal(true); } }}><Text style={s.bOkT}>💳 Pagar</Text></TouchableOpacity>}
           </View>
         </View></ScrollView></View>
       </Modal>
@@ -1295,7 +1320,7 @@ export default function OrderScreen({ table, onBack }: Props) {
           {paymentMethod === 'efectivo' && (<><Text style={s.lb}>Monto recibido</Text><TextInput style={[s.inp, { fontSize: 22, textAlign: 'center', fontWeight: '800' }]} placeholder="$0" placeholderTextColor={COLORS.textMuted} keyboardType="number-pad" value={receivedAmount} onChangeText={setReceivedAmount} />{receivedAmount && parseInt(receivedAmount) > 0 && (() => { const d = parseInt(receivedAmount) - (selectedTotal + tipAmount); return <View style={{ marginTop: 10, backgroundColor: d >= 0 ? COLORS.success + '15' : COLORS.error + '15', borderRadius: 10, padding: 14, alignItems: 'center' }}><Text style={{ fontSize: 12, color: COLORS.textSecondary }}>Vuelto</Text><Text style={{ fontSize: 28, fontWeight: '800', color: d >= 0 ? COLORS.success : COLORS.error }}>{fmt(d)}</Text></View>; })()}</>)}
           <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
             <TouchableOpacity style={s.bC} onPress={() => { setPaySelectedModal(false); resetPayState(); setPreCuentaModal(true); }}><Text style={s.bCT}>← Volver</Text></TouchableOpacity>
-            <TouchableOpacity style={[s.bOk, { backgroundColor: COLORS.success }]} onPress={paySelected}><Text style={s.bOkT}>✅ Pagar {fmt(selectedTotal)}</Text></TouchableOpacity>
+            <TouchableOpacity style={[s.bOk, { backgroundColor: COLORS.success, opacity: isPaying ? 0.5 : 1 }]} onPress={paySelected} disabled={isPaying}><Text style={s.bOkT}>{isPaying ? 'Procesando...' : `✅ Pagar ${fmt(selectedTotal)}`}</Text></TouchableOpacity>
           </View>
         </View></ScrollView></View>
       </Modal>
@@ -1434,7 +1459,7 @@ export default function OrderScreen({ table, onBack }: Props) {
 
           <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
             <TouchableOpacity style={s.bC} onPress={() => { setCloseModal(false); resetPayState(); }}><Text style={s.bCT}>Cancelar</Text></TouchableOpacity>
-            <TouchableOpacity style={[s.bOk, { backgroundColor: COLORS.success, opacity: payTotal < unpaidTotal ? 0.5 : 1 }]} onPress={closeTable} disabled={payTotal < unpaidTotal}><Text style={s.bOkT}>Cerrar mesa {table.number}</Text></TouchableOpacity>
+            <TouchableOpacity style={[s.bOk, { backgroundColor: COLORS.success, opacity: (payTotal < unpaidTotal || isClosing) ? 0.5 : 1 }]} onPress={closeTable} disabled={payTotal < unpaidTotal || isClosing}><Text style={s.bOkT}>{isClosing ? 'Cerrando...' : `Cerrar mesa ${table.number}`}</Text></TouchableOpacity>
           </View>
         </View></ScrollView></View>
       </Modal>

@@ -84,6 +84,7 @@ export default function CajaScreen() {
 // VENTAS TAB - Fudo style
 // =====================================================
 function VentasTab() {
+  const { user } = useAuth();
   const [orders, setOrders] = useState<any[]>([]);
   const [period, setPeriod] = useState<'diario' | 'semanal' | 'mensual' | 'anual' | 'rango'>('diario');
   const [date, setDate] = useState(new Date().toLocaleDateString('en-CA'));
@@ -543,6 +544,12 @@ function VentasTab() {
               <TouchableOpacity style={s.bC} onPress={() => setDetailModal(false)}><Text style={s.bCT}>Cancelar</Text></TouchableOpacity>
               <TouchableOpacity style={s.bOk} onPress={async () => {
                 if (!detailOrder) return;
+                // Bloquear edición de órdenes con pagos split para evitar destrucción de datos
+                const { data: existing } = await supabase.from('payments').select('id').eq('order_id', detailOrder.id);
+                if ((existing?.length || 0) > 1) {
+                  Alert.alert('No editable', 'Esta orden tiene pagos múltiples (split). Edición no soportada para evitar inconsistencias. Anule y reingrese si necesita corregir.');
+                  return;
+                }
                 const total = Math.max(0, (detailOrder.subtotal || 0) - (detailOrder.discount_value || 0));
                 await supabase.from('orders').update({
                   payment_method: detailOrder.payment_method,
@@ -550,15 +557,15 @@ function VentasTab() {
                   discount_value: detailOrder.discount_value || 0,
                   total,
                 }).eq('id', detailOrder.id);
-                // Actualizar payment también
-                const { data: pays } = await supabase.from('payments').select('id').eq('order_id', detailOrder.id).limit(1);
-                if (pays && pays[0]) {
-                  await supabase.from('payments').update({
-                    method: detailOrder.payment_method,
-                    amount: total + (detailOrder.tip_amount || 0),
-                    tip_amount: detailOrder.tip_amount || 0,
-                  }).eq('id', pays[0].id);
-                }
+                // Reescribir payments (delete + reinsert) para mantener consistencia
+                await supabase.from('payments').delete().eq('order_id', detailOrder.id);
+                await supabase.from('payments').insert({
+                  order_id: detailOrder.id,
+                  method: detailOrder.payment_method,
+                  amount: total + (detailOrder.tip_amount || 0),
+                  tip_amount: detailOrder.tip_amount || 0,
+                  created_by: user?.id,
+                });
                 Alert.alert('Guardado', 'Venta actualizada');
                 setDetailModal(false);
                 load();
@@ -893,9 +900,11 @@ function ArqueosTab() {
 
   const handleClose = async () => {
     if (!cashRegister || !user) return;
-    const userTotal = (parseInt(cEfectivo)||0) + (parseInt(cDebito)||0) + (parseInt(cTransferencia)||0) + (parseInt(cCredito)||0) + (parseInt(cConsumo)||0);
+    // BLINDAJE: closing_amount NO incluye consumo. Consumo no es dinero real (regla #2 CLAUDE.md).
+    const userTotal = (parseInt(cEfectivo)||0) + (parseInt(cDebito)||0) + (parseInt(cTransferencia)||0) + (parseInt(cCredito)||0);
     const totalGeneral = (cashRegister?.opening_amount || 0) + totals.ventasNetasSinConsumo + totals.propinasSinConsumo + totals.ingresos - totals.gastos;
-    await supabase.from('cash_registers').update({
+    // Guard contra cierre concurrente: solo cerrar si sigue abierto
+    const { data: updated, error: updErr } = await supabase.from('cash_registers').update({
       closed_at: new Date().toISOString(), closed_by: user.id,
       closing_amount: userTotal,
       // BLINDAJE: total_cash/debit/etc incluyen propinas (payment.amount = venta + propina)
@@ -911,7 +920,14 @@ function ArqueosTab() {
       total_tips: totals.propinasSinConsumo,
       total_orders: todayOrders.length, total_expenses: totals.gastos, total_cash_in: totals.ingresos,
       notes: cNotas || null,
-    }).eq('id', cashRegister.id);
+    }).eq('id', cashRegister.id).is('closed_at', null).select();
+    if (updErr) { Alert.alert('Error', updErr.message); return; }
+    if (!updated || updated.length === 0) {
+      Alert.alert('Error', 'El arqueo ya fue cerrado por otro usuario. Recargando...');
+      await loadData();
+      setCloseModal(false);
+      return;
+    }
     setCashRegister(null); setCloseModal(false);
     setCEfectivo(''); setCDebito(''); setCCredito(''); setCTransferencia(''); setCConsumo(''); setCNotas('');
     Alert.alert('✅ Arqueo cerrado'); await loadData();
@@ -951,6 +967,12 @@ function ArqueosTab() {
 
   const saveEditOrder = async () => {
     if (!editOrder) return;
+    // Bloquear edición de órdenes con pagos split (evita destruir métodos extra)
+    const { data: existing } = await supabase.from('payments').select('id').eq('order_id', editOrder.id);
+    if ((existing?.length || 0) > 1) {
+      Alert.alert('No editable', 'Esta orden tiene pagos múltiples (split). Edición no soportada para evitar inconsistencias. Anule y reingrese si necesita corregir.');
+      return;
+    }
     const total = Math.max(0, (editOrder.subtotal || 0) - (editOrder.discount_value || 0));
     await supabase.from('orders').update({
       payment_method: editOrder.payment_method,
@@ -958,15 +980,15 @@ function ArqueosTab() {
       discount_value: editOrder.discount_value || 0,
       total,
     }).eq('id', editOrder.id);
-    // Actualizar payment si existe
-    const { data: pays } = await supabase.from('payments').select('id').eq('order_id', editOrder.id).limit(1);
-    if (pays && pays[0]) {
-      await supabase.from('payments').update({
-        method: editOrder.payment_method,
-        amount: total + (editOrder.tip_amount || 0),
-        tip_amount: editOrder.tip_amount || 0,
-      }).eq('id', pays[0].id);
-    }
+    // Reescribir payments (delete + reinsert) para mantener consistencia
+    await supabase.from('payments').delete().eq('order_id', editOrder.id);
+    await supabase.from('payments').insert({
+      order_id: editOrder.id,
+      method: editOrder.payment_method,
+      amount: total + (editOrder.tip_amount || 0),
+      tip_amount: editOrder.tip_amount || 0,
+      created_by: user?.id,
+    });
     Alert.alert('Guardado', 'Venta actualizada');
     setEditOrderModal(false); setEditOrder(null);
     // Recargar detalle del arqueo
@@ -1034,10 +1056,48 @@ function ArqueosTab() {
       const uCr = parseInt(editUserCredito) || 0;
       const uTr = parseInt(editUserTransfer) || 0;
       update.closed_at = closeDT.toISOString();
+      // BLINDAJE: closing_amount NO incluye consumo (regla #2)
       update.closing_amount = uEf + uDe + uCr + uTr;
       const userJson = JSON.stringify({ user_cash: uEf, user_debit: uDe, user_credit: uCr, user_transfer: uTr });
       const cleanNotes = editNotas.replace(/\{[^}]+\}\s*\|?\s*/g, '').trim();
       update.notes = userJson + (cleanNotes ? ' | ' + cleanNotes : '');
+
+      // Recalcular total_* desde payments reales del rango (corrige descuadres
+      // históricos por bug delivery del 10/04 y mantiene consistencia si se
+      // editan opened_at/closed_at)
+      const sinceISO = openDT.toISOString();
+      const untilISO = closeDT.toISOString();
+      const [{ data: pays }, { data: dpays }, { data: ords }, { data: movs }] = await Promise.all([
+        supabase.from('payments').select('method, amount, tip_amount, created_at, order:order_id(closed_at)')
+          .gte('created_at', sinceISO).lte('created_at', untilISO),
+        supabase.from('delivery_payments').select('method, amount, tip_amount, created_at')
+          .gte('created_at', sinceISO).lte('created_at', untilISO),
+        supabase.from('orders').select('id').eq('status', 'cerrada')
+          .gte('closed_at', sinceISO).lte('closed_at', untilISO),
+        supabase.from('cash_movements').select('type, amount').eq('cash_register_id', editArqueo.id),
+      ]);
+      const all = [
+        ...(pays || []).map((p: any) => ({ method: p.method || 'efectivo', amount: p.amount || 0, tip_amount: p.tip_amount || 0 })),
+        ...(dpays || []).map((p: any) => ({ method: p.method || 'efectivo', amount: p.amount || 0, tip_amount: p.tip_amount || 0 })),
+      ];
+      const sumByMethod = (m: string) => all.filter((p: any) => p.method === m).reduce((a: number, p: any) => a + (p.amount || 0), 0);
+      const totalCash = sumByMethod('efectivo');
+      const totalDebit = sumByMethod('tarjeta') + sumByMethod('debito') + sumByMethod('credito');
+      const totalCredit = sumByMethod('pedidosya'); // legacy: total_credit ahora es PedidosYa
+      const totalTransfer = sumByMethod('transferencia');
+      const totalTips = all.reduce((a: number, p: any) => a + (p.tip_amount || 0), 0);
+      const totalSales = all.reduce((a: number, p: any) => a + (p.amount || 0), 0) - totalTips;
+      const totalCashIn = (movs || []).filter((m: any) => m.type === 'ingreso').reduce((a: number, m: any) => a + (m.amount || 0), 0);
+      const totalExpenses = (movs || []).filter((m: any) => m.type === 'gasto').reduce((a: number, m: any) => a + (m.amount || 0), 0);
+      update.total_cash = totalCash;
+      update.total_debit = totalDebit;
+      update.total_credit = totalCredit;
+      update.total_transfer = totalTransfer;
+      update.total_tips = totalTips;
+      update.total_sales = totalSales;
+      update.total_orders = (ords || []).length;
+      update.total_cash_in = totalCashIn;
+      update.total_expenses = totalExpenses;
     }
     const { error } = await supabase.from('cash_registers').update(update).eq('id', editArqueo.id);
     if (error) { Alert.alert('Error', error.message); return; }
@@ -1297,7 +1357,10 @@ function ArqueosTab() {
               <TextInput style={[s.inp, { fontSize: 18, fontWeight: '700', marginBottom: 8 }]} placeholder="$0" placeholderTextColor={COLORS.textMuted} keyboardType="number-pad" value={cConsumo} onChangeText={setCConsumo} />
 
               <View style={{ borderTopWidth: 2, borderTopColor: COLORS.primary, marginTop: 4, paddingTop: 8 }}>
-                <ARQ label="Total usuario" val={fmt((parseInt(cEfectivo)||0) + (parseInt(cDebito)||0) + (parseInt(cTransferencia)||0) + (parseInt(cCredito)||0) + (parseInt(cConsumo)||0))} bold />
+                <ARQ label="Total usuario (sin consumo)" val={fmt((parseInt(cEfectivo)||0) + (parseInt(cDebito)||0) + (parseInt(cTransferencia)||0) + (parseInt(cCredito)||0))} bold />
+                {parseInt(cConsumo) > 0 && (
+                  <Text style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 4 }}>Consumo {fmt(parseInt(cConsumo)||0)} no se suma (no es dinero real)</Text>
+                )}
               </View>
             </View>
 
