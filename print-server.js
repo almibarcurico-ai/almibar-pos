@@ -3,6 +3,7 @@ const https = require('https');
 const fs = require('fs');
 const net = require('net');
 const path = require('path');
+const crypto = require('crypto');
 const { createClient } = require('@supabase/supabase-js');
 
 // Supabase
@@ -178,8 +179,29 @@ function sendTCP(name, ip, port, data, retries = 0) {
   });
 }
 
+// Dedup window: si el MISMO ticket (impresora + bytes) llega en <DEDUP_MS, descartar.
+// Resuelve duplicación de boletas pre-cuenta cuando POS hace sendToPrinter directo
+// Y al mismo tiempo el realtime listener dispara por UPDATE tables.status='cuenta'.
+const DEDUP_MS = 4000;
+const recentPrintHashes = new Map(); // sha256 -> timestamp
+
 function queuePrint(name, ip, port, data) {
-  printQueue.push({ name, ip, port, data, added: Date.now() });
+  const hash = crypto.createHash('sha256').update(name + '|' + ip + ':' + port + '|' + data).digest('hex');
+  const now = Date.now();
+  const lastSeen = recentPrintHashes.get(hash);
+  if (lastSeen && (now - lastSeen) < DEDUP_MS) {
+    console.log('  ⏭️  ' + name + ': dedup (mismo ticket hace ' + (now - lastSeen) + 'ms, descartado)');
+    return;
+  }
+  recentPrintHashes.set(hash, now);
+  // GC liviano: si el mapa crece, limpiar entradas viejas
+  if (recentPrintHashes.size > 100) {
+    const cutoff = now - DEDUP_MS * 2;
+    for (const [h, t] of recentPrintHashes) {
+      if (t < cutoff) recentPrintHashes.delete(h);
+    }
+  }
+  printQueue.push({ name, ip, port, data, added: now });
   processQueue();
 }
 

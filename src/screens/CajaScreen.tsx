@@ -557,15 +557,16 @@ function VentasTab() {
                   discount_value: detailOrder.discount_value || 0,
                   total,
                 }).eq('id', detailOrder.id);
-                // Reescribir payments (delete + reinsert) para mantener consistencia
-                await supabase.from('payments').delete().eq('order_id', detailOrder.id);
-                await supabase.from('payments').insert({
-                  order_id: detailOrder.id,
-                  method: detailOrder.payment_method,
-                  amount: total + (detailOrder.tip_amount || 0),
-                  tip_amount: detailOrder.tip_amount || 0,
-                  created_by: user?.id,
+                // Reemplazo atómico: DELETE + INSERT en una sola transacción SQL.
+                // Si la orden tiene split (>1 pago), la RPC falla con error claro.
+                const { error: rpcErr } = await supabase.rpc('replace_order_payment', {
+                  p_order_id: detailOrder.id,
+                  p_method: detailOrder.payment_method,
+                  p_amount: total + (detailOrder.tip_amount || 0),
+                  p_tip: detailOrder.tip_amount || 0,
+                  p_user_id: user?.id,
                 });
+                if (rpcErr) { Alert.alert('Error', rpcErr.message); return; }
                 Alert.alert('Guardado', 'Venta actualizada');
                 setDetailModal(false);
                 load();
@@ -980,15 +981,16 @@ function ArqueosTab() {
       discount_value: editOrder.discount_value || 0,
       total,
     }).eq('id', editOrder.id);
-    // Reescribir payments (delete + reinsert) para mantener consistencia
-    await supabase.from('payments').delete().eq('order_id', editOrder.id);
-    await supabase.from('payments').insert({
-      order_id: editOrder.id,
-      method: editOrder.payment_method,
-      amount: total + (editOrder.tip_amount || 0),
-      tip_amount: editOrder.tip_amount || 0,
-      created_by: user?.id,
+    // Reemplazo atómico: DELETE + INSERT en una sola transacción SQL.
+    // Si la orden tiene split (>1 pago), la RPC falla con error claro.
+    const { error: rpcErr } = await supabase.rpc('replace_order_payment', {
+      p_order_id: editOrder.id,
+      p_method: editOrder.payment_method,
+      p_amount: total + (editOrder.tip_amount || 0),
+      p_tip: editOrder.tip_amount || 0,
+      p_user_id: user?.id,
     });
+    if (rpcErr) { Alert.alert('Error', rpcErr.message); return; }
     Alert.alert('Guardado', 'Venta actualizada');
     setEditOrderModal(false); setEditOrder(null);
     // Recargar detalle del arqueo

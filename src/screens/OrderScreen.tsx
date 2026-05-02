@@ -313,6 +313,21 @@ export default function OrderScreen({ table, onBack }: Props) {
       }
     }
 
+    // Promo VIP fin de semana puntual (turno sáb 1-may + turno dom 2-may 2026).
+    // "shiftDay" considera 00:00–01:59 como del turno del día anterior (cierre 02:00).
+    // Sábado: 20% pizzas. Domingo: 20% papas. Aparte y compatible con VIP_DAILY del día.
+    // REVERTIR el lunes 3-may 2026.
+    if (isVip) {
+      const shiftHour = parseInt(hora.slice(0, 2), 10);
+      const shiftDay = shiftHour < 2 ? (dow + 6) % 7 : dow;
+      if (shiftDay === 6 && product.category_id === 'd0000000-0000-0000-0000-000000000004') {
+        return { price: Math.round(product.price * 0.80), note: '[Sáb VIP -20% pizzas]' };
+      }
+      if (shiftDay === 0 && product.category_id === 'd0000000-0000-0000-0000-000000000005') {
+        return { price: Math.round(product.price * 0.80), note: '[Dom VIP -20% papas]' };
+      }
+    }
+
     // Producto VIP del día (toda la noche, no solo HH)
     if (isVip && VIP_DAILY[dow]) {
       const daily = VIP_DAILY[dow];
