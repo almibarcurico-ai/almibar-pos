@@ -19,7 +19,7 @@ export const COLORS = {
   // Status - Mesas (Fudo mint green)
   tableLibre: '#7ECDB5',
   tableOcupada: '#E8562A',
-  tableCuenta: '#F5A623',
+  tableCuenta: '#A5D8E6',
   tableReservada: '#6366F1',
 
   // UI
