@@ -38,7 +38,7 @@ export default function TableCard({ table, onPress, onLongPress, hasAppOrder }: 
     >
       <Animated.View style={[
         styles.box,
-        { backgroundColor: hasAppOrder ? '#FF6B0040' : table.status === 'libre' ? '#7ECDB5' : table.status === 'cuenta' ? '#F5A623' : sc, borderColor: hasAppOrder ? '#FF6B00' : 'transparent', opacity: hasAppOrder ? blink : 1 },
+        { backgroundColor: hasAppOrder ? '#FF6B0040' : sc, borderColor: hasAppOrder ? '#FF6B00' : 'transparent', opacity: hasAppOrder ? blink : 1 },
         hasAppOrder && { borderWidth: 3 },
       ]}>
         {hasAppOrder && <Text style={{ position: 'absolute', top: 4, right: 6, fontSize: 12 }}>📱</Text>}
